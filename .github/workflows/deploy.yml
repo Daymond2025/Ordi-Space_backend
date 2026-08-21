@@ -131,8 +131,10 @@ jobs:
             public/storage/**
 
       - name: Trigger post-deploy hook
+        # La racine web du domaine pointe sur la racine du dépôt (pas sur
+        # public/) — deploy-hook.php n'est donc atteignable qu'via /public/.
         run: |
-          RESPONSE=$(curl -s "https://ordisapce.daymondboutique.com/deploy-hook.php?token=${{ secrets.DEPLOY_TOKEN }}")
+          RESPONSE=$(curl -s "https://ordisapce.daymondboutique.com/public/deploy-hook.php?token=${{ secrets.DEPLOY_TOKEN }}")
           echo "$RESPONSE"
           echo "$RESPONSE" | jq '.' 2>/dev/null || true
           echo "$RESPONSE" | jq -e '.success == true' >/dev/null || (echo "::error::Le deploy-hook a échoué" && exit 1)
