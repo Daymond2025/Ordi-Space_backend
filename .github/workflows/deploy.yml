@@ -1,0 +1,138 @@
+name: CI/CD Backend – ordisapce.daymondboutique.com
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch: # permet de relancer un déploiement manuellement depuis GitHub
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # CI — tourne sur chaque push ET chaque pull request, jamais sauté.
+  # Le déploiement ne se lance que si ce job réussit (cf. `needs: tests`).
+  # ─────────────────────────────────────────────────────────────────────────
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: true
+          MYSQL_DATABASE: ordispace_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, bcmath, pdo, pdo_mysql, tokenizer, xml, ctype, json
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Run migrations
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: ordispace_test
+          DB_USERNAME: root
+          DB_PASSWORD:
+        run: php artisan migrate --force
+
+      - name: Run test suite
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: ordispace_test
+          DB_USERNAME: root
+          DB_PASSWORD:
+        run: php artisan test
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CD — uniquement sur push master, et seulement si les tests sont verts.
+  # Hébergement mutualisé Infomaniak sans accès SSH complet : les fichiers
+  # partent par FTPS, puis deploy-hook.php (dans public/) exécute côté
+  # serveur ce qu'un `git pull && composer install && artisan migrate`
+  # ferait normalement.
+  # ─────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy via FTP + Hook
+    runs-on: ubuntu-latest
+    needs: tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, bcmath, pdo, pdo_mysql, tokenizer, xml, ctype, json
+
+      - name: Install Composer dependencies
+        # --no-scripts : évite de lancer "php artisan package:discover" en CI
+        # (pas de .env, pas de BDD disponible). deploy-hook.php se charge des
+        # commandes artisan post-déploiement, côté serveur.
+        run: composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
+
+      - name: Deploy files via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          security: loose
+          timeout: 60000
+          local-dir: ./
+          server-dir: /sites/ordisapce.daymondboutique.com/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/tests/**
+            **/.github/**
+            **/vendor/**
+            .env
+            .env.*
+            storage/logs/**
+            storage/framework/cache/**
+            storage/framework/sessions/**
+            storage/framework/views/**
+            storage/app/public/**
+            public/storage/**
+
+      - name: Trigger post-deploy hook
+        run: |
+          RESPONSE=$(curl -s "https://ordisapce.daymondboutique.com/deploy-hook.php?token=${{ secrets.DEPLOY_TOKEN }}")
+          echo "$RESPONSE"
+          echo "$RESPONSE" | jq '.' 2>/dev/null || true
+          echo "$RESPONSE" | jq -e '.success == true' >/dev/null || (echo "::error::Le deploy-hook a échoué" && exit 1)
