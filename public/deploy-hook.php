@@ -97,20 +97,20 @@ try {
 
 // config:clear d'abord : garantit que migrate/seed lisent le .env réel du
 // serveur, jamais un cache de config figé par un déploiement précédent.
-executerEtape($etapes, 'config:clear', 'config:clear');
+executerEtape($etapes, $kernel, 'config:clear', 'config:clear');
 
-executerEtape($etapes, 'migrate', 'migrate', ['--force' => true]);
+executerEtape($etapes, $kernel, 'migrate', 'migrate', ['--force' => true]);
 
 // Idempotent (firstOrCreate / findOrCreate partout) : provisionne
 // l'administrateur racine depuis ADMIN_INITIAL_EMAIL/PASSWORD, les rôles
 // et permissions, les canaux de vente et l'agent IA système — sans jamais
 // dupliquer ni écraser des données déjà en base.
-executerEtape($etapes, 'db:seed', 'db:seed', ['--force' => true]);
+executerEtape($etapes, $kernel, 'db:seed', 'db:seed', ['--force' => true]);
 
-executerEtape($etapes, 'config:cache', 'config:cache');
-executerEtape($etapes, 'route:cache', 'route:cache');
-executerEtape($etapes, 'view:cache', 'view:cache');
-executerEtape($etapes, 'storage:link', 'storage:link');
+executerEtape($etapes, $kernel, 'config:cache', 'config:cache');
+executerEtape($etapes, $kernel, 'route:cache', 'route:cache');
+executerEtape($etapes, $kernel, 'view:cache', 'view:cache');
+executerEtape($etapes, $kernel, 'storage:link', 'storage:link');
 
 $succes = array_reduce($etapes, fn ($ok, $e) => $ok && $e['code'] === 0, true);
 
