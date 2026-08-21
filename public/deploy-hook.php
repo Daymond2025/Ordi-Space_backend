@@ -5,16 +5,20 @@
  *
  * Appelé en HTTP par le workflow GitHub Actions (.github/workflows/deploy.yml)
  * juste après l'upload FTP des fichiers, pour effectuer ce qu'un accès SSH
- * ferait normalement : composer install, migrations, mise en cache. C'est le
- * seul contournement possible sur un hébergement mutualisé sans shell.
+ * ferait normalement : migrations, seeding, mise en cache. C'est le seul
+ * contournement possible sur un hébergement mutualisé sans shell.
+ *
+ * exec()/shell_exec() sont désactivés sur cet hébergement (hébergement
+ * mutualisé Infomaniak) : les commandes artisan sont donc appelées
+ * directement en PHP via le Console Kernel de Laravel, dans le même
+ * processus — jamais par un appel shell. Conséquence : vendor/ doit être
+ * livré par FTP (composer install tourne en CI, pas ici, cf. workflow).
  *
  * Sécurité :
  *  - Le jeton doit correspondre à DEPLOY_TOKEN, défini uniquement dans le
  *    .env du serveur (jamais commité, jamais régénéré par le déploiement).
  *  - Toute tentative avec un jeton invalide est journalisée puis rejetée
  *    avant même de charger l'application.
- *  - vendor/ n'étant pas envoyé par FTP (cf. workflow), le composer install
- *    d'ici est ce qui installe réellement les dépendances sur le serveur.
  */
 
 header('Content-Type: application/json');
@@ -49,44 +53,64 @@ set_time_limit(300);
 $etapes = [];
 
 /**
- * Exécute une commande shell et capture sa sortie sans jamais interrompre
- * les étapes suivantes — on veut un rapport complet même en cas d'échec
- * partiel (ex. artisan indisponible mais composer install réussi).
+ * Exécute une commande artisan directement dans ce processus PHP (Console
+ * Kernel de Laravel), sans jamais capturer/interrompre les étapes
+ * suivantes — on veut un rapport complet même en cas d'échec partiel.
  */
-function executerEtape(array &$etapes, string $label, string $commande): bool
+function executerEtape(array &$etapes, $kernel, string $label, string $commande, array $parametres = []): bool
 {
-    exec($commande.' 2>&1', $sortie, $code);
+    try {
+        $code = $kernel->call($commande, $parametres);
+        $sortie = $kernel->output();
+    } catch (\Throwable $e) {
+        $code = 1;
+        $sortie = get_class($e).': '.$e->getMessage();
+    }
 
-    $etapes[] = [
-        'etape' => $label,
-        'code' => $code,
-        'sortie' => implode("\n", $sortie),
-    ];
+    $etapes[] = ['etape' => $label, 'code' => $code, 'sortie' => $sortie];
 
     return $code === 0;
 }
 
-$php = PHP_BINARY;
-$artisan = escapeshellarg($racine.'/artisan');
-$cd = 'cd '.escapeshellarg($racine).' && ';
-
-// 1. Dépendances — vendor/ n'arrive jamais par FTP, c'est ici qu'il se
-//    construit réellement sur le serveur.
-$composerOk = executerEtape($etapes, 'composer install', $cd.'composer install --no-dev --optimize-autoloader --no-interaction');
-
-// 2. Reste des étapes seulement si composer a réussi : artisan a besoin de vendor/.
-if ($composerOk) {
-    executerEtape($etapes, 'migrate', "{$cd}{$php} {$artisan} migrate --force");
-    // Idempotent (firstOrCreate / findOrCreate partout) : provisionne
-    // l'administrateur racine depuis ADMIN_INITIAL_EMAIL/PASSWORD, les rôles
-    // et permissions, les canaux de vente et l'agent IA système — sans
-    // jamais dupliquer ni écraser des données déjà en base.
-    executerEtape($etapes, 'db:seed', "{$cd}{$php} {$artisan} db:seed --force");
-    executerEtape($etapes, 'config:cache', "{$cd}{$php} {$artisan} config:cache");
-    executerEtape($etapes, 'route:cache', "{$cd}{$php} {$artisan} route:cache");
-    executerEtape($etapes, 'view:cache', "{$cd}{$php} {$artisan} view:cache");
-    executerEtape($etapes, 'storage:link', "{$cd}{$php} {$artisan} storage:link");
+if (! is_file($racine.'/vendor/autoload.php')) {
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => "vendor/autoload.php introuvable — vérifier que vendor/ est bien transféré par FTP (voir workflow).",
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    exit;
 }
+
+require $racine.'/vendor/autoload.php';
+
+try {
+    $app = require $racine.'/bootstrap/app.php';
+    $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+} catch (\Throwable $e) {
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Échec du bootstrap Laravel : '.get_class($e).' — '.$e->getMessage(),
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// config:clear d'abord : garantit que migrate/seed lisent le .env réel du
+// serveur, jamais un cache de config figé par un déploiement précédent.
+executerEtape($etapes, 'config:clear', 'config:clear');
+
+executerEtape($etapes, 'migrate', 'migrate', ['--force' => true]);
+
+// Idempotent (firstOrCreate / findOrCreate partout) : provisionne
+// l'administrateur racine depuis ADMIN_INITIAL_EMAIL/PASSWORD, les rôles
+// et permissions, les canaux de vente et l'agent IA système — sans jamais
+// dupliquer ni écraser des données déjà en base.
+executerEtape($etapes, 'db:seed', 'db:seed', ['--force' => true]);
+
+executerEtape($etapes, 'config:cache', 'config:cache');
+executerEtape($etapes, 'route:cache', 'route:cache');
+executerEtape($etapes, 'view:cache', 'view:cache');
+executerEtape($etapes, 'storage:link', 'storage:link');
 
 $succes = array_reduce($etapes, fn ($ok, $e) => $ok && $e['code'] === 0, true);
 

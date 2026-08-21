@@ -73,10 +73,12 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────
   # CD — uniquement sur push master, et seulement si les tests sont verts.
-  # Hébergement mutualisé Infomaniak sans accès SSH complet : les fichiers
-  # partent par FTPS, puis deploy-hook.php (dans public/) exécute côté
-  # serveur ce qu'un `git pull && composer install && artisan migrate`
-  # ferait normalement.
+  # Hébergement mutualisé Infomaniak sans accès SSH ni exec()/shell_exec() :
+  # composer install tourne ici en CI (vendor/ est envoyé tel quel par FTP),
+  # puis deploy-hook.php (dans public/, accessible via /public/deploy-hook.php
+  # car la racine web pointe sur la racine du dépôt) exécute migrate/seed/
+  # caches directement en PHP via le Console Kernel de Laravel — jamais par
+  # un appel shell, puisque exec() est indisponible sur ce serveur.
   # ─────────────────────────────────────────────────────────────────────────
   deploy:
     name: Deploy via FTP + Hook
@@ -98,8 +100,10 @@ jobs:
 
       - name: Install Composer dependencies
         # --no-scripts : évite de lancer "php artisan package:discover" en CI
-        # (pas de .env, pas de BDD disponible). deploy-hook.php se charge des
-        # commandes artisan post-déploiement, côté serveur.
+        # (pas de .env, pas de BDD disponible). exec()/shell_exec() étant
+        # désactivés sur l'hébergement mutualisé, composer ne peut pas tourner
+        # côté serveur — vendor/ construit ici est donc envoyé tel quel par
+        # FTP (cf. exclude ci-dessous, vendor/ n'y est plus listé).
         run: composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
 
       - name: Deploy files via FTP
@@ -111,7 +115,7 @@ jobs:
           protocol: ftps
           port: 21
           security: loose
-          timeout: 60000
+          timeout: 120000
           local-dir: ./
           server-dir: /sites/ordisapce.daymondboutique.com/
           exclude: |
@@ -120,7 +124,6 @@ jobs:
             **/node_modules/**
             **/tests/**
             **/.github/**
-            **/vendor/**
             .env
             .env.*
             storage/logs/**
