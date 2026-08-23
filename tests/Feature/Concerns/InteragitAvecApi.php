@@ -34,6 +34,25 @@ trait InteragitAvecApi
         return $user;
     }
 
+    /**
+     * Commercial système utilisé par CommandeController::resoudreCommercial()
+     * pour toute commande passée par un client lui-même (pas de commercial
+     * humain impliqué) — requis pour que POST /commandes fonctionne en test.
+     */
+    protected function creerAgentIa(): User
+    {
+        $user = User::where('email', AGENT_IA_EMAIL)->first();
+        if ($user) {
+            return $user;
+        }
+
+        $user = User::factory()->create(['type_utilisateur' => ROLE_COMMERCIAL, 'email' => AGENT_IA_EMAIL]);
+        Commercial::create(['user_id' => $user->id, 'type_commercial' => TYPE_COMMERCIAL_IA, 'nom_modele_ia' => AGENT_IA_NOM_MODELE]);
+        $user->assignRole(ROLE_COMMERCIAL);
+
+        return $user;
+    }
+
     protected function creerProduitPhysique(array $attributs = []): Produit
     {
         $fournisseur = User::factory()->create(['type_utilisateur' => 'fournisseur']);

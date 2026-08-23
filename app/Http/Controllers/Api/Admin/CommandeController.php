@@ -33,6 +33,8 @@ class CommandeController extends Controller
             'livraison.livreur.user',
             'livraison.adresse',
             'paiement',
+            'privilege',
+            'parrain.user',
         ]);
 
         return $this->success($commande);

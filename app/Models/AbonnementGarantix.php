@@ -40,8 +40,20 @@ class AbonnementGarantix extends Model
         return $this->belongsTo(FormuleGarantix::class, 'formule_garantix_id');
     }
 
+    /**
+     * Un abonnement n'est réellement actif (bénéfices utilisables) que si
+     * l'Admin a confirmé avoir reçu le paiement — le client peut déclarer
+     * "espèces"/"mobile money" sans avoir réellement payé, cf. estEnAttente().
+     */
     public function estActif(): bool
     {
-        return $this->statut === STATUT_ABONNEMENT_GARANTIX_ACTIF && now()->lte($this->date_fin);
+        return $this->statut === STATUT_ABONNEMENT_GARANTIX_ACTIF
+            && $this->statut_paiement === STATUT_PAIEMENT_CONFIRME
+            && now()->lte($this->date_fin);
+    }
+
+    public function estEnAttente(): bool
+    {
+        return $this->statut_paiement === STATUT_PAIEMENT_EN_ATTENTE;
     }
 }

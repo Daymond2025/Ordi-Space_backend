@@ -84,10 +84,11 @@ class Commande extends Model
 
     /**
      * "Carte invitation" : le parrain est crédité sur son portefeuille dès
-     * que la commande de son filleul — portant sur un véritable ordinateur
-     * (fournisseur → coordinateur, pas un accessoire/logiciel publié par
-     * l'Admin) — est livrée. Une seule fois par commande. Partagé entre le
-     * flux normal (LivraisonController::livrer) et l'override admin.
+     * que la commande de son filleul — portant sur un produit à livraison
+     * physique (un ordinateur, publié par un fournisseur ou directement par
+     * l'Admin), jamais une licence numérique — est livrée. Une seule fois
+     * par commande. Partagé entre le flux normal (LivraisonController::livrer)
+     * et l'override admin.
      */
     public function crediterParrainageSiEligible(): void
     {
@@ -96,7 +97,7 @@ class Commande extends Model
         }
 
         $concerneUnOrdinateur = $this->lignes()
-            ->whereHas('produit', fn ($q) => $q->whereNotNull('fournisseur_id'))
+            ->whereHas('produit', fn ($q) => $q->where('type_livraison', TYPE_LIVRAISON_PHYSIQUE))
             ->exists();
 
         $privilegeParrainage = Privilege::where('type_privilege', TYPE_PRIVILEGE_PARRAINAGE)

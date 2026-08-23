@@ -166,6 +166,7 @@ class MoiController extends Controller
         return $this->success([
             'ligne' => $ligne,
             'abonnement_garantix_actif' => $ligne->abonnementsGarantix->first(fn ($a) => $a->estActif()),
+            'abonnement_garantix_en_attente' => $ligne->abonnementsGarantix->first(fn ($a) => $a->estEnAttente()),
             'accessoires_compatibles' => $accessoiresCompatibles,
         ]);
     }

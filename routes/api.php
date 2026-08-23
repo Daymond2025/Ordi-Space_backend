@@ -132,6 +132,8 @@ Route::prefix('v1')->group(function () {
                 Route::delete('prestations/{prestation}', [FormuleController::class, 'supprimerPrestation']);
                 Route::post('exclusions', [ExclusionController::class, 'store']);
                 Route::delete('exclusions/{exclusion}', [ExclusionController::class, 'destroy']);
+                Route::patch('abonnements/{abonnement}/confirmer-paiement', [AbonnementController::class, 'confirmerPaiement']);
+                Route::patch('abonnements/{abonnement}/rejeter-paiement', [AbonnementController::class, 'rejeterPaiement']);
             });
         });
 

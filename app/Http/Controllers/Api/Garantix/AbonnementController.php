@@ -21,15 +21,24 @@ class AbonnementController extends Controller
 
         if ($user->type_utilisateur === ROLE_CLIENT) {
             $query->where('client_id', $user->id);
+        } else {
+            $query->with('client.user');
+        }
+
+        if ($request->filled('statut_paiement')) {
+            $query->where('statut_paiement', $request->query('statut_paiement'));
         }
 
         return $this->success($query->latest('date_debut')->paginate(paginate_per_page($request)));
     }
 
     /**
-     * Active un plan GarantiX sur un ordinateur précis déjà acheté — achat
-     * simple et immédiat (paiement autodéclaré, comme le reste du circuit
-     * de paiement actuel), valable un an, renouvelé manuellement à échéance.
+     * Demande d'activation d'un plan GarantiX sur un ordinateur précis déjà
+     * acheté. Aucun paiement en ligne n'existe dans l'app : le client ne fait
+     * que déclarer son intention de payer en espèces/Mobile Money auprès de
+     * l'équipe. L'abonnement est créé en attente — il ne procure aucun
+     * bénéfice (cf. AbonnementGarantix::estActif()) tant qu'un Admin n'a pas
+     * confirmé la réception du paiement via confirmerPaiement().
      */
     public function store(Request $request): JsonResponse
     {
@@ -60,14 +69,15 @@ class AbonnementController extends Controller
             ]);
         }
 
-        $dejaActif = AbonnementGarantix::where('ligne_commande_id', $ligne->id)
-            ->where('statut', STATUT_ABONNEMENT_GARANTIX_ACTIF)
+        $dejaActifOuEnAttente = AbonnementGarantix::where('ligne_commande_id', $ligne->id)
             ->where('date_fin', '>=', now())
+            ->whereIn('statut_paiement', [STATUT_PAIEMENT_EN_ATTENTE, STATUT_PAIEMENT_CONFIRME])
+            ->where('statut', STATUT_ABONNEMENT_GARANTIX_ACTIF)
             ->exists();
 
-        if ($dejaActif) {
+        if ($dejaActifOuEnAttente) {
             throw ValidationException::withMessages([
-                'ligne_commande_id' => ['Un abonnement GarantiX est déjà actif sur cet ordinateur.'],
+                'ligne_commande_id' => ['Un abonnement GarantiX est déjà actif ou en attente de confirmation sur cet ordinateur.'],
             ]);
         }
 
@@ -80,17 +90,68 @@ class AbonnementController extends Controller
             'statut' => STATUT_ABONNEMENT_GARANTIX_ACTIF,
             'mode_paiement' => $data['mode_paiement'],
             'reference_transaction' => $data['reference_transaction'] ?? null,
-            'statut_paiement' => STATUT_PAIEMENT_CONFIRME,
-            'date_paiement' => now(),
+            'statut_paiement' => STATUT_PAIEMENT_EN_ATTENTE,
+            'date_paiement' => null,
         ]);
 
         JournalAudit::enregistrer(
             $user->id,
             ACTION_GARANTIX_SOUSCRIPTION,
             'abonnement_garantix',
-            "S'est abonné à la formule « {$formule->libelle_complet} »."
+            "A demandé l'activation de la formule « {$formule->libelle_complet} » (paiement à confirmer)."
         );
 
         return $this->success($abonnement->load('formule.prestations'), status: 201);
+    }
+
+    /**
+     * L'Admin confirme avoir reçu le paiement (espèces/Mobile Money) déclaré
+     * par le client — l'abonnement devient réellement actif à partir de là.
+     */
+    public function confirmerPaiement(Request $request, AbonnementGarantix $abonnement): JsonResponse
+    {
+        if ($abonnement->statut_paiement !== STATUT_PAIEMENT_EN_ATTENTE) {
+            throw ValidationException::withMessages([
+                'statut_paiement' => ['Cette demande n\'est plus en attente de confirmation.'],
+            ]);
+        }
+
+        $abonnement->update([
+            'statut_paiement' => STATUT_PAIEMENT_CONFIRME,
+            'date_paiement' => now(),
+        ]);
+
+        JournalAudit::enregistrer(
+            $request->user()->id,
+            ACTION_GARANTIX_SOUSCRIPTION,
+            'abonnement_garantix',
+            "A confirmé le paiement de l'abonnement GarantiX #{$abonnement->id}."
+        );
+
+        return $this->success($abonnement->load('formule.prestations'));
+    }
+
+    /**
+     * L'Admin rejette une demande d'activation (le client n'a en fait pas
+     * payé) — l'abonnement n'accordera jamais de bénéfice.
+     */
+    public function rejeterPaiement(Request $request, AbonnementGarantix $abonnement): JsonResponse
+    {
+        if ($abonnement->statut_paiement !== STATUT_PAIEMENT_EN_ATTENTE) {
+            throw ValidationException::withMessages([
+                'statut_paiement' => ['Cette demande n\'est plus en attente de confirmation.'],
+            ]);
+        }
+
+        $abonnement->update(['statut_paiement' => STATUT_PAIEMENT_ECHOUE]);
+
+        JournalAudit::enregistrer(
+            $request->user()->id,
+            ACTION_GARANTIX_SOUSCRIPTION,
+            'abonnement_garantix',
+            "A rejeté la demande d'activation de l'abonnement GarantiX #{$abonnement->id}."
+        );
+
+        return $this->success($abonnement->load('formule.prestations'));
     }
 }
