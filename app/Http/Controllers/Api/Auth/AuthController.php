@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\VerifyOtpRequest;
-use App\Models\Client;
 use App\Models\Commercial;
 use App\Models\Fournisseur;
 use App\Models\Livreur;
@@ -21,8 +20,9 @@ use Illuminate\Validation\ValidationException;
 class AuthController extends Controller
 {
     /**
-     * Auto-inscription — réservée aux rôles validés avec le PDG
-     * (Client, Fournisseur, Commercial humain, Livreur).
+     * Auto-inscription par e-mail/mot de passe — réservée au personnel non
+     * interne (Fournisseur, Commercial humain, Livreur). Client s'inscrit
+     * désormais par téléphone, voir Api\Auth\TelephoneAuthController.
      */
     public function register(RegisterRequest $request): JsonResponse
     {
@@ -40,10 +40,6 @@ class AuthController extends Controller
             ]);
 
             match ($data['type_utilisateur']) {
-                ROLE_CLIENT => Client::create([
-                    'user_id' => $user->id,
-                    'code_parrainage' => Client::genererCodeParrainage($data['nom']),
-                ]),
                 ROLE_FOURNISSEUR => Fournisseur::create([
                     'user_id' => $user->id,
                     'nom_entreprise' => $data['nom_entreprise'],
@@ -71,7 +67,7 @@ class AuthController extends Controller
     {
         $user = User::where('email', $request->string('email'))->first();
 
-        if (! $user || ! Hash::check($request->string('password'), $user->password)) {
+        if (! $user || $user->type_utilisateur === ROLE_CLIENT || ! Hash::check($request->string('password'), $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['Identifiants invalides.'],
             ]);
@@ -84,14 +80,7 @@ class AuthController extends Controller
         }
 
         if ($user->requiresTwoFactor()) {
-            $code = generate_otp_code();
-
-            $user->forceFill([
-                'two_factor_code' => Hash::make($code),
-                'two_factor_expires_at' => now()->addMinutes(OTP_EXPIRATION_MINUTES),
-            ])->save();
-
-            $user->notify(new OtpCodeNotification($code));
+            $user->notify(new OtpCodeNotification($user->emettreCodeOtp()));
 
             return $this->success([
                 'requires_2fa' => true,

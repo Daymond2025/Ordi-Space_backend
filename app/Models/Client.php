@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class Client extends Model
 {
@@ -83,6 +86,38 @@ class Client extends Model
         }
 
         return $code;
+    }
+
+    /**
+     * Compte Client minimal (nom + téléphone, sans e-mail ni mot de passe
+     * utilisable) — utilisé par la connexion/inscription par téléphone
+     * (TelephoneAuthController::inscrire) et par l'enregistrement d'une
+     * vente pour un client sans compte préalable (ClientRapideController).
+     * Le téléphone doit déjà être normalisé (E.164) et son unicité vérifiée
+     * par l'appelant.
+     */
+    public static function creerCompteMinimal(string $nom, ?string $prenom, string $telephoneE164): User
+    {
+        return DB::transaction(function () use ($nom, $prenom, $telephoneE164) {
+            $user = User::create([
+                'nom' => $nom,
+                'prenom' => $prenom,
+                'email' => null,
+                'telephone' => $telephoneE164,
+                'password' => Hash::make(Str::random(40)),
+                'type_utilisateur' => ROLE_CLIENT,
+                'statut_compte' => STATUT_COMPTE_ACTIF,
+            ]);
+
+            static::create([
+                'user_id' => $user->id,
+                'code_parrainage' => static::genererCodeParrainage($nom),
+            ]);
+
+            $user->assignRole(ROLE_CLIENT);
+
+            return $user;
+        });
     }
 
     /**

@@ -79,6 +79,33 @@ if (! function_exists('user_has_role')) {
     }
 }
 
+if (! function_exists('normaliser_telephone')) {
+    /**
+     * Normalise un numéro de téléphone en E.164 (ex. "07 79 36 38 09" →
+     * "+2250779363809") — indispensable pour que la connexion par téléphone
+     * retrouve toujours le même utilisateur quel que soit le format saisi, et
+     * pour adresser correctement l'API WhatsApp (Twilio exige le E.164).
+     */
+    function normaliser_telephone(string $telephone): string
+    {
+        $nettoye = preg_replace('/[^\d+]/', '', $telephone) ?? '';
+
+        if (str_starts_with($nettoye, '+')) {
+            return $nettoye;
+        }
+
+        if (str_starts_with($nettoye, '00')) {
+            return '+'.substr($nettoye, 2);
+        }
+
+        if (str_starts_with($nettoye, '0')) {
+            return TELEPHONE_INDICATIF_PAYS_DEFAUT.substr($nettoye, 1);
+        }
+
+        return TELEPHONE_INDICATIF_PAYS_DEFAUT.$nettoye;
+    }
+}
+
 if (! function_exists('paginate_per_page')) {
     /**
      * Normalise le paramètre ?per_page= d'une requête (borné à PAGINATION_MAX).

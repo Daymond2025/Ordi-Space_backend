@@ -40,4 +40,15 @@ return [
         'model' => env('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),
     ],
 
+    // Connexion Client par téléphone : code OTP envoyé par WhatsApp (Twilio).
+    // "content_sid" est optionnel — à renseigner seulement si le compte Twilio
+    // exige un modèle de message approuvé (contrainte WhatsApp Business API)
+    // pour initier une conversation ; sinon un message texte libre est envoyé.
+    'twilio' => [
+        'sid' => env('TWILIO_SID'),
+        'auth_token' => env('TWILIO_AUTH_TOKEN'),
+        'whatsapp_from' => env('TWILIO_WHATSAPP_FROM'),
+        'whatsapp_content_sid' => env('TWILIO_WHATSAPP_CONTENT_SID'),
+    ],
+
 ];

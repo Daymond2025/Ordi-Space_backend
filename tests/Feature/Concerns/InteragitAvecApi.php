@@ -34,6 +34,15 @@ trait InteragitAvecApi
         return $user;
     }
 
+    protected function creerCommercial(array $attributs = []): User
+    {
+        $user = User::factory()->create(array_merge(['type_utilisateur' => ROLE_COMMERCIAL], $attributs));
+        $user->assignRole(ROLE_COMMERCIAL);
+        Commercial::create(['user_id' => $user->id, 'type_commercial' => TYPE_COMMERCIAL_HUMAIN]);
+
+        return $user;
+    }
+
     /**
      * Commercial système utilisé par CommandeController::resoudreCommercial()
      * pour toute commande passée par un client lui-même (pas de commercial

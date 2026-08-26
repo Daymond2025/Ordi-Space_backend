@@ -7,6 +7,7 @@ use App\Models\Adresse;
 use App\Models\LigneCommande;
 use App\Models\NotificationOrdispace;
 use App\Models\Produit;
+use App\Models\User;
 use App\Models\UtilisationPrivilege;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -65,6 +66,20 @@ class MoiController extends Controller
             'mot_de_passe_actuel' => ['required_with:nouveau_mot_de_passe', 'string'],
             'nouveau_mot_de_passe' => ['sometimes', 'confirmed', Password::min(8)->mixedCase()->numbers()],
         ]);
+
+        // Le téléphone est l'identifiant de connexion du Client (OTP WhatsApp) :
+        // toujours normalisé avant stockage, et son unicité vérifiée sur la
+        // forme normalisée (la règle "unique" seule ne suffit pas, un même
+        // numéro pouvant être saisi sous plusieurs formats).
+        if (! empty($data['telephone'])) {
+            $data['telephone'] = normaliser_telephone($data['telephone']);
+
+            if (User::where('telephone', $data['telephone'])->where('id', '!=', $user->id)->exists()) {
+                throw ValidationException::withMessages([
+                    'telephone' => ['Ce numéro est déjà utilisé par un autre compte.'],
+                ]);
+            }
+        }
 
         if (isset($data['nouveau_mot_de_passe'])) {
             if (! Hash::check($data['mot_de_passe_actuel'], $user->password)) {

@@ -18,6 +18,11 @@ defined('PAGINATION_MAX') || define('PAGINATION_MAX', 100);
 defined('OTP_LONGUEUR') || define('OTP_LONGUEUR', 6);
 defined('OTP_EXPIRATION_MINUTES') || define('OTP_EXPIRATION_MINUTES', 5);
 
+// --- Téléphone (connexion Client par WhatsApp + OTP) ---------------------
+// Indicatif appliqué aux numéros locaux (ex. "07 79 36 38 09") saisis sans
+// indicatif — l'activité d'OrdiSpace est basée en Côte d'Ivoire.
+defined('TELEPHONE_INDICATIF_PAYS_DEFAUT') || define('TELEPHONE_INDICATIF_PAYS_DEFAUT', '+225');
+
 // --- Agent commercial IA système ------------------------------------------
 // Compte "commercial" de service utilisé pour enregistrer les commandes
 // passées en self-service par un client depuis l'appli (aucun commercial

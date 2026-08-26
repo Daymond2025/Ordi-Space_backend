@@ -8,7 +8,9 @@ use App\Http\Controllers\Api\Admin\StatistiqueController;
 use App\Http\Controllers\Api\Admin\UtilisateurController;
 use App\Http\Controllers\Api\AssistantIaController;
 use App\Http\Controllers\Api\Auth\AuthController;
+use App\Http\Controllers\Api\Auth\TelephoneAuthController;
 use App\Http\Controllers\Api\CategorieController;
+use App\Http\Controllers\Api\ClientRapideController;
 use App\Http\Controllers\Api\CommandeController;
 use App\Http\Controllers\Api\Garantix\AbonnementController;
 use App\Http\Controllers\Api\Garantix\ExclusionController;
@@ -44,6 +46,14 @@ Route::prefix('v1')->group(function () {
         Route::post('register', [AuthController::class, 'register']);
         Route::post('login', [AuthController::class, 'login'])->middleware('throttle:5,1');
         Route::post('verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:5,1');
+
+        // Connexion Client par téléphone (WhatsApp + OTP) — voir
+        // TelephoneAuthController. La dernière étape réutilise verify-otp
+        // ci-dessus, générique à tout utilisateur.
+        Route::prefix('telephone')->middleware('throttle:5,1')->group(function () {
+            Route::post('otp', [TelephoneAuthController::class, 'demanderOtp']);
+            Route::post('inscription', [TelephoneAuthController::class, 'inscrire']);
+        });
 
         Route::middleware('auth:sanctum')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
@@ -90,6 +100,12 @@ Route::prefix('v1')->group(function () {
         Route::post('produits/{produit}/valider', [ProduitController::class, 'valider'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
         Route::post('produits/{produit}/images', [ProduitController::class, 'ajouterImages'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
         Route::delete('produits/{produit}/images/{image}', [ProduitController::class, 'supprimerImage'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
+
+        // Enregistrement d'une vente pour un client sans compte préalable
+        // (canal Commercial/Agent IA) — donne un client_id utilisable
+        // immédiatement par POST /commandes ci-dessous. Voir ClientRapideController.
+        Route::post('clients/creation-rapide', [ClientRapideController::class, 'store'])
+            ->middleware('permission:'.PERMISSION_CLIENTS_CREATION_RAPIDE);
 
         Route::get('commandes', [CommandeController::class, 'index'])->middleware('permission:'.PERMISSION_COMMANDES_CONSULTER);
         Route::post('commandes', [CommandeController::class, 'store'])->middleware('permission:'.PERMISSION_COMMANDES_CREER);

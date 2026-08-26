@@ -47,15 +47,18 @@ defined('PERMISSION_TUTORIELS_GERER') || define('PERMISSION_TUTORIELS_GERER', 't
 defined('PERMISSION_PRIVILEGES_GERER') || define('PERMISSION_PRIVILEGES_GERER', 'privileges.gerer');
 defined('PERMISSION_ASSISTANCE_GERER') || define('PERMISSION_ASSISTANCE_GERER', 'assistance.gerer');
 defined('PERMISSION_RECLAMATIONS_GERER') || define('PERMISSION_RECLAMATIONS_GERER', 'reclamations.gerer');
+defined('PERMISSION_CLIENTS_CREATION_RAPIDE') || define('PERMISSION_CLIENTS_CREATION_RAPIDE', 'clients.creation_rapide');
 
 if (! function_exists('roles_auto_inscription')) {
     /**
-     * Rôles ouverts à l'auto-inscription publique — Coordinateur, Technicien
-     * et Administrateur en sont volontairement exclus (décision d'architecture).
+     * Rôles ouverts à l'auto-inscription publique par e-mail/mot de passe.
+     * Client en est exclu depuis le passage à la connexion par téléphone
+     * (WhatsApp + OTP) — voir Api\Auth\TelephoneAuthController. Coordinateur,
+     * Technicien et Administrateur restent exclus (décision d'architecture).
      */
     function roles_auto_inscription(): array
     {
-        return [ROLE_CLIENT, ROLE_FOURNISSEUR, ROLE_COMMERCIAL, ROLE_LIVREUR];
+        return [ROLE_FOURNISSEUR, ROLE_COMMERCIAL, ROLE_LIVREUR];
     }
 }
 
