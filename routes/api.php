@@ -12,11 +12,15 @@ use App\Http\Controllers\Api\Auth\TelephoneAuthController;
 use App\Http\Controllers\Api\CategorieController;
 use App\Http\Controllers\Api\ClientRapideController;
 use App\Http\Controllers\Api\CommandeController;
+use App\Http\Controllers\Api\Coordinateur\EspaceController as CoordinateurEspaceController;
+use App\Http\Controllers\Api\FournisseurController;
 use App\Http\Controllers\Api\Garantix\AbonnementController;
 use App\Http\Controllers\Api\Garantix\ExclusionController;
 use App\Http\Controllers\Api\Garantix\FormuleController;
 use App\Http\Controllers\Api\GarantieController;
 use App\Http\Controllers\Api\LivraisonController;
+use App\Http\Controllers\Api\LocaliteController;
+use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\MoiController;
 use App\Http\Controllers\Api\PaiementController;
 use App\Http\Controllers\Api\PanierController;
@@ -65,7 +69,14 @@ Route::prefix('v1')->group(function () {
     // "entrée libre", seules les actions comme commander exigent un compte).
     Route::get('categories', [CategorieController::class, 'index']);
     Route::get('produits', [ProduitController::class, 'index']);
+    // Doit être déclarée avant produits/{produit} ci-dessous : sinon la
+    // liaison de modèle de route absorbe "activite-recente" comme un ID.
+    Route::get('produits/activite-recente', [MessageController::class, 'produitsActifs'])
+        ->middleware(['auth:sanctum', 'permission:'.PERMISSION_MESSAGES_PRODUIT_GERER]);
     Route::get('produits/{produit}', [ProduitController::class, 'show']);
+    // Référentiel des localités (communes d'Abidjan + villes de CI) — lu par
+    // fournisseur/admin (barème produit) et client/commercial (adresse).
+    Route::get('localites', [LocaliteController::class, 'index']);
 
     Route::middleware('auth:sanctum')->group(function () {
 
@@ -100,18 +111,53 @@ Route::prefix('v1')->group(function () {
         Route::post('produits/{produit}/valider', [ProduitController::class, 'valider'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
         Route::post('produits/{produit}/images', [ProduitController::class, 'ajouterImages'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
         Route::delete('produits/{produit}/images/{image}', [ProduitController::class, 'supprimerImage'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
+        Route::patch('produits/{produit}/booster', [ProduitController::class, 'basculerBoost'])->middleware('permission:'.PERMISSION_PRODUITS_BOOSTER);
+        Route::patch('produits/{produit}/stock', [ProduitController::class, 'modifierStock'])->middleware('permission:'.PERMISSION_PRODUITS_GERER_STOCK);
+
+        // Discussion produit façon WhatsApp — Espace Coordinateur (Phase 2).
+        Route::middleware('permission:'.PERMISSION_MESSAGES_PRODUIT_GERER)->group(function () {
+            Route::get('produits/{produit}/messages', [MessageController::class, 'indexProduit']);
+            Route::post('produits/{produit}/messages', [MessageController::class, 'storeProduit']);
+            Route::get('produits/{produit}/conversation', [MessageController::class, 'conversationProduit']);
+        });
+
+        // Fournisseurs — Espace Coordinateur (Centre des opérations).
+        Route::prefix('fournisseurs')->group(function () {
+            Route::middleware('permission:'.PERMISSION_FOURNISSEURS_CONSULTER)->group(function () {
+                Route::get('/', [FournisseurController::class, 'index']);
+                Route::get('{fournisseur}', [FournisseurController::class, 'show']);
+                Route::get('{fournisseur}/produits', [FournisseurController::class, 'produits']);
+                Route::get('{fournisseur}/commandes', [FournisseurController::class, 'commandes']);
+                Route::get('{fournisseur}/portefeuille', [FournisseurController::class, 'portefeuille']);
+            });
+            Route::post('{fournisseur}/portefeuille/paiement', [FournisseurController::class, 'enregistrerPaiement'])
+                ->middleware('permission:'.PERMISSION_FOURNISSEURS_PORTEFEUILLE_GERER);
+            Route::patch('{fournisseur}/commission', [FournisseurController::class, 'modifierCommission'])
+                ->middleware('permission:'.PERMISSION_FOURNISSEURS_COMMISSION_GERER);
+        });
 
         // Enregistrement d'une vente pour un client sans compte préalable
         // (canal Commercial/Agent IA) — donne un client_id utilisable
         // immédiatement par POST /commandes ci-dessous. Voir ClientRapideController.
         Route::post('clients/creation-rapide', [ClientRapideController::class, 'store'])
             ->middleware('permission:'.PERMISSION_CLIENTS_CREATION_RAPIDE);
+        // Paste-parse (Ajout d'une commande depuis une discussion produit) —
+        // extrait nom+téléphone d'un texte collé, voir ExtractionClientService.
+        Route::post('clients/extraction', [ClientRapideController::class, 'extraire'])
+            ->middleware('permission:'.PERMISSION_CLIENTS_CREATION_RAPIDE);
 
         Route::get('commandes', [CommandeController::class, 'index'])->middleware('permission:'.PERMISSION_COMMANDES_CONSULTER);
         Route::post('commandes', [CommandeController::class, 'store'])->middleware('permission:'.PERMISSION_COMMANDES_CREER);
         Route::get('commandes/{commande}', [CommandeController::class, 'show'])->middleware('permission:'.PERMISSION_COMMANDES_CONSULTER);
         Route::post('commandes/{commande}/valider', [CommandeController::class, 'valider'])->middleware('permission:'.PERMISSION_COMMANDES_VALIDER);
+        Route::post('commandes/{commande}/traiter-probleme', [CommandeController::class, 'traiterProbleme'])->middleware('permission:'.PERMISSION_COMMANDES_TRAITER);
         Route::post('commandes/{commande}/preparee', [CommandeController::class, 'marquerPreparee'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
+        Route::get('commandes/{commande}/suivi', [CommandeController::class, 'suivi'])->middleware('permission:'.PERMISSION_COMMANDES_CONSULTER);
+        Route::post('commandes/{commande}/assigner-livreur', [CommandeController::class, 'assignerLivreur'])->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
+        Route::middleware('permission:'.PERMISSION_MESSAGES_COMMANDE_GERER)->group(function () {
+            Route::get('commandes/{commande}/messages', [MessageController::class, 'indexCommande']);
+            Route::post('commandes/{commande}/messages', [MessageController::class, 'storeCommande']);
+        });
         // Pas de middleware permission ici : livreur (physique) et client
         // (commande 100% numérique) sont tous deux autorisés à encaisser,
         // le contrôleur distingue les deux cas lui-même.
@@ -194,6 +240,13 @@ Route::prefix('v1')->group(function () {
             Route::get('{reclamation}', [ReclamationController::class, 'show']);
             Route::patch('{reclamation}/repondre', [ReclamationController::class, 'repondre'])
                 ->middleware('permission:'.PERMISSION_RECLAMATIONS_GERER);
+        });
+
+        // Espace Coordinateur — préfixe étendu par les phases suivantes
+        // (chat produit/commande, ledger fournisseur, rapport quotidien).
+        Route::prefix('coordinateur')->middleware('role:'.ROLE_COORDINATEUR)->group(function () {
+            Route::get('espace/statistiques', [CoordinateurEspaceController::class, 'statistiques'])
+                ->middleware('permission:'.PERMISSION_STATISTIQUES_PERIMETRE);
         });
 
         // Assistance : FAQ + audio (contenu publié par l'Administrateur).

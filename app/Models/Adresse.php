@@ -10,11 +10,16 @@ class Adresse extends Model
 {
     protected $table = 'adresses';
 
-    protected $fillable = ['client_id', 'libelle', 'rue', 'ville', 'pays'];
+    protected $fillable = ['client_id', 'libelle', 'rue', 'ville', 'pays', 'localite_id'];
 
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class, 'client_id', 'user_id');
+    }
+
+    public function localite(): BelongsTo
+    {
+        return $this->belongsTo(Localite::class, 'localite_id');
     }
 
     public function livraisons(): HasMany

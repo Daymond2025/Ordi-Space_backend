@@ -114,6 +114,9 @@ class MoiController extends Controller
             'rue' => ['required', 'string', 'max:150'],
             'ville' => ['required', 'string', 'max:100'],
             'pays' => ['required', 'string', 'max:100'],
+            // Champ structuré utilisé pour le rapprochement tarifaire (frais
+            // de livraison) — "ville" reste un champ d'affichage libre.
+            'localite_id' => ['required', 'exists:localites,id'],
         ]);
 
         $adresse = Adresse::create([...$data, 'client_id' => $request->user()->id]);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Produit;
 
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -32,6 +33,23 @@ class StoreProduitRequest extends FormRequest
             // par ProduitController — voir IMAGE_MAX_POIDS_KO / IMAGE_MIMES_AUTORISES.
             'images' => ['nullable', 'array', 'max:'.IMAGE_PRODUIT_MAX_PAR_ENVOI],
             'images.*' => ['file', 'image', 'mimes:'.IMAGE_MIMES_AUTORISES, 'max:'.IMAGE_MAX_POIDS_KO],
+            // Barème de frais de livraison par localité — voir
+            // ProduitController::stockerFraisLivraison().
+            'frais_livraison' => ['nullable', 'array'],
+            'frais_livraison.*.localite_id' => ['required_with:frais_livraison', 'exists:localites,id'],
+            'frais_livraison.*.montant' => ['required_with:frais_livraison', 'numeric', 'min:0'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            $lignes = collect($this->input('frais_livraison', []));
+            $localiteIds = $lignes->pluck('localite_id')->filter();
+
+            if ($localiteIds->count() !== $localiteIds->unique()->count()) {
+                $validator->errors()->add('frais_livraison', 'Une même localité ne peut apparaître qu\'une seule fois dans le barème.');
+            }
+        });
     }
 }

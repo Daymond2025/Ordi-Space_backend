@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Garantie;
+use App\Models\JournalAudit;
 use App\Models\Livraison;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -57,6 +58,14 @@ class LivraisonController extends Controller
 
         $livraison->commande()->update(['statut_commande' => STATUT_COMMANDE_EN_LIVRAISON]);
 
+        JournalAudit::enregistrer(
+            $livraison->commande->client_id,
+            ACTION_COMMANDE_STATUT_MODIFIE,
+            'commande',
+            "Livraison de la commande n°{$livraison->commande_id} prise en charge par le livreur.",
+            commandeId: $livraison->commande_id,
+        );
+
         return $this->success($livraison->fresh());
     }
 
@@ -76,6 +85,15 @@ class LivraisonController extends Controller
 
         Garantie::genererPourCommande($livraison->commande);
         $livraison->commande->crediterParrainageSiEligible();
+        $livraison->commande->crediterFournisseursSiEligible();
+
+        JournalAudit::enregistrer(
+            $livraison->commande->client_id,
+            ACTION_COMMANDE_STATUT_MODIFIE,
+            'commande',
+            "Commande n°{$livraison->commande_id} livrée.",
+            commandeId: $livraison->commande_id,
+        );
 
         return $this->success($livraison->fresh());
     }

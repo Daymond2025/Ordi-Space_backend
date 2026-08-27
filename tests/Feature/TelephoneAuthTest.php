@@ -123,9 +123,7 @@ class TelephoneAuthTest extends TestCase
         $commande = $this->actingAs($commercial)->postJson('/api/v1/commandes', [
             'client_id' => $clientId,
             'lignes' => [['produit_id' => $produit->id, 'quantite' => 1]],
-            'adresse_id' => \App\Models\Adresse::create([
-                'client_id' => $clientId, 'rue' => 'Rue Test', 'ville' => 'Abidjan', 'pays' => "Côte d'Ivoire",
-            ])->id,
+            'adresse_id' => $this->creerAdresseAvecLocalite(User::findOrFail($clientId))->id,
         ]);
 
         $commande->assertCreated();

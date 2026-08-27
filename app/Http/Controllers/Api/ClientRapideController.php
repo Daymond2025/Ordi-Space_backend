@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\User;
+use App\Services\ExtractionClientService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -46,5 +47,18 @@ class ClientRapideController extends Controller
         $user = Client::creerCompteMinimal($data['nom'], $data['prenom'] ?? null, $telephone);
 
         return $this->success($user->load('client'), status: 201);
+    }
+
+    /**
+     * Paste-parse : extrait nom + téléphone d'un texte collé (conversation
+     * WhatsApp/Facebook), pour préremplir ce même endpoint store() ci-dessus.
+     * Le coordinateur reste libre de tout corriger avant validation — voir
+     * ExtractionClientService pour la dégradation en cas d'échec de l'IA.
+     */
+    public function extraire(Request $request, ExtractionClientService $service): JsonResponse
+    {
+        $data = $request->validate(['texte' => ['required', 'string', 'max:5000']]);
+
+        return $this->success($service->extraire($data['texte']));
     }
 }

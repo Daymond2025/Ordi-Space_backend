@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Produit\StoreProduitRequest;
 use App\Http\Requests\Produit\ValiderProduitRequest;
+use App\Models\FraisLivraisonProduit;
 use App\Models\ImageProduit;
 use App\Models\Produit;
 use App\Models\ValidationProduit;
@@ -34,8 +35,7 @@ class ProduitController extends Controller
         if ($user?->type_utilisateur === ROLE_FOURNISSEUR) {
             $query->where('fournisseur_id', $user->id);
         } elseif ($user?->type_utilisateur === ROLE_COORDINATEUR) {
-            $query->when($request->filled('statut'), fn ($q) => $q->where('statut_produit', $request->string('statut')))
-                ->when(! $request->filled('statut'), fn ($q) => $q->whereIn('statut_produit', [STATUT_PRODUIT_EN_ATTENTE, STATUT_PRODUIT_CORRIGE]));
+            $this->filtrerCatalogueCoordinateur($query, $request);
         } elseif (! in_array($user?->type_utilisateur, [ROLE_ADMINISTRATEUR], true)) {
             $query->where('statut_produit', STATUT_PRODUIT_VALIDE);
         }
@@ -44,7 +44,34 @@ class ProduitController extends Controller
             $query->where('categorie_id', $request->integer('categorie_id'));
         }
 
+        if ($request->filled('booste')) {
+            $query->where('est_booste', $request->boolean('booste'));
+        }
+
+        if ($request->filled('fournisseur_id')) {
+            $query->where('fournisseur_id', $request->integer('fournisseur_id'));
+        }
+
         return $this->success($query->latest('date_ajout')->paginate(paginate_per_page($request)));
+    }
+
+    /**
+     * Vue catalogue du coordinateur : par défaut la file d'attente de
+     * validation (inchangé) ; ?statut=tous lève la restriction (même
+     * convention que CommandeController::filtrerPourCoordinateur()) ;
+     * ?statut=indisponible filtre sur le stock (pas de colonne dédiée — la
+     * disponibilité est dérivée de quantite_stock) ; sinon un statut précis.
+     */
+    private function filtrerCatalogueCoordinateur($query, Request $request): void
+    {
+        $statut = $request->string('statut')->toString();
+
+        match (true) {
+            $statut === '' => $query->whereIn('statut_produit', [STATUT_PRODUIT_EN_ATTENTE, STATUT_PRODUIT_CORRIGE]),
+            $statut === 'tous' => null,
+            $statut === 'indisponible' => $query->where('quantite_stock', '<=', 0),
+            default => $query->where('statut_produit', $statut),
+        };
     }
 
     public function show(Request $request, Produit $produit): JsonResponse
@@ -74,13 +101,14 @@ class ProduitController extends Controller
 
         $produit = DB::transaction(function () use ($request, $estAdmin) {
             $produit = Produit::create([
-                ...$request->safe()->except('images'),
+                ...$request->safe()->except(['images', 'frais_livraison']),
                 'fournisseur_id' => $estAdmin ? null : $request->user()->id,
                 'statut_produit' => $estAdmin ? STATUT_PRODUIT_VALIDE : STATUT_PRODUIT_EN_ATTENTE,
                 'date_ajout' => now(),
             ]);
 
             $this->stockerImages($produit, $request->file('images', []));
+            $this->stockerFraisLivraison($produit, $request->input('frais_livraison', []), estMiseAJour: false);
 
             return $produit;
         });
@@ -93,12 +121,18 @@ class ProduitController extends Controller
         $this->authorize('update', $produit);
 
         $produit->update([
-            ...$request->safe()->except('images'),
+            ...$request->safe()->except(['images', 'frais_livraison']),
             // Un produit corrigé après rejet repasse en file d'attente du coordinateur.
             'statut_produit' => $produit->statut_produit === STATUT_PRODUIT_REJETE ? STATUT_PRODUIT_CORRIGE : $produit->statut_produit,
         ]);
 
         $this->stockerImages($produit, $request->file('images', []));
+
+        // Remplacement complet, pas fusion : un barème est soumis comme un
+        // tout (comme prix/quantite_stock) — s'il est omis, rien ne change.
+        if ($request->has('frais_livraison')) {
+            $this->stockerFraisLivraison($produit, $request->input('frais_livraison', []), estMiseAJour: true);
+        }
 
         return $this->success($produit->fresh(['images', 'categorie']));
     }
@@ -180,6 +214,36 @@ class ProduitController extends Controller
     }
 
     /**
+     * Produit "boosté" (Espace Coordinateur, Catalogue) — reçoit un booléen
+     * explicite plutôt qu'un simple toggle, pour rester idempotent contre
+     * un double-clic/double-soumission.
+     */
+    public function basculerBoost(Request $request, Produit $produit): JsonResponse
+    {
+        abort_unless($request->user()->can(PERMISSION_PRODUITS_BOOSTER), 403);
+
+        $data = $request->validate(['est_booste' => ['required', 'boolean']]);
+        $produit->update(['est_booste' => $data['est_booste']]);
+
+        return $this->success($produit->fresh(['images', 'categorie']));
+    }
+
+    /**
+     * Gestion étroite du stock/disponibilité — Coordinateur (n'importe quel
+     * produit) ou Fournisseur (le sien uniquement, cf. ProduitPolicy::gererStock()).
+     * Volontairement plus restreint que update() : aucun autre champ n'est modifiable ici.
+     */
+    public function modifierStock(Request $request, Produit $produit): JsonResponse
+    {
+        $this->authorize('gererStock', $produit);
+
+        $data = $request->validate(['quantite_stock' => ['required', 'integer', 'min:0']]);
+        $produit->update($data);
+
+        return $this->success($produit->fresh(['images', 'categorie']));
+    }
+
+    /**
      * Enregistre les fichiers uploadés sur le disque local "public" et crée
      * les lignes IMAGE_PRODUIT correspondantes, en respectant le plafond
      * total d'images par produit (IMAGE_PRODUIT_MAX_TOTAL).
@@ -209,5 +273,39 @@ class ProduitController extends Controller
                 'ordre_affichage' => $dejaPresentes + $index,
             ]);
         }
+    }
+
+    /**
+     * Enregistre le barème de frais de livraison par localité. Remplacement
+     * complet en mise à jour (pas de fusion) — un barème est soumis comme un
+     * tout, contrairement aux images qui ont un endpoint d'ajout dédié.
+     *
+     * @param  array<int, array{localite_id: int, montant: float}>  $lignesFrais
+     */
+    private function stockerFraisLivraison(Produit $produit, array $lignesFrais, bool $estMiseAJour): void
+    {
+        if ($lignesFrais === []) {
+            return;
+        }
+
+        if ($produit->estNumerique()) {
+            throw ValidationException::withMessages([
+                'frais_livraison' => ['Un produit à livraison numérique ne peut pas avoir de frais de livraison.'],
+            ]);
+        }
+
+        DB::transaction(function () use ($produit, $lignesFrais, $estMiseAJour) {
+            if ($estMiseAJour) {
+                $produit->fraisLivraison()->delete();
+            }
+
+            foreach ($lignesFrais as $ligne) {
+                FraisLivraisonProduit::create([
+                    'produit_id' => $produit->id,
+                    'localite_id' => $ligne['localite_id'],
+                    'montant' => $ligne['montant'],
+                ]);
+            }
+        });
     }
 }

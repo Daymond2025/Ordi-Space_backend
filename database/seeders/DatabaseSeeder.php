@@ -20,6 +20,8 @@ class DatabaseSeeder extends Seeder
             CanalVente::firstOrCreate(['nom_canal' => $canal]);
         }
 
+        $this->call(LocaliteSeeder::class);
+
         $this->seedAdministrateurRacine();
         $this->seedAgentIa();
     }

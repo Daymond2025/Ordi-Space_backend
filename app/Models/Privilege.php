@@ -39,9 +39,9 @@ class Privilege extends Model
     }
 
     /**
-     * Calcule le montant de la remise pour un montant de commande donné.
-     * La livraison gratuite n'a pas d'effet chiffré tant qu'aucun frais de
-     * livraison n'existe dans le modèle de commande actuel.
+     * Calcule le montant de la remise (sur montant_total) pour un montant de
+     * commande donné. La livraison gratuite n'agit pas ici : elle neutralise
+     * le frais de livraison directement dans CommandeController::calculerFraisLivraison().
      */
     public function calculerRemise(float $montantCommande): float
     {

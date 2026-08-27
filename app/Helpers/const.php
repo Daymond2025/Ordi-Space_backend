@@ -56,6 +56,11 @@ defined('STATUT_COMMANDE_EN_PREPARATION') || define('STATUT_COMMANDE_EN_PREPARAT
 defined('STATUT_COMMANDE_EN_LIVRAISON') || define('STATUT_COMMANDE_EN_LIVRAISON', 'en_livraison');
 defined('STATUT_COMMANDE_LIVREE') || define('STATUT_COMMANDE_LIVREE', 'livree');
 defined('STATUT_COMMANDE_ANNULEE') || define('STATUT_COMMANDE_ANNULEE', 'annulee');
+// Statuts "problème" — posés par un coordinateur avant validation, cf.
+// CommandeController::traiterProbleme() (Espace Coordinateur).
+defined('STATUT_COMMANDE_REPORTEE') || define('STATUT_COMMANDE_REPORTEE', 'reportee');
+defined('STATUT_COMMANDE_CLIENT_INJOIGNABLE') || define('STATUT_COMMANDE_CLIENT_INJOIGNABLE', 'client_injoignable');
+defined('STATUT_COMMANDE_NUMERO_INCORRECT') || define('STATUT_COMMANDE_NUMERO_INCORRECT', 'numero_incorrect');
 
 // ----- Statuts LIVRAISON (cf. migration create_livraisons_table) -----------
 defined('STATUT_LIVRAISON_EN_PREPARATION') || define('STATUT_LIVRAISON_EN_PREPARATION', 'en_preparation');
@@ -178,3 +183,31 @@ defined('ASSISTANCE_AUDIO_DOSSIER') || define('ASSISTANCE_AUDIO_DOSSIER', 'assis
 // --- Agent IA "Ellah" (page Aide rapide) ---------------------------------
 defined('ROLE_MESSAGE_IA_CLIENT') || define('ROLE_MESSAGE_IA_CLIENT', 'client');
 defined('ROLE_MESSAGE_IA_ASSISTANT') || define('ROLE_MESSAGE_IA_ASSISTANT', 'assistant');
+
+// --- Discussion produit/commande (Espace Coordinateur, Phase 2) ---------
+defined('TYPE_MESSAGE_TEXTE') || define('TYPE_MESSAGE_TEXTE', 'texte');
+defined('TYPE_MESSAGE_IMAGE') || define('TYPE_MESSAGE_IMAGE', 'image');
+defined('TYPE_MESSAGE_VIDEO') || define('TYPE_MESSAGE_VIDEO', 'video');
+defined('TYPE_MESSAGE_AUDIO') || define('TYPE_MESSAGE_AUDIO', 'audio');
+defined('TYPE_MESSAGE_NOTE_VOCALE') || define('TYPE_MESSAGE_NOTE_VOCALE', 'note_vocale');
+defined('TYPE_MESSAGE_DOCUMENT') || define('TYPE_MESSAGE_DOCUMENT', 'document');
+// Rapport quotidien automatique — voir MessageController::genererRapportQuotidienSiNecessaire().
+defined('TYPE_MESSAGE_RAPPORT') || define('TYPE_MESSAGE_RAPPORT', 'rapport');
+defined('MESSAGE_CONTENU_MAX_LONGUEUR') || define('MESSAGE_CONTENU_MAX_LONGUEUR', 5000);
+// Image et audio de message réutilisent les mimes/plafonds existants, mais
+// un dossier dédié (pas mélangé aux pièces jointes métier produits/FAQ).
+defined('MESSAGE_IMAGE_DOSSIER') || define('MESSAGE_IMAGE_DOSSIER', 'messages/images');
+defined('MESSAGE_AUDIO_DOSSIER') || define('MESSAGE_AUDIO_DOSSIER', 'messages/audio');
+// Vidéo et document : aucun précédent dans le code, constantes nouvelles.
+defined('VIDEO_MIMES_AUTORISES') || define('VIDEO_MIMES_AUTORISES', 'mp4,mov,webm');
+defined('VIDEO_MAX_POIDS_KO') || define('VIDEO_MAX_POIDS_KO', 51200); // 50 Mo
+defined('MESSAGE_VIDEO_DOSSIER') || define('MESSAGE_VIDEO_DOSSIER', 'messages/videos');
+defined('DOCUMENT_MIMES_AUTORISES') || define('DOCUMENT_MIMES_AUTORISES', 'pdf,doc,docx,xls,xlsx');
+defined('DOCUMENT_MAX_POIDS_KO') || define('DOCUMENT_MAX_POIDS_KO', 10240); // 10 Mo
+defined('MESSAGE_DOCUMENT_DOSSIER') || define('MESSAGE_DOCUMENT_DOSSIER', 'messages/documents');
+
+// --- Localités (frais de livraison, Espace Coordinateur) -----------------
+// Liste fixe : communes d'Abidjan d'un côté, villes de Côte d'Ivoire de
+// l'autre — utilisée à la fois pour l'adresse client et le barème produit.
+defined('TYPE_LOCALITE_COMMUNE_ABIDJAN') || define('TYPE_LOCALITE_COMMUNE_ABIDJAN', 'commune_abidjan');
+defined('TYPE_LOCALITE_VILLE') || define('TYPE_LOCALITE_VILLE', 'ville');

@@ -2,9 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Models\Adresse;
 use App\Models\Categorie;
 use App\Models\Client;
+use App\Models\FraisLivraisonProduit;
+use App\Models\Localite;
 use App\Models\Privilege;
 use App\Models\Produit;
 use Database\Seeders\DatabaseSeeder;
@@ -24,9 +25,7 @@ class PrivilegeRedemptionTest extends TestCase
 
     private function creerAdresse($clientUser)
     {
-        return Adresse::create([
-            'client_id' => $clientUser->id, 'rue' => 'Rue Test', 'ville' => 'Abidjan', 'pays' => "Côte d'Ivoire",
-        ]);
+        return $this->creerAdresseAvecLocalite($clientUser);
     }
 
     private function commanderProduit($client, $produit, array $extra = [])
@@ -145,6 +144,12 @@ class PrivilegeRedemptionTest extends TestCase
             'quantite_stock' => 5,
             'statut_produit' => STATUT_PRODUIT_VALIDE,
             'type_livraison' => 'physique',
+        ]);
+
+        FraisLivraisonProduit::create([
+            'produit_id' => $produitAdmin->id,
+            'localite_id' => Localite::where('nom', 'Cocody')->value('id'),
+            'montant' => 2000,
         ]);
 
         Privilege::create([

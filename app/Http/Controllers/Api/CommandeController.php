@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Commande\StoreCommandeRequest;
+use App\Models\Adresse;
 use App\Models\Client;
 use App\Models\Commande;
+use App\Models\FraisLivraisonProduit;
 use App\Models\Garantie;
 use App\Models\JournalAudit;
 use App\Models\LigneCommande;
@@ -22,6 +24,22 @@ use Illuminate\Validation\ValidationException;
 
 class CommandeController extends Controller
 {
+    /**
+     * Transitions "problème" autorisées pour un coordinateur, avant
+     * validation définitive — voir traiterProbleme(). Un retour direct
+     * problème→VALIDEE n'est jamais permis : il faut repasser par EN_ATTENTE
+     * puis valider(), pour ne pas dupliquer ses effets de bord (Garantie,
+     * raccourci commande 100% numérique).
+     */
+    private const TRANSITIONS_PROBLEME = [
+        STATUT_COMMANDE_EN_ATTENTE => [
+            STATUT_COMMANDE_REPORTEE, STATUT_COMMANDE_CLIENT_INJOIGNABLE, STATUT_COMMANDE_NUMERO_INCORRECT,
+        ],
+        STATUT_COMMANDE_REPORTEE => [STATUT_COMMANDE_EN_ATTENTE, STATUT_COMMANDE_ANNULEE],
+        STATUT_COMMANDE_CLIENT_INJOIGNABLE => [STATUT_COMMANDE_EN_ATTENTE, STATUT_COMMANDE_ANNULEE],
+        STATUT_COMMANDE_NUMERO_INCORRECT => [STATUT_COMMANDE_EN_ATTENTE, STATUT_COMMANDE_ANNULEE],
+    ];
+
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -30,13 +48,7 @@ class CommandeController extends Controller
         match ($user->type_utilisateur) {
             ROLE_CLIENT => $query->where('client_id', $user->id),
             ROLE_COMMERCIAL => $query->where('commercial_id', $user->id),
-            ROLE_COORDINATEUR => $query->when(
-                ! $request->filled('statut'),
-                fn ($q) => $q->where('statut_commande', STATUT_COMMANDE_EN_ATTENTE)
-            )->when(
-                $request->filled('statut'),
-                fn ($q) => $q->where('statut_commande', $request->string('statut'))
-            ),
+            ROLE_COORDINATEUR => $this->filtrerPourCoordinateur($query, $request),
             ROLE_LIVREUR => $query->whereHas('livraison', fn ($q) => $q->where('livreur_id', $user->id)),
             default => null, // administrateur : aucun filtre.
         };
@@ -44,11 +56,93 @@ class CommandeController extends Controller
         return $this->success($query->latest('date_commande')->paginate(paginate_per_page($request)));
     }
 
+    /**
+     * Comportement par défaut (sans ?statut=) inchangé : file d'attente des
+     * commandes en_attente. Nouveau : ?statut=tous (aucune restriction) et
+     * ?statut=a,b,c (plusieurs statuts), en plus du filtre à un seul statut
+     * déjà existant — la vision globale du coordinateur (cahier des charges
+     * Espace Coordinateur) sans casser un usage déjà en place côté Admin_Web.
+     */
+    private function filtrerPourCoordinateur($query, Request $request)
+    {
+        if (! $request->filled('statut')) {
+            return $query->where('statut_commande', STATUT_COMMANDE_EN_ATTENTE);
+        }
+
+        $statut = $request->string('statut')->toString();
+
+        if ($statut === 'tous') {
+            return $query;
+        }
+
+        return $query->whereIn('statut_commande', explode(',', $statut));
+    }
+
     public function show(Request $request, Commande $commande): JsonResponse
     {
         $this->autoriserAcces($request, $commande);
 
-        return $this->success($commande->load(['lignes.produit.images', 'lignes.produit.categorie', 'livraison', 'paiement', 'canalVente']));
+        $relations = ['lignes.produit.images', 'lignes.produit.categorie', 'livraison', 'paiement', 'canalVente'];
+
+        if (in_array($request->user()->type_utilisateur, [ROLE_COORDINATEUR, ROLE_ADMINISTRATEUR], true)) {
+            $relations = array_merge($relations, [
+                'client.user', 'commercial.user', 'coordinateur.user', 'parrain.user', 'privilege',
+                'lignes.produit.fournisseur.user', 'livraison.livreur.user',
+            ]);
+        }
+
+        return $this->success($commande->load($relations));
+    }
+
+    /**
+     * Un coordinateur signale un problème rencontré avant validation (numéro
+     * incorrect, client injoignable, report) ou reprend/abandonne une
+     * commande déjà signalée — voir TRANSITIONS_PROBLEME.
+     */
+    public function traiterProbleme(Request $request, Commande $commande): JsonResponse
+    {
+        abort_unless($request->user()->can(PERMISSION_COMMANDES_TRAITER), 403);
+
+        $data = $request->validate([
+            'statut_commande' => ['required', 'in:'.implode(',', [
+                STATUT_COMMANDE_REPORTEE, STATUT_COMMANDE_CLIENT_INJOIGNABLE,
+                STATUT_COMMANDE_NUMERO_INCORRECT, STATUT_COMMANDE_EN_ATTENTE, STATUT_COMMANDE_ANNULEE,
+            ])],
+            'motif' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $cible = $data['statut_commande'];
+        $autorises = self::TRANSITIONS_PROBLEME[$commande->statut_commande] ?? [];
+
+        if (! in_array($cible, $autorises, true)) {
+            throw ValidationException::withMessages([
+                'statut_commande' => ["Transition de « {$commande->statut_commande} » vers « {$cible} » non autorisée."],
+            ]);
+        }
+
+        DB::transaction(function () use ($commande, $cible) {
+            // Seule une annulation libère le stock réservé — les autres
+            // statuts "problème" laissent la commande vivante, en attente
+            // de résolution (même logique que Admin\CommandeController::changerStatut()).
+            if ($cible === STATUT_COMMANDE_ANNULEE) {
+                foreach ($commande->lignes()->with('produit')->get() as $ligne) {
+                    $ligne->produit?->increment('quantite_stock', $ligne->quantite);
+                }
+            }
+
+            $commande->update(['statut_commande' => $cible]);
+        });
+
+        JournalAudit::enregistrer(
+            $commande->client_id,
+            ACTION_COMMANDE_STATUT_MODIFIE,
+            'commande',
+            "Statut de la commande n°{$commande->id} changé à « {$cible} » par un coordinateur."
+                .(($data['motif'] ?? null) ? " Motif : {$data['motif']}." : ''),
+            commandeId: $commande->id,
+        );
+
+        return $this->success($commande->fresh());
     }
 
     /**
@@ -116,16 +210,28 @@ class CommandeController extends Controller
                 $montantTotal
             );
 
+            $livraisonGratuite = $this->estDeuxiemeCommandeEligible($clientId);
+
+            $fraisLivraison = $necessiteLivraison
+                ? $this->calculerFraisLivraison(
+                    Adresse::findOrFail($request->integer('adresse_id')),
+                    $lignesAPersister,
+                    $produits,
+                    $livraisonGratuite
+                )
+                : 0.0;
+
             $commande = Commande::create([
                 'client_id' => $clientId,
                 'commercial_id' => $this->resoudreCommercial($request->user()),
                 'canal_vente_id' => $this->resoudreCanalVente($request),
                 'privilege_id' => $privilege?->id,
                 'parrain_id' => $this->resoudreParrain($request->input('code_parrainage'), $clientId),
-                'livraison_gratuite_appliquee' => $this->estDeuxiemeCommandeEligible($clientId),
+                'livraison_gratuite_appliquee' => $livraisonGratuite,
                 'statut_commande' => STATUT_COMMANDE_EN_ATTENTE,
                 'montant_total' => $montantTotal,
                 'montant_remise' => $montantRemise,
+                'frais_livraison' => $fraisLivraison,
                 'date_commande' => now(),
             ]);
 
@@ -158,7 +264,8 @@ class CommandeController extends Controller
             $commande->client_id,
             ACTION_COMMANDE_CREEE,
             'commande',
-            "A passé une commande de {$commande->montant_total} CFA (n°{$commande->id})."
+            "A passé une commande de {$commande->montant_total} CFA (n°{$commande->id}).",
+            commandeId: $commande->id,
         );
 
         if ($commande->privilege_id) {
@@ -201,6 +308,14 @@ class CommandeController extends Controller
             Garantie::genererPourCommande($commande);
         }
 
+        JournalAudit::enregistrer(
+            $commande->client_id,
+            ACTION_COMMANDE_STATUT_MODIFIE,
+            'commande',
+            "Commande n°{$commande->id} validée par le coordinateur.",
+            commandeId: $commande->id,
+        );
+
         return $this->success($commande->fresh());
     }
 
@@ -226,6 +341,74 @@ class CommandeController extends Controller
         $commande->update(['statut_commande' => STATUT_COMMANDE_EN_PREPARATION]);
         $livraison->update(['statut_livraison' => STATUT_LIVRAISON_EN_ATTENTE_LIVREUR]);
 
+        JournalAudit::enregistrer(
+            $commande->client_id,
+            ACTION_COMMANDE_STATUT_MODIFIE,
+            'commande',
+            "Commande n°{$commande->id} marquée prête par le fournisseur.",
+            commandeId: $commande->id,
+        );
+
+        return $this->success($commande->fresh('livraison'));
+    }
+
+    /**
+     * Onglet "Suivi" (Espace Coordinateur) — timeline chronologique des
+     * changements de statut de cette commande, avec l'acteur.
+     */
+    public function suivi(Request $request, Commande $commande): JsonResponse
+    {
+        $this->autoriserAcces($request, $commande);
+
+        return $this->success(
+            JournalAudit::where('commande_id', $commande->id)
+                ->with('acteur:id,nom,prenom,type_utilisateur')
+                ->orderBy('date_heure')
+                ->get(['id', 'action', 'details', 'date_heure', 'acteur_id'])
+        );
+    }
+
+    /**
+     * Action rapide "transmettre à un livreur" (Espace Coordinateur) —
+     * réassignation managériale, à la différence de LivraisonController::
+     * affecter() (un livreur qui prend lui-même une livraison libre).
+     */
+    public function assignerLivreur(Request $request, Commande $commande): JsonResponse
+    {
+        abort_unless($request->user()->can(PERMISSION_LIVRAISONS_ASSIGNER), 403);
+
+        $data = $request->validate(['livreur_id' => ['required', 'exists:livreurs,user_id']]);
+
+        $commande->loadMissing('livraison');
+        abort_unless($commande->livraison, 422);
+
+        // EN_LIVRAISON est inclus : un coordinateur peut réassigner à un autre
+        // livreur une commande déjà en cours de livraison (panne du livreur
+        // initial, erreur d'affectation...), pas seulement l'affecter une
+        // première fois.
+        if (! in_array($commande->statut_commande, [STATUT_COMMANDE_VALIDEE, STATUT_COMMANDE_EN_PREPARATION, STATUT_COMMANDE_EN_LIVRAISON], true)) {
+            throw ValidationException::withMessages([
+                'statut_commande' => ['Cette commande ne peut pas être transmise à un livreur dans son statut actuel.'],
+            ]);
+        }
+
+        DB::transaction(function () use ($commande, $data) {
+            $commande->livraison->update([
+                'livreur_id' => $data['livreur_id'],
+                'statut_livraison' => STATUT_LIVRAISON_EN_COURS,
+                'date_prise_en_charge' => now(),
+            ]);
+            $commande->update(['statut_commande' => STATUT_COMMANDE_EN_LIVRAISON]);
+        });
+
+        JournalAudit::enregistrer(
+            $commande->client_id,
+            ACTION_COMMANDE_STATUT_MODIFIE,
+            'commande',
+            "Commande n°{$commande->id} transmise au livreur (user #{$data['livreur_id']}) par le coordinateur.",
+            commandeId: $commande->id,
+        );
+
         return $this->success($commande->fresh('livraison'));
     }
 
@@ -248,12 +431,14 @@ class CommandeController extends Controller
     }
 
     /**
-     * Un commercial peut préciser le canal (Facebook, WhatsApp…) ; un client
+     * Un commercial ou un coordinateur (qui relaie une vente WhatsApp/Facebook
+     * via l'Espace Coordinateur) peut préciser le canal d'origine ; un client
      * qui commande lui-même passe toujours par la boutique de l'appli.
      */
     private function resoudreCanalVente(Request $request): int
     {
-        if ($request->user()->type_utilisateur === ROLE_COMMERCIAL && $request->filled('canal_vente_id')) {
+        if (in_array($request->user()->type_utilisateur, [ROLE_COMMERCIAL, ROLE_COORDINATEUR], true)
+            && $request->filled('canal_vente_id')) {
             return $request->integer('canal_vente_id');
         }
 
@@ -328,8 +513,8 @@ class CommandeController extends Controller
 
     /**
      * "Carte free" : livraison gratuite automatique à la 2e commande d'un
-     * client, si l'Admin a activé ce privilège dans le catalogue. Purement
-     * informatif tant qu'aucun frais de livraison n'existe dans le modèle.
+     * client, si l'Admin a activé ce privilège dans le catalogue — neutralise
+     * le frais de livraison calculé par calculerFraisLivraison() ci-dessous.
      */
     private function estDeuxiemeCommandeEligible(int $clientId): bool
     {
@@ -346,18 +531,55 @@ class CommandeController extends Controller
         return ($nombreCommandesPrecedentes + 1) === SEUIL_COMMANDE_LIVRAISON_GRATUITE;
     }
 
+    /**
+     * Frais de livraison : somme, une fois par ligne produit physique (pas
+     * multiplié par la quantité — coût forfaitaire par produit/expédition),
+     * du tarif défini par le fournisseur/admin pour la localité de l'adresse
+     * choisie. Aucun tarif défini pour une localité → commande bloquée
+     * (décision PDG : pas de repli silencieux à 0).
+     *
+     * @param  array<int, array{produit_id: int, quantite: int, prix_unitaire: mixed}>  $lignesAPersister
+     * @param  \Illuminate\Support\Collection<int, Produit>  $produits
+     */
+    private function calculerFraisLivraison(Adresse $adresse, array $lignesAPersister, $produits, bool $livraisonGratuite): float
+    {
+        if ($livraisonGratuite) {
+            return 0.0;
+        }
+
+        if ($adresse->localite_id === null) {
+            throw ValidationException::withMessages([
+                'adresse_id' => ["Cette adresse ne précise pas de localité reconnue — ajoutez une nouvelle adresse avec une localité pour commander un produit à livraison physique."],
+            ]);
+        }
+
+        $total = 0.0;
+
+        foreach ($lignesAPersister as $ligne) {
+            $produit = $produits->get($ligne['produit_id']);
+
+            if ($produit->estNumerique()) {
+                continue;
+            }
+
+            $frais = FraisLivraisonProduit::where('produit_id', $produit->id)
+                ->where('localite_id', $adresse->localite_id)
+                ->value('montant');
+
+            if ($frais === null) {
+                throw ValidationException::withMessages([
+                    'lignes' => ["Aucun frais de livraison n'est défini pour « {$produit->nom_produit} » vers « {$adresse->localite->nom} »."],
+                ]);
+            }
+
+            $total += (float) $frais;
+        }
+
+        return $total;
+    }
+
     private function autoriserAcces(Request $request, Commande $commande): void
     {
-        $user = $request->user();
-
-        $autorise = match ($user->type_utilisateur) {
-            ROLE_CLIENT => $commande->client_id === $user->id,
-            ROLE_COMMERCIAL => $commande->commercial_id === $user->id,
-            ROLE_LIVREUR => $commande->livraison?->livreur_id === $user->id,
-            ROLE_COORDINATEUR, ROLE_ADMINISTRATEUR => true,
-            default => false,
-        };
-
-        abort_unless($autorise, 403);
+        abort_unless($commande->estAccessiblePar($request->user()), 403);
     }
 }

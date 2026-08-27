@@ -48,6 +48,20 @@ defined('PERMISSION_PRIVILEGES_GERER') || define('PERMISSION_PRIVILEGES_GERER', 
 defined('PERMISSION_ASSISTANCE_GERER') || define('PERMISSION_ASSISTANCE_GERER', 'assistance.gerer');
 defined('PERMISSION_RECLAMATIONS_GERER') || define('PERMISSION_RECLAMATIONS_GERER', 'reclamations.gerer');
 defined('PERMISSION_CLIENTS_CREATION_RAPIDE') || define('PERMISSION_CLIENTS_CREATION_RAPIDE', 'clients.creation_rapide');
+// --- Espace Coordinateur (Phase 1 : fondations) --------------------------
+defined('PERMISSION_COMMANDES_TRAITER') || define('PERMISSION_COMMANDES_TRAITER', 'commandes.traiter');
+defined('PERMISSION_FOURNISSEURS_CONSULTER') || define('PERMISSION_FOURNISSEURS_CONSULTER', 'fournisseurs.consulter');
+defined('PERMISSION_PRODUITS_BOOSTER') || define('PERMISSION_PRODUITS_BOOSTER', 'produits.booster');
+// --- Espace Coordinateur (Phase 2 : chat produit/commande) ---------------
+defined('PERMISSION_MESSAGES_PRODUIT_GERER') || define('PERMISSION_MESSAGES_PRODUIT_GERER', 'messages.produit.gerer');
+defined('PERMISSION_MESSAGES_COMMANDE_GERER') || define('PERMISSION_MESSAGES_COMMANDE_GERER', 'messages.commande.gerer');
+defined('PERMISSION_LIVRAISONS_ASSIGNER') || define('PERMISSION_LIVRAISONS_ASSIGNER', 'livraisons.assigner');
+// --- Espace Coordinateur (comblement cahier des charges) -----------------
+defined('PERMISSION_FOURNISSEURS_PORTEFEUILLE_GERER') || define('PERMISSION_FOURNISSEURS_PORTEFEUILLE_GERER', 'fournisseurs.portefeuille.gerer');
+// Réservée à l'Administrateur : jamais accordée explicitement à un rôle,
+// il la reçoit de fait via RolesAndPermissionsSeeder (liste complète).
+defined('PERMISSION_FOURNISSEURS_COMMISSION_GERER') || define('PERMISSION_FOURNISSEURS_COMMISSION_GERER', 'fournisseurs.commission.gerer');
+defined('PERMISSION_PRODUITS_GERER_STOCK') || define('PERMISSION_PRODUITS_GERER_STOCK', 'produits.stock.gerer');
 
 if (! function_exists('roles_auto_inscription')) {
     /**

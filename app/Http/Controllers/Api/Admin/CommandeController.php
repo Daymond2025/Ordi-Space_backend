@@ -103,6 +103,7 @@ class CommandeController extends Controller
                 ]);
                 Garantie::genererPourCommande($commande);
                 $commande->crediterParrainageSiEligible();
+                $commande->crediterFournisseursSiEligible();
             }
 
             $commande->update(['statut_commande' => $nouveauStatut]);
@@ -112,7 +113,8 @@ class CommandeController extends Controller
             $commande->client_id,
             ACTION_COMMANDE_STATUT_MODIFIE,
             'commande',
-            "Statut de la commande n°{$commande->id} changé à « {$nouveauStatut} » par un administrateur."
+            "Statut de la commande n°{$commande->id} changé à « {$nouveauStatut} » par un administrateur.",
+            commandeId: $commande->id,
         );
 
         return $this->success($commande->fresh(['livraison.livreur.user', 'lignes.garantie']));
