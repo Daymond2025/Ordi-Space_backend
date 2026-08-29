@@ -48,8 +48,11 @@ class Fournisseur extends Model
     /**
      * Crédit automatique (vente livrée) — solde positif = ce qu'OrdiSpace
      * doit au fournisseur. Calqué sur Client::crediterPortefeuille().
+     * $commissionPrelevee : part gardée par OrdiSpace sur cette vente (montant
+     * brut - montant net crédité) — utilisée pour "Commission totale, reçu"
+     * sur l'accueil Coordinateur, jamais recalculée après coup.
      */
-    public function crediterPortefeuille(float $montant, string $motif, ?int $commandeId = null): TransactionPortefeuilleFournisseur
+    public function crediterPortefeuille(float $montant, string $motif, ?int $commandeId = null, ?float $commissionPrelevee = null): TransactionPortefeuilleFournisseur
     {
         $this->increment('solde_portefeuille', $montant);
 
@@ -57,6 +60,7 @@ class Fournisseur extends Model
             'fournisseur_id' => $this->user_id,
             'type' => TYPE_TRANSACTION_PORTEFEUILLE_CREDIT,
             'montant' => $montant,
+            'commission_prelevee' => $commissionPrelevee,
             'motif' => $motif,
             'commande_id' => $commandeId,
             'acteur_id' => null,

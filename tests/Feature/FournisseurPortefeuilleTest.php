@@ -42,9 +42,10 @@ class FournisseurPortefeuilleTest extends TestCase
             'statut_commande' => 'livree',
         ])->assertOk();
 
-        // 100 000 - 20% de commission = 80 000.
+        // 100 000 - 20% de commission = 80 000 net, 20 000 de commission prélevée.
         $this->assertDatabaseHas('transactions_portefeuille_fournisseurs', [
-            'fournisseur_id' => $fournisseur->user_id, 'type' => 'credit', 'montant' => 80000, 'commande_id' => $commandeId,
+            'fournisseur_id' => $fournisseur->user_id, 'type' => 'credit', 'montant' => 80000,
+            'commission_prelevee' => 20000, 'commande_id' => $commandeId,
         ]);
         $this->assertEquals(80000, $fournisseur->fresh()->solde_portefeuille);
     }

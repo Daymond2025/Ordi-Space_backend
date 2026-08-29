@@ -181,8 +181,9 @@ class Commande extends Model
 
             $montantBrut = $lignes->sum(fn (LigneCommande $l) => (float) $l->prix_unitaire * $l->quantite);
             $montantNet = round($montantBrut * (1 - (float) $fournisseur->taux_commission / 100), 2);
+            $commissionPrelevee = round($montantBrut - $montantNet, 2);
 
-            $fournisseur->crediterPortefeuille($montantNet, "Vente commande #{$this->id}", $this->id);
+            $fournisseur->crediterPortefeuille($montantNet, "Vente commande #{$this->id}", $this->id, $commissionPrelevee);
         }
 
         $this->update(['commissions_fournisseurs_versees' => true]);

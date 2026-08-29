@@ -11,13 +11,14 @@ class TransactionPortefeuilleFournisseur extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'fournisseur_id', 'type', 'montant', 'motif', 'commande_id', 'acteur_id', 'solde_apres', 'date_transaction',
+        'fournisseur_id', 'type', 'montant', 'commission_prelevee', 'motif', 'commande_id', 'acteur_id', 'solde_apres', 'date_transaction',
     ];
 
     protected function casts(): array
     {
         return [
             'montant' => 'decimal:2',
+            'commission_prelevee' => 'decimal:2',
             'solde_apres' => 'decimal:2',
             'date_transaction' => 'datetime',
         ];
