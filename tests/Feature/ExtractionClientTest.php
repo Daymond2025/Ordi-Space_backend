@@ -24,18 +24,19 @@ class ExtractionClientTest extends TestCase
         Http::fake([
             'api.anthropic.com/*' => Http::response([
                 'id' => 'msg_1', 'type' => 'message', 'role' => 'assistant',
-                'content' => [['type' => 'text', 'text' => '{"nom": "Yao Kouassi", "telephone": "0700000099"}']],
+                'content' => [['type' => 'text', 'text' => '{"nom": "Yao Kouassi", "telephone": "0700000099", "ville": "Abobo"}']],
             ], 200),
         ]);
         $coordinateur = $this->creerCoordinateur();
 
         $reponse = $this->actingAs($coordinateur)->postJson('/api/v1/clients/extraction', [
-            'texte' => "Bonjour je m'appelle Yao Kouassi, mon numéro est 0700000099, je veux le laptop.",
+            'texte' => "Bonjour je m'appelle Yao Kouassi, mon numéro est 0700000099, je suis à Abobo, je veux le laptop.",
         ]);
 
         $reponse->assertOk();
         $this->assertSame('Yao Kouassi', $reponse->json('data.nom'));
         $this->assertSame('0700000099', $reponse->json('data.telephone'));
+        $this->assertSame('Abobo', $reponse->json('data.ville'));
     }
 
     public function test_degrade_proprement_si_la_cle_api_est_absente(): void
@@ -50,6 +51,7 @@ class ExtractionClientTest extends TestCase
         $reponse->assertOk();
         $this->assertNull($reponse->json('data.nom'));
         $this->assertNull($reponse->json('data.telephone'));
+        $this->assertNull($reponse->json('data.ville'));
     }
 
     public function test_degrade_proprement_si_l_appel_a_claude_echoue(): void
@@ -65,6 +67,7 @@ class ExtractionClientTest extends TestCase
         $reponse->assertOk();
         $this->assertNull($reponse->json('data.nom'));
         $this->assertNull($reponse->json('data.telephone'));
+        $this->assertNull($reponse->json('data.ville'));
     }
 
     public function test_un_role_sans_permission_ne_peut_pas_extraire(): void

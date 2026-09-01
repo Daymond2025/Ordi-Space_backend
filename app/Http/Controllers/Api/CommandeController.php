@@ -12,6 +12,7 @@ use App\Models\Garantie;
 use App\Models\JournalAudit;
 use App\Models\LigneCommande;
 use App\Models\Livraison;
+use App\Models\Message;
 use App\Models\CanalVente;
 use App\Models\Privilege;
 use App\Models\Produit;
@@ -83,15 +84,21 @@ class CommandeController extends Controller
         $this->autoriserAcces($request, $commande);
 
         $relations = ['lignes.produit.images', 'lignes.produit.categorie', 'livraison', 'paiement', 'canalVente'];
+        $estCoordinateurOuAdmin = in_array($request->user()->type_utilisateur, [ROLE_COORDINATEUR, ROLE_ADMINISTRATEUR], true);
 
-        if (in_array($request->user()->type_utilisateur, [ROLE_COORDINATEUR, ROLE_ADMINISTRATEUR], true)) {
+        if ($estCoordinateurOuAdmin) {
             $relations = array_merge($relations, [
                 'client.user', 'commercial.user', 'coordinateur.user', 'parrain.user', 'privilege',
-                'lignes.produit.fournisseur.user', 'livraison.livreur.user',
+                'lignes.produit.fournisseur.user', 'livraison.livreur.user', 'livraison.adresse.localite',
             ]);
         }
 
-        return $this->success($commande->load($relations));
+        $commande->load($relations);
+
+        // "apercu" (écran détail Coordinateur/Admin) : mêmes champs que
+        // l'instantané figé du message "commande_creee", mais recalculés à
+        // la demande pour refléter l'état courant — voir Commande::versApercu().
+        return $this->success($commande, meta: $estCoordinateurOuAdmin ? ['apercu' => $commande->versApercu()] : []);
     }
 
     /**
@@ -140,9 +147,48 @@ class CommandeController extends Controller
             "Statut de la commande n°{$commande->id} changé à « {$cible} » par un coordinateur."
                 .(($data['motif'] ?? null) ? " Motif : {$data['motif']}." : ''),
             commandeId: $commande->id,
+            donnees: ['statut_apres' => $cible],
         );
 
         return $this->success($commande->fresh());
+    }
+
+    /**
+     * Écran détail commande (Espace Coordinateur) : liberté totale de statut,
+     * sans passer par la machine à états stricte de traiterProbleme() — un
+     * coordinateur sur le terrain doit pouvoir par exemple annuler une
+     * commande en pleine livraison. `en_livraison` est volontairement exclu :
+     * cette transition a toujours besoin d'un livreur, donc passe par
+     * assignerLivreur() (déjà l'action "Envoyer à un livreur"/"Livraison en
+     * cours" côté front).
+     */
+    public function changerStatut(Request $request, Commande $commande): JsonResponse
+    {
+        abort_unless($request->user()->can(PERMISSION_COMMANDES_CHANGER_STATUT), 403);
+
+        $data = $request->validate([
+            'statut_commande' => ['required', 'in:'.implode(',', [
+                STATUT_COMMANDE_EN_ATTENTE, STATUT_COMMANDE_VALIDEE, STATUT_COMMANDE_EN_PREPARATION,
+                STATUT_COMMANDE_LIVREE, STATUT_COMMANDE_ANNULEE, STATUT_COMMANDE_REPORTEE,
+                STATUT_COMMANDE_CLIENT_INJOIGNABLE, STATUT_COMMANDE_NUMERO_INCORRECT,
+            ])],
+            'motif' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $cible = $data['statut_commande'];
+        $commande->appliquerChangementStatut($cible, coordinateurId: $request->user()->id);
+
+        JournalAudit::enregistrer(
+            $commande->client_id,
+            ACTION_COMMANDE_STATUT_MODIFIE,
+            'commande',
+            "Statut de la commande n°{$commande->id} changé à « {$cible} » par un coordinateur."
+                .(($data['motif'] ?? null) ? " Motif : {$data['motif']}." : ''),
+            commandeId: $commande->id,
+            donnees: ['statut_apres' => $cible],
+        );
+
+        return $this->success($commande->fresh(['livraison', 'lignes.garantie']));
     }
 
     /**
@@ -232,6 +278,8 @@ class CommandeController extends Controller
                 'montant_total' => $montantTotal,
                 'montant_remise' => $montantRemise,
                 'frais_livraison' => $fraisLivraison,
+                'bonus_offerts' => $request->input('bonus_offerts'),
+                'notes' => $request->input('notes'),
                 'date_commande' => now(),
             ]);
 
@@ -257,6 +305,8 @@ class CommandeController extends Controller
                 ]);
             }
 
+            $this->publierMessageCommandeCreee($request, $commande, $produits->get($lignesAPersister[0]['produit_id']));
+
             return $commande;
         });
 
@@ -278,6 +328,28 @@ class CommandeController extends Controller
         }
 
         return $this->success($commande->load('lignes.produit'), status: 201);
+    }
+
+    /**
+     * Publie dans la discussion produit un instantané immuable de la
+     * commande au moment de sa création (prix, client, livraison, bonus) —
+     * distinct de la pastille de suivi de statut (MessageController::
+     * formaterCommandeCarte()), qui elle continue d'évoluer en direct.
+     * Seul type de message à renseigner les deux FK à la fois (contrairement
+     * à la convention "l'un des deux" des messages plats) : `produit_id` pour
+     * apparaître dans le fil principal comme un message normal, `commande_id`
+     * pour compter dans le badge non-lu de cette commande précise.
+     */
+    private function publierMessageCommandeCreee(StoreCommandeRequest $request, Commande $commande, Produit $produit): void
+    {
+        Message::create([
+            'produit_id' => $produit->id,
+            'commande_id' => $commande->id,
+            'auteur_id' => $request->user()->id,
+            'type' => TYPE_MESSAGE_COMMANDE_CREEE,
+            'date_envoi' => now(),
+            'donnees' => $commande->versApercu(),
+        ]);
     }
 
     /**
@@ -314,6 +386,7 @@ class CommandeController extends Controller
             'commande',
             "Commande n°{$commande->id} validée par le coordinateur.",
             commandeId: $commande->id,
+            donnees: ['statut_apres' => $commande->statut_commande],
         );
 
         return $this->success($commande->fresh());
@@ -364,7 +437,7 @@ class CommandeController extends Controller
             JournalAudit::where('commande_id', $commande->id)
                 ->with('acteur:id,nom,prenom,type_utilisateur')
                 ->orderBy('date_heure')
-                ->get(['id', 'action', 'details', 'date_heure', 'acteur_id'])
+                ->get(['id', 'action', 'details', 'donnees', 'date_heure', 'acteur_id'])
         );
     }
 
@@ -382,16 +455,12 @@ class CommandeController extends Controller
         $commande->loadMissing('livraison');
         abort_unless($commande->livraison, 422);
 
-        // EN_LIVRAISON est inclus : un coordinateur peut réassigner à un autre
-        // livreur une commande déjà en cours de livraison (panne du livreur
-        // initial, erreur d'affectation...), pas seulement l'affecter une
-        // première fois.
-        if (! in_array($commande->statut_commande, [STATUT_COMMANDE_VALIDEE, STATUT_COMMANDE_EN_PREPARATION, STATUT_COMMANDE_EN_LIVRAISON], true)) {
-            throw ValidationException::withMessages([
-                'statut_commande' => ['Cette commande ne peut pas être transmise à un livreur dans son statut actuel.'],
-            ]);
-        }
-
+        // Aucune restriction de statut source : un coordinateur sur le
+        // terrain doit pouvoir transmettre à un livreur depuis n'importe quel
+        // statut (y compris en_attente ou un statut "problème" fraîchement
+        // résolu), pas seulement validee/en_preparation/en_livraison — même
+        // philosophie de liberté totale que changerStatut(). Seule contrainte
+        // réelle : la commande doit avoir une livraison (pas 100% numérique).
         DB::transaction(function () use ($commande, $data) {
             $commande->livraison->update([
                 'livreur_id' => $data['livreur_id'],
@@ -407,6 +476,7 @@ class CommandeController extends Controller
             'commande',
             "Commande n°{$commande->id} transmise au livreur (user #{$data['livreur_id']}) par le coordinateur.",
             commandeId: $commande->id,
+            donnees: ['statut_apres' => STATUT_COMMANDE_EN_LIVRAISON, 'livreur_id' => $data['livreur_id']],
         );
 
         return $this->success($commande->fresh('livraison'));

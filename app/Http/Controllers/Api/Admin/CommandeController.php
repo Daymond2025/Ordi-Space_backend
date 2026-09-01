@@ -5,11 +5,9 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Commande;
 use App\Models\Coordinateur;
-use App\Models\Garantie;
 use App\Models\JournalAudit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class CommandeController extends Controller
@@ -63,51 +61,17 @@ class CommandeController extends Controller
         ]);
 
         $nouveauStatut = $data['statut_commande'];
-        $commande->loadMissing('livraison', 'lignes.produit');
 
-        DB::transaction(function () use ($commande, $nouveauStatut, $data, $request) {
-            if ($nouveauStatut === STATUT_COMMANDE_ANNULEE && $commande->statut_commande !== STATUT_COMMANDE_ANNULEE) {
-                foreach ($commande->lignes as $ligne) {
-                    $ligne->produit?->increment('quantite_stock', $ligne->quantite);
-                }
-            }
+        // coordinateur_id référence la table coordinateurs : on ne l'attribue
+        // à l'admin que s'il est lui-même coordinateur, sinon on le laisse
+        // tel quel (override sans acteur assigné).
+        $adminEstCoordinateur = Coordinateur::where('user_id', $request->user()->id)->exists();
 
-            if ($nouveauStatut === STATUT_COMMANDE_VALIDEE) {
-                // coordinateur_id référence la table coordinateurs : on ne
-                // l'attribue à l'admin que s'il est lui-même coordinateur,
-                // sinon on le laisse tel quel (override sans acteur assigné).
-                $adminEstCoordinateur = Coordinateur::where('user_id', $request->user()->id)->exists();
-
-                $commande->update([
-                    'coordinateur_id' => $commande->coordinateur_id ?? ($adminEstCoordinateur ? $request->user()->id : null),
-                    'date_validation' => $commande->date_validation ?? now(),
-                ]);
-            }
-
-            if ($nouveauStatut === STATUT_COMMANDE_EN_PREPARATION) {
-                $commande->livraison?->update(['statut_livraison' => STATUT_LIVRAISON_EN_ATTENTE_LIVREUR]);
-            }
-
-            if ($nouveauStatut === STATUT_COMMANDE_EN_LIVRAISON) {
-                $commande->livraison?->update([
-                    'livreur_id' => $data['livreur_id'],
-                    'statut_livraison' => STATUT_LIVRAISON_EN_COURS,
-                    'date_prise_en_charge' => now(),
-                ]);
-            }
-
-            if ($nouveauStatut === STATUT_COMMANDE_LIVREE) {
-                $commande->livraison?->update([
-                    'statut_livraison' => STATUT_LIVRAISON_LIVREE,
-                    'date_livraison_effective' => now(),
-                ]);
-                Garantie::genererPourCommande($commande);
-                $commande->crediterParrainageSiEligible();
-                $commande->crediterFournisseursSiEligible();
-            }
-
-            $commande->update(['statut_commande' => $nouveauStatut]);
-        });
+        $commande->appliquerChangementStatut(
+            $nouveauStatut,
+            livreurId: $data['livreur_id'] ?? null,
+            coordinateurId: $adminEstCoordinateur ? $request->user()->id : null,
+        );
 
         JournalAudit::enregistrer(
             $commande->client_id,
@@ -115,6 +79,7 @@ class CommandeController extends Controller
             'commande',
             "Statut de la commande n°{$commande->id} changé à « {$nouveauStatut} » par un administrateur.",
             commandeId: $commande->id,
+            donnees: ['statut_apres' => $nouveauStatut],
         );
 
         return $this->success($commande->fresh(['livraison.livreur.user', 'lignes.garantie']));

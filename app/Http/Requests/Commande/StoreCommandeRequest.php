@@ -39,6 +39,12 @@ class StoreCommandeRequest extends FormRequest
             'code_promo' => ['nullable', 'string', 'max:50'],
             // Code de parrainage personnel du client "parrain" (ex. ACHAT-KO-2026).
             'code_parrainage' => ['nullable', 'string', 'max:60', 'exists:clients,code_parrainage'],
+            // Texte libre (ex. "2 Écouteurs, 1 chargeur") — affiché en pastilles
+            // dans la carte "Nouvelle commande" de la discussion produit.
+            'bonus_offerts' => ['nullable', 'string', 'max:255'],
+            // "Informations complémentaires" (flux de création par
+            // copier-coller, Espace Coordinateur) — distinct de bonus_offerts.
+            'notes' => ['nullable', 'string', 'max:500'],
         ];
     }
 

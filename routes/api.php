@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\Auth\TelephoneAuthController;
 use App\Http\Controllers\Api\CategorieController;
 use App\Http\Controllers\Api\ClientRapideController;
 use App\Http\Controllers\Api\CommandeController;
+use App\Http\Controllers\Api\LivreurController;
 use App\Http\Controllers\Api\Coordinateur\EspaceController as CoordinateurEspaceController;
 use App\Http\Controllers\Api\FournisseurController;
 use App\Http\Controllers\Api\Garantix\AbonnementController;
@@ -113,6 +114,7 @@ Route::prefix('v1')->group(function () {
         Route::delete('produits/{produit}/images/{image}', [ProduitController::class, 'supprimerImage'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
         Route::patch('produits/{produit}/booster', [ProduitController::class, 'basculerBoost'])->middleware('permission:'.PERMISSION_PRODUITS_BOOSTER);
         Route::patch('produits/{produit}/stock', [ProduitController::class, 'modifierStock'])->middleware('permission:'.PERMISSION_PRODUITS_GERER_STOCK);
+        Route::get('produits/{produit}/frais-livraison', [ProduitController::class, 'previsualiserFraisLivraison'])->middleware('permission:'.PERMISSION_COMMANDES_CREER);
 
         // Discussion produit façon WhatsApp — Espace Coordinateur (Phase 2).
         Route::middleware('permission:'.PERMISSION_MESSAGES_PRODUIT_GERER)->group(function () {
@@ -145,6 +147,10 @@ Route::prefix('v1')->group(function () {
         // extrait nom+téléphone d'un texte collé, voir ExtractionClientService.
         Route::post('clients/extraction', [ClientRapideController::class, 'extraire'])
             ->middleware('permission:'.PERMISSION_CLIENTS_CREATION_RAPIDE);
+        // Adresse créée pour le client au nom duquel le Commercial/Coordinateur
+        // saisit une commande — distinct du self-service MoiController::ajouterAdresse().
+        Route::post('clients/{client}/adresses', [ClientRapideController::class, 'creerAdresse'])
+            ->middleware('permission:'.PERMISSION_CLIENTS_CREATION_RAPIDE);
 
         Route::get('commandes', [CommandeController::class, 'index'])->middleware('permission:'.PERMISSION_COMMANDES_CONSULTER);
         Route::post('commandes', [CommandeController::class, 'store'])->middleware('permission:'.PERMISSION_COMMANDES_CREER);
@@ -154,6 +160,8 @@ Route::prefix('v1')->group(function () {
         Route::post('commandes/{commande}/preparee', [CommandeController::class, 'marquerPreparee'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
         Route::get('commandes/{commande}/suivi', [CommandeController::class, 'suivi'])->middleware('permission:'.PERMISSION_COMMANDES_CONSULTER);
         Route::post('commandes/{commande}/assigner-livreur', [CommandeController::class, 'assignerLivreur'])->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
+        Route::post('commandes/{commande}/statut', [CommandeController::class, 'changerStatut'])->middleware('permission:'.PERMISSION_COMMANDES_CHANGER_STATUT);
+        Route::get('livreurs', [LivreurController::class, 'index'])->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
         Route::middleware('permission:'.PERMISSION_MESSAGES_COMMANDE_GERER)->group(function () {
             Route::get('commandes/{commande}/messages', [MessageController::class, 'indexCommande']);
             Route::post('commandes/{commande}/messages', [MessageController::class, 'storeCommande']);

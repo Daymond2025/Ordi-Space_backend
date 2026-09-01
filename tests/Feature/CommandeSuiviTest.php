@@ -61,6 +61,11 @@ class CommandeSuiviTest extends TestCase
 
         // Ordre chronologique : la création est toujours en premier.
         $this->assertStringContainsString('passé une commande', $lignes[0]['details']);
+
+        // "donnees" (icône/couleur de la timeline côté front) doit être
+        // exposé — régression possible si suivi() ne le sélectionne plus.
+        $ligneValidee = collect($lignes)->first(fn ($l) => ($l['donnees']['statut_apres'] ?? null) === STATUT_COMMANDE_VALIDEE);
+        $this->assertNotNull($ligneValidee);
     }
 
     public function test_aucune_fuite_entre_deux_commandes_distinctes(): void

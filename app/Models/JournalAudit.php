@@ -10,11 +10,11 @@ class JournalAudit extends Model
     protected $table = 'journal_audit';
     public $timestamps = false;
 
-    protected $fillable = ['user_id', 'commande_id', 'acteur_id', 'action', 'entite_concernee', 'details', 'adresse_ip', 'date_heure'];
+    protected $fillable = ['user_id', 'commande_id', 'acteur_id', 'action', 'entite_concernee', 'details', 'donnees', 'adresse_ip', 'date_heure'];
 
     protected function casts(): array
     {
-        return ['date_heure' => 'datetime'];
+        return ['date_heure' => 'datetime', 'donnees' => 'array'];
     }
 
     public function user(): BelongsTo
@@ -42,7 +42,9 @@ class JournalAudit extends Model
      * existants), pas forcément celui qui l'a effectuée — d'où "acteurId",
      * distinct, déduit de l'utilisateur authentifié si non fourni.
      * "commandeId" alimente l'onglet "Suivi" (timeline) de l'Espace
-     * Coordinateur — nullable, les 11 appels existants restent inchangés.
+     * Coordinateur — nullable, les appels existants restent inchangés.
+     * "donnees" (ex: {statut_apres, livreur_id}) permet à cette même
+     * timeline de choisir icône/couleur sans parser le texte de "details".
      */
     public static function enregistrer(
         int $userId,
@@ -51,6 +53,7 @@ class JournalAudit extends Model
         ?string $details = null,
         ?int $commandeId = null,
         ?int $acteurId = null,
+        ?array $donnees = null,
     ): self {
         return static::create([
             'user_id' => $userId,
@@ -59,6 +62,7 @@ class JournalAudit extends Model
             'action' => $action,
             'entite_concernee' => $entiteConcernee,
             'details' => $details,
+            'donnees' => $donnees,
             'adresse_ip' => request()->ip(),
             'date_heure' => now(),
         ]);

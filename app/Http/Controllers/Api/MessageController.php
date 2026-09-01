@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Message\StoreMessageRequest;
+use App\Models\Adresse;
 use App\Models\Commande;
+use App\Models\ConsultationCommande;
 use App\Models\ConsultationProduit;
+use App\Models\JournalAudit;
 use App\Models\LigneCommande;
 use App\Models\Message;
 use App\Models\Produit;
@@ -44,6 +47,8 @@ class MessageController extends Controller
     {
         abort_unless($commande->estAccessibleConversationPar($request->user()), 403);
 
+        $this->marquerConsulteCommande($request, $commande);
+
         return $this->success($this->messagesPagines($commande->messages(), $request));
     }
 
@@ -71,7 +76,7 @@ class MessageController extends Controller
         $messages = $this->messagesPagines($produit->messages(), $request);
 
         $commandesQuery = Commande::whereHas('lignes', fn ($q) => $q->where('produit_id', $produit->id))
-            ->with(['client.user', 'livraison.adresse']);
+            ->with(['client.user', 'livraison.adresse.localite']);
 
         if ($request->user()->type_utilisateur === ROLE_COMMERCIAL) {
             $commandesQuery->where('commercial_id', $request->user()->id);
@@ -81,8 +86,37 @@ class MessageController extends Controller
             $commandesQuery->whereIn('statut_commande', explode(',', $request->string('statut')));
         }
 
-        $commandes = $commandesQuery->latest('updated_at')->limit(50)->get()
-            ->map(fn ($commande) => $this->formaterCommandeCarte($commande, $produit));
+        $commandesCollection = $commandesQuery->latest('updated_at')->limit(50)->get();
+        $commandeIds = $commandesCollection->pluck('id');
+
+        // Badge non-lu et dernier événement du suivi — batchés (pas de N+1
+        // sur les jusqu'à 50 cartes affichées).
+        $consultationsCommande = ConsultationCommande::where('user_id', $request->user()->id)
+            ->whereIn('commande_id', $commandeIds)
+            ->pluck('consulte_le', 'commande_id');
+
+        $messagesNonLusParCommande = Message::whereIn('commande_id', $commandeIds)
+            ->where('auteur_id', '!=', $request->user()->id)
+            ->get(['id', 'commande_id', 'date_envoi'])
+            ->groupBy('commande_id');
+
+        $dernierSuiviParCommande = JournalAudit::whereIn('commande_id', $commandeIds)
+            ->with('acteur:id,nom,prenom')
+            ->orderByDesc('date_heure')
+            ->get()
+            ->groupBy('commande_id')
+            ->map(fn ($groupe) => $groupe->first());
+
+        $commandes = $commandesCollection->map(function ($commande) use (
+            $produit, $consultationsCommande, $messagesNonLusParCommande, $dernierSuiviParCommande
+        ) {
+            $consulteLe = $consultationsCommande->get($commande->id);
+            $nouvellesActivites = ($messagesNonLusParCommande->get($commande->id) ?? collect())
+                ->filter(fn ($m) => ! $consulteLe || $m->date_envoi > $consulteLe)
+                ->count();
+
+            return $this->formaterCommandeCarte($commande, $produit, $nouvellesActivites, $dernierSuiviParCommande->get($commande->id));
+        });
 
         $items = $messages->getCollection()
             ->map(fn ($m) => ['type' => 'message', 'date' => $m->date_envoi, 'donnee' => $m])
@@ -102,26 +136,49 @@ class MessageController extends Controller
         ]);
     }
 
-    private function formaterCommandeCarte(Commande $commande, Produit $produit): array
+    private function formaterCommandeCarte(Commande $commande, Produit $produit, int $nouvellesActivites, ?JournalAudit $dernierSuivi): array
     {
         return [
             'commande_id' => $commande->id,
             'photo' => $produit->images->first()?->url_image,
             'nom_produit' => $produit->nom_produit,
+            'description' => $produit->description,
             'nom_client' => trim(($commande->client?->user?->prenom ?? '').' '.($commande->client?->user?->nom ?? '')),
-            'zone_localite' => $commande->livraison?->adresse?->ville,
+            'zone_localite' => $this->formaterZoneLocalite($commande->livraison?->adresse),
             'telephone' => $commande->client?->user?->telephone,
             'derniere_action' => $commande->updated_at,
             'statut' => $commande->statut_commande,
+            'nouvelles_activites' => $nouvellesActivites,
+            'dernier_suivi' => $dernierSuivi ? [
+                'texte' => $dernierSuivi->details,
+                'acteur' => trim(($dernierSuivi->acteur?->prenom ?? '').' '.($dernierSuivi->acteur?->nom ?? '')),
+                'date' => $dernierSuivi->date_heure,
+            ] : null,
         ];
+    }
+
+    /**
+     * "Ville, Localité" quand l'adresse a une localité reconnue (frais de
+     * livraison) — sinon juste la ville, texte libre historique.
+     */
+    private function formaterZoneLocalite(?Adresse $adresse): ?string
+    {
+        if (! $adresse) {
+            return null;
+        }
+
+        return $adresse->localite ? "{$adresse->ville}, {$adresse->localite->nom}" : $adresse->ville;
     }
 
     /**
      * Génère à la demande (premier arrivant du jour) un message-rapport
      * résumant l'activité d'hier pour ce produit — pas de cron disponible
-     * sur l'hébergement (contrainte actée en Phase 1). Limite assumée :
-     * livrées/annulées reflètent le statut *actuel* des commandes reçues
-     * hier, pas la date exacte du changement de statut (non tracée précisément).
+     * sur l'hébergement (contrainte actée en Phase 1). Limite assumée : les 5
+     * compteurs reflètent le statut *actuel* des commandes reçues hier, pas
+     * la date exacte du changement de statut (non tracée précisément).
+     * `contenu` reste une phrase de repli courte (notifications) ; les
+     * chiffres détaillés vivent dans `donnees` pour la carte "Rapport du
+     * jour" côté front.
      */
     private function genererRapportQuotidienSiNecessaire(Produit $produit): void
     {
@@ -149,22 +206,36 @@ class MessageController extends Controller
             return;
         }
 
-        $livrees = $commandesHier->where('statut_commande', STATUT_COMMANDE_LIVREE)->count();
+        $validees = $commandesHier->whereIn('statut_commande', [
+            STATUT_COMMANDE_VALIDEE, STATUT_COMMANDE_EN_PREPARATION, STATUT_COMMANDE_EN_LIVRAISON, STATUT_COMMANDE_LIVREE,
+        ])->count();
+        $reportees = $commandesHier->where('statut_commande', STATUT_COMMANDE_REPORTEE)->count();
+        $nonLivre = $commandesHier->whereIn('statut_commande', [
+            STATUT_COMMANDE_CLIENT_INJOIGNABLE, STATUT_COMMANDE_NUMERO_INCORRECT,
+        ])->count();
         $annulees = $commandesHier->where('statut_commande', STATUT_COMMANDE_ANNULEE)->count();
-        $montant = $commandesHier->sum('montant_total');
 
         Message::create([
             'produit_id' => $produit->id,
             'auteur_id' => $auteurId,
             'type' => TYPE_MESSAGE_RAPPORT,
             'contenu' => sprintf(
-                'Rapport du %s — %d commande(s) reçue(s), %d livrée(s), %d annulée(s), %s CFA de ventes.',
+                'Rapport du %s — %d commande(s) envoyée(s), %d validée(s), %d reportée(s), %d non livrée(s), %d annulée(s).',
                 $hier->format('d/m/Y'),
                 $commandesHier->count(),
-                $livrees,
-                $annulees,
-                number_format((float) $montant, 0, ',', ' ')
+                $validees,
+                $reportees,
+                $nonLivre,
+                $annulees
             ),
+            'donnees' => [
+                'date' => $hier->toDateString(),
+                'envoyees' => $commandesHier->count(),
+                'validees' => $validees,
+                'reportees' => $reportees,
+                'non_livre' => $nonLivre,
+                'annulees' => $annulees,
+            ],
             'date_envoi' => now(),
         ]);
     }
@@ -173,6 +244,14 @@ class MessageController extends Controller
     {
         ConsultationProduit::updateOrCreate(
             ['user_id' => $request->user()->id, 'produit_id' => $produit->id],
+            ['consulte_le' => now()]
+        );
+    }
+
+    private function marquerConsulteCommande(Request $request, Commande $commande): void
+    {
+        ConsultationCommande::updateOrCreate(
+            ['user_id' => $request->user()->id, 'commande_id' => $commande->id],
             ['consulte_le' => now()]
         );
     }

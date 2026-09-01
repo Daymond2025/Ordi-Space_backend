@@ -7,6 +7,7 @@ use App\Http\Requests\Produit\StoreProduitRequest;
 use App\Http\Requests\Produit\ValiderProduitRequest;
 use App\Models\FraisLivraisonProduit;
 use App\Models\ImageProduit;
+use App\Models\Localite;
 use App\Models\Produit;
 use App\Models\ValidationProduit;
 use Illuminate\Http\Request;
@@ -241,6 +242,38 @@ class ProduitController extends Controller
         $produit->update($data);
 
         return $this->success($produit->fresh(['images', 'categorie']));
+    }
+
+    /**
+     * Prévisualise les frais de livraison d'un produit vers une localité,
+     * avant de créer la commande — flux "création par copier-coller" (Espace
+     * Coordinateur) : permet de découvrir l'absence de barème (même message
+     * qu'à la création réelle, voir CommandeController::calculerFraisLivraison())
+     * avant de faire saisir tout le reste au coordinateur.
+     */
+    public function previsualiserFraisLivraison(Request $request, Produit $produit): JsonResponse
+    {
+        abort_unless($request->user()->can(PERMISSION_COMMANDES_CREER), 403);
+
+        $data = $request->validate(['localite_id' => ['required', 'exists:localites,id']]);
+
+        if ($produit->estNumerique()) {
+            return $this->success(['frais_livraison' => 0.0]);
+        }
+
+        $frais = FraisLivraisonProduit::where('produit_id', $produit->id)
+            ->where('localite_id', $data['localite_id'])
+            ->value('montant');
+
+        if ($frais === null) {
+            $localite = Localite::find($data['localite_id']);
+
+            throw ValidationException::withMessages([
+                'localite_id' => ["Aucun frais de livraison n'est défini pour « {$produit->nom_produit} » vers « {$localite?->nom} »."],
+            ]);
+        }
+
+        return $this->success(['frais_livraison' => (float) $frais]);
     }
 
     /**

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
 
 class Commande extends Model
 {
@@ -13,7 +14,7 @@ class Commande extends Model
 
     protected $fillable = [
         'client_id', 'commercial_id', 'coordinateur_id', 'canal_vente_id',
-        'statut_commande', 'montant_total', 'montant_remise', 'frais_livraison', 'privilege_id', 'date_commande',
+        'statut_commande', 'montant_total', 'montant_remise', 'frais_livraison', 'bonus_offerts', 'notes', 'privilege_id', 'date_commande',
         'date_validation', 'parrain_id', 'parrainage_recompense_versee', 'livraison_gratuite_appliquee',
         'commissions_fournisseurs_versees',
     ];
@@ -187,5 +188,89 @@ class Commande extends Model
         }
 
         $this->update(['commissions_fournisseurs_versees' => true]);
+    }
+
+    /**
+     * Effets de bord partagés d'un changement de statut forcé — extrait de
+     * l'override Admin (Api\Admin\CommandeController::changerStatut()) pour
+     * être réutilisé par le nouveau point d'entrée Coordinateur (liberté
+     * totale de statut, voir Api\CommandeController::changerStatut()).
+     * `$coordinateurId` n'est attribué que si la cible est "validee" et que
+     * l'appelant est réellement le responsable de cette validation — laissé
+     * à `null` pour ne rien attribuer (ex: override admin sans lien direct).
+     */
+    public function appliquerChangementStatut(string $cible, ?int $livreurId = null, ?int $coordinateurId = null): void
+    {
+        $this->loadMissing('livraison', 'lignes.produit');
+
+        DB::transaction(function () use ($cible, $livreurId, $coordinateurId) {
+            if ($cible === STATUT_COMMANDE_ANNULEE && $this->statut_commande !== STATUT_COMMANDE_ANNULEE) {
+                foreach ($this->lignes as $ligne) {
+                    $ligne->produit?->increment('quantite_stock', $ligne->quantite);
+                }
+            }
+
+            if ($cible === STATUT_COMMANDE_VALIDEE) {
+                $this->update([
+                    'coordinateur_id' => $this->coordinateur_id ?? $coordinateurId,
+                    'date_validation' => $this->date_validation ?? now(),
+                ]);
+            }
+
+            if ($cible === STATUT_COMMANDE_EN_PREPARATION) {
+                $this->livraison?->update(['statut_livraison' => STATUT_LIVRAISON_EN_ATTENTE_LIVREUR]);
+            }
+
+            if ($cible === STATUT_COMMANDE_EN_LIVRAISON) {
+                $this->livraison?->update([
+                    'livreur_id' => $livreurId,
+                    'statut_livraison' => STATUT_LIVRAISON_EN_COURS,
+                    'date_prise_en_charge' => now(),
+                ]);
+            }
+
+            if ($cible === STATUT_COMMANDE_LIVREE) {
+                $this->livraison?->update([
+                    'statut_livraison' => STATUT_LIVRAISON_LIVREE,
+                    'date_livraison_effective' => now(),
+                ]);
+                Garantie::genererPourCommande($this);
+                $this->crediterParrainageSiEligible();
+                $this->crediterFournisseursSiEligible();
+            }
+
+            $this->update(['statut_commande' => $cible]);
+        });
+    }
+
+    /**
+     * Instantané des infos affichables d'une commande (produit, client,
+     * livraison, détail prix, bonus) — même forme que le payload figé dans
+     * le message système "commande_creee" (voir CommandeController::
+     * publierMessageCommandeCreee()), mais calculé à la demande pour
+     * toujours refléter l'état courant (utilisé par show() pour l'écran
+     * détail Coordinateur). Suppose `lignes.produit.images`, `client.user`
+     * et `livraison.adresse.localite` déjà chargés par l'appelant.
+     */
+    public function versApercu(): array
+    {
+        $ligne = $this->lignes->first();
+        $produit = $ligne?->produit;
+        $adresse = $this->livraison?->adresse;
+
+        return [
+            'nom_produit' => $produit?->nom_produit,
+            'photo' => $produit?->images->first()?->url_image,
+            'prix_produit' => (float) $this->montant_total,
+            'nom_client' => trim(($this->client?->user?->prenom ?? '').' '.($this->client?->user?->nom ?? '')),
+            'telephone' => $this->client?->user?->telephone,
+            'zone_livraison' => $adresse ? ($adresse->localite ? "{$adresse->ville}, {$adresse->localite->nom}" : $adresse->ville) : null,
+            'date_livraison_prevue' => $this->livraison?->date_livraison_prevue,
+            'frais_livraison' => (float) $this->frais_livraison,
+            'remise' => (float) $this->montant_remise,
+            'total' => $this->montantNet(),
+            'bonus_offerts' => $this->bonus_offerts,
+            'notes' => $this->notes,
+        ];
     }
 }

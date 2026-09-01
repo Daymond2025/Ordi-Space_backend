@@ -62,6 +62,9 @@ defined('PERMISSION_FOURNISSEURS_PORTEFEUILLE_GERER') || define('PERMISSION_FOUR
 // il la reçoit de fait via RolesAndPermissionsSeeder (liste complète).
 defined('PERMISSION_FOURNISSEURS_COMMISSION_GERER') || define('PERMISSION_FOURNISSEURS_COMMISSION_GERER', 'fournisseurs.commission.gerer');
 defined('PERMISSION_PRODUITS_GERER_STOCK') || define('PERMISSION_PRODUITS_GERER_STOCK', 'produits.stock.gerer');
+// Écran détail commande (Espace Coordinateur) : transition libre de statut,
+// sans passer par la machine à états stricte de commandes.traiter.
+defined('PERMISSION_COMMANDES_CHANGER_STATUT') || define('PERMISSION_COMMANDES_CHANGER_STATUT', 'commandes.changer_statut');
 
 if (! function_exists('roles_auto_inscription')) {
     /**

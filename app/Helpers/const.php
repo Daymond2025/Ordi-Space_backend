@@ -193,6 +193,8 @@ defined('TYPE_MESSAGE_NOTE_VOCALE') || define('TYPE_MESSAGE_NOTE_VOCALE', 'note_
 defined('TYPE_MESSAGE_DOCUMENT') || define('TYPE_MESSAGE_DOCUMENT', 'document');
 // Rapport quotidien automatique — voir MessageController::genererRapportQuotidienSiNecessaire().
 defined('TYPE_MESSAGE_RAPPORT') || define('TYPE_MESSAGE_RAPPORT', 'rapport');
+// Instantané de commande publié une seule fois à sa création — voir CommandeController::store().
+defined('TYPE_MESSAGE_COMMANDE_CREEE') || define('TYPE_MESSAGE_COMMANDE_CREEE', 'commande_creee');
 defined('MESSAGE_CONTENU_MAX_LONGUEUR') || define('MESSAGE_CONTENU_MAX_LONGUEUR', 5000);
 // Image et audio de message réutilisent les mimes/plafonds existants, mais
 // un dossier dédié (pas mélangé aux pièces jointes métier produits/FAQ).

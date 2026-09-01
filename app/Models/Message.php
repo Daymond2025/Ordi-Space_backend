@@ -11,11 +11,11 @@ class Message extends Model
 
     public $timestamps = false;
 
-    protected $fillable = ['produit_id', 'commande_id', 'auteur_id', 'type', 'contenu', 'fichier', 'date_envoi'];
+    protected $fillable = ['produit_id', 'commande_id', 'auteur_id', 'type', 'contenu', 'fichier', 'donnees', 'date_envoi'];
 
     protected function casts(): array
     {
-        return ['date_envoi' => 'datetime'];
+        return ['date_envoi' => 'datetime', 'donnees' => 'array'];
     }
 
     public function produit(): BelongsTo

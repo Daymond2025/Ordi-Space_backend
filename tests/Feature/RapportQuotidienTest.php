@@ -52,8 +52,16 @@ class RapportQuotidienTest extends TestCase
 
         $rapport = Message::where('produit_id', $produit->id)->where('type', TYPE_MESSAGE_RAPPORT)->firstOrFail();
         $this->assertStringContainsString('1 commande', $rapport->contenu);
-        $this->assertStringContainsString('1 livrée', $rapport->contenu);
+        $this->assertStringContainsString('1 validée', $rapport->contenu);
         $this->assertStringContainsString('0 annulée', $rapport->contenu);
+        $this->assertSame([
+            'date' => now()->subDay()->toDateString(),
+            'envoyees' => 1,
+            'validees' => 1,
+            'reportees' => 0,
+            'non_livre' => 0,
+            'annulees' => 0,
+        ], $rapport->donnees);
 
         // Second appel le même jour : pas de doublon.
         $this->actingAs($coordinateur)->getJson("/api/v1/produits/{$produit->id}/conversation")->assertOk();

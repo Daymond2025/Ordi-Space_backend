@@ -122,4 +122,51 @@ class ConversationProduitTest extends TestCase
         $this->assertEquals($enTete['recues'], $enTete['livrees'] + $enTete['en_cours'] + $enTete['annulees']);
         $this->assertNotNull($enAttente);
     }
+
+    public function test_la_carte_commande_expose_description_zone_localite_et_dernier_suivi(): void
+    {
+        $coordinateur = $this->creerCoordinateur();
+        $commercial = $this->creerCommercial();
+        $produit = $this->creerProduitPhysique(['description' => 'Ordinateur portable gaming']);
+
+        $commande = $this->creerCommandePour($commercial, $produit);
+
+        $reponse = $this->actingAs($coordinateur)->getJson("/api/v1/produits/{$produit->id}/conversation");
+
+        $reponse->assertOk();
+        $carte = collect($reponse->json('data.items'))->first(fn ($item) => $item['type'] === 'commande' && $item['donnee']['commande_id'] === $commande->id)['donnee'];
+
+        $this->assertSame('Ordinateur portable gaming', $carte['description']);
+        $this->assertSame("Abidjan, Cocody", $carte['zone_localite']);
+        $this->assertNotNull($carte['dernier_suivi']);
+        $this->assertStringContainsString('passé une commande', $carte['dernier_suivi']['texte']);
+    }
+
+    public function test_le_badge_non_lu_par_commande_descend_a_zero_apres_consultation(): void
+    {
+        $coordinateur = $this->creerCoordinateur();
+        $commercial = $this->creerCommercial();
+        $produit = $this->creerProduitPhysique();
+        $fournisseur = User::findOrFail($produit->fournisseur_id);
+
+        $commande = $this->creerCommandePour($commercial, $produit);
+
+        $this->actingAs($fournisseur)->postJson("/api/v1/commandes/{$commande->id}/messages", [
+            'contenu' => 'Numéro incorrect, à vérifier.',
+        ])->assertCreated();
+
+        $avant = $this->actingAs($coordinateur)->getJson("/api/v1/produits/{$produit->id}/conversation");
+        $avant->assertOk();
+        $carteAvant = collect($avant->json('data.items'))->first(fn ($item) => $item['type'] === 'commande' && $item['donnee']['commande_id'] === $commande->id)['donnee'];
+        // 2 : le message système "commande_creee" (auteur = le commercial qui a
+        // passé la commande) + le message du fournisseur — aucun des deux n'est
+        // du coordinateur qui consulte ici.
+        $this->assertSame(2, $carteAvant['nouvelles_activites']);
+
+        $this->actingAs($coordinateur)->getJson("/api/v1/commandes/{$commande->id}/messages")->assertOk();
+
+        $apres = $this->actingAs($coordinateur)->getJson("/api/v1/produits/{$produit->id}/conversation");
+        $carteApres = collect($apres->json('data.items'))->first(fn ($item) => $item['type'] === 'commande' && $item['donnee']['commande_id'] === $commande->id)['donnee'];
+        $this->assertSame(0, $carteApres['nouvelles_activites']);
+    }
 }

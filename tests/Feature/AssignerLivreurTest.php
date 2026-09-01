@@ -62,7 +62,12 @@ class AssignerLivreurTest extends TestCase
         $this->assertDatabaseHas('journal_audit', ['commande_id' => $commande->id]);
     }
 
-    public function test_rejete_depuis_un_statut_incompatible(): void
+    /**
+     * Liberté totale de statut (Espace Coordinateur, écran détail commande) :
+     * l'assignation à un livreur doit fonctionner depuis n'importe quel
+     * statut source — plus de restriction validee/en_preparation/en_livraison.
+     */
+    public function test_l_assignation_fonctionne_aussi_depuis_en_attente(): void
     {
         $commercial = $this->creerCommercial();
         $coordinateur = $this->creerCoordinateur();
@@ -70,9 +75,14 @@ class AssignerLivreurTest extends TestCase
 
         $commande = $this->creerCommande($commercial); // reste en_attente
 
-        $this->actingAs($coordinateur)->postJson("/api/v1/commandes/{$commande->id}/assigner-livreur", [
+        $reponse = $this->actingAs($coordinateur)->postJson("/api/v1/commandes/{$commande->id}/assigner-livreur", [
             'livreur_id' => $livreur->id,
-        ])->assertUnprocessable();
+        ]);
+
+        $reponse->assertOk();
+        $this->assertDatabaseHas('livraisons', ['commande_id' => $commande->id, 'livreur_id' => $livreur->id]);
+        $this->assertDatabaseHas('commandes', ['id' => $commande->id, 'statut_commande' => STATUT_COMMANDE_EN_LIVRAISON]);
+        $this->assertDatabaseHas('journal_audit', ['commande_id' => $commande->id]);
     }
 
     public function test_rejete_pour_une_commande_100_pourcent_numerique(): void

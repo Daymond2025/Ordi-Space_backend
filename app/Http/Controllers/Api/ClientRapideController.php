@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Adresse;
 use App\Models\Client;
+use App\Models\Localite;
 use App\Models\User;
 use App\Services\ExtractionClientService;
 use Illuminate\Http\JsonResponse;
@@ -60,5 +62,36 @@ class ClientRapideController extends Controller
         $data = $request->validate(['texte' => ['required', 'string', 'max:5000']]);
 
         return $this->success($service->extraire($data['texte']));
+    }
+
+    /**
+     * Crée une adresse pour un client au nom duquel un Commercial/Coordinateur
+     * saisit une commande (flux "création par copier-coller") — distinct de
+     * MoiController::ajouterAdresse(), self-service réservé au client
+     * lui-même. La localité est toujours confirmée manuellement côté front
+     * (jamais déduite automatiquement d'un texte collé) : c'est elle qui
+     * conditionne les frais de livraison facturés. "rue" n'a pas de saisie
+     * dédiée dans ce flux — repli sur le nom de la localité.
+     */
+    public function creerAdresse(Request $request, int $client): JsonResponse
+    {
+        Client::where('user_id', $client)->firstOrFail();
+
+        $data = $request->validate([
+            'localite_id' => ['required', 'exists:localites,id'],
+        ]);
+
+        $localite = Localite::findOrFail($data['localite_id']);
+        $ville = $localite->type === TYPE_LOCALITE_COMMUNE_ABIDJAN ? 'Abidjan' : $localite->nom;
+
+        $adresse = Adresse::create([
+            'client_id' => $client,
+            'ville' => $ville,
+            'rue' => $localite->nom,
+            'pays' => "Côte d'Ivoire",
+            'localite_id' => $localite->id,
+        ]);
+
+        return $this->success($adresse, status: 201);
     }
 }
