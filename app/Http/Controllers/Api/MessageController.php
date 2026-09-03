@@ -33,7 +33,7 @@ class MessageController extends Controller
 
         $this->marquerConsulte($request, $produit);
 
-        return $this->success($this->messagesPagines($produit->messages(), $request));
+        return $this->success($this->messagesPagines($produit->messages()->where('est_negociation_prix', false), $request));
     }
 
     public function storeProduit(StoreMessageRequest $request, Produit $produit): JsonResponse
@@ -41,6 +41,51 @@ class MessageController extends Controller
         abort_unless($produit->estAccessibleConversationPar($request->user()), 403);
 
         return $this->success($this->creerMessage($request, ['produit_id' => $produit->id]), status: 201);
+    }
+
+    /**
+     * Démarre une négociation de prix — fil séparé de la discussion produit
+     * générale (Message.est_negociation_prix), réservé coordinateur/admin :
+     * c'est la plateforme qui propose une contre-offre au fournisseur, pas
+     * l'inverse. Instantané immuable {prix_liste, prix_propose}, même
+     * mécanique que le message "commande_creee".
+     */
+    public function demarrerNegociationPrix(Request $request, Produit $produit): JsonResponse
+    {
+        abort_unless($produit->estAccessibleConversationPar($request->user()), 403);
+        abort_unless(in_array($request->user()->type_utilisateur, [ROLE_COORDINATEUR, ROLE_ADMINISTRATEUR], true), 403);
+
+        $data = $request->validate(['prix_propose' => ['required', 'numeric', 'min:0']]);
+
+        $message = Message::create([
+            'produit_id' => $produit->id,
+            'auteur_id' => $request->user()->id,
+            'type' => TYPE_MESSAGE_PROPOSITION_PRIX,
+            'est_negociation_prix' => true,
+            'donnees' => ['prix_liste' => $produit->prix, 'prix_propose' => $data['prix_propose']],
+            'date_envoi' => now(),
+        ]);
+
+        return $this->success($message, status: 201);
+    }
+
+    public function negociationPrix(Request $request, Produit $produit): JsonResponse
+    {
+        abort_unless($produit->estAccessibleConversationPar($request->user()), 403);
+
+        return $this->success(
+            $this->messagesPagines($produit->messages()->where('est_negociation_prix', true), $request)
+        );
+    }
+
+    public function repondreNegociationPrix(StoreMessageRequest $request, Produit $produit): JsonResponse
+    {
+        abort_unless($produit->estAccessibleConversationPar($request->user()), 403);
+
+        return $this->success(
+            $this->creerMessage($request, ['produit_id' => $produit->id, 'est_negociation_prix' => true]),
+            status: 201
+        );
     }
 
     public function indexCommande(Request $request, Commande $commande): JsonResponse
@@ -73,7 +118,7 @@ class MessageController extends Controller
         $this->marquerConsulte($request, $produit);
         $this->genererRapportQuotidienSiNecessaire($produit);
 
-        $messages = $this->messagesPagines($produit->messages(), $request);
+        $messages = $this->messagesPagines($produit->messages()->where('est_negociation_prix', false), $request);
 
         $commandesQuery = Commande::whereHas('lignes', fn ($q) => $q->where('produit_id', $produit->id))
             ->with(['client.user', 'livraison.adresse.localite']);
@@ -349,6 +394,12 @@ class MessageController extends Controller
         $extension = strtolower($fichier->getClientOriginalExtension());
 
         $correspondance = match (true) {
+            // .webm est ambigu (VIDEO_MIMES_AUTORISES et AUDIO_MIMES_AUTORISES
+            // le contiennent tous les deux — c'est le conteneur par défaut de
+            // MediaRecorder côté navigateur pour l'audio) : un type souhaité
+            // explicite tranche avant toute déduction par extension.
+            $typeSouhaite === TYPE_MESSAGE_NOTE_VOCALE && in_array($extension, explode(',', AUDIO_MIMES_AUTORISES), true) =>
+                [TYPE_MESSAGE_NOTE_VOCALE, AUDIO_MAX_POIDS_KO, MESSAGE_AUDIO_DOSSIER],
             in_array($extension, explode(',', IMAGE_MIMES_AUTORISES), true) =>
                 [TYPE_MESSAGE_IMAGE, IMAGE_MAX_POIDS_KO, MESSAGE_IMAGE_DOSSIER],
             in_array($extension, explode(',', VIDEO_MIMES_AUTORISES), true) =>

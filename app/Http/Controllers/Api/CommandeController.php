@@ -228,13 +228,22 @@ class CommandeController extends Controller
                     $necessiteLivraison = true;
                 }
 
-                $sousTotal = $produit->prix * $ligne['quantite'];
+                // prix_vente (fixé à la publication) est ce que paie le
+                // client ; prix (partenaire) n'est snapshotté séparément que
+                // si le produit est passé par le nouvel écran de publication
+                // (prix_vente non nul) — sinon prix_partenaire_unitaire reste
+                // null pour que crediterFournisseursSiEligible() retombe sur
+                // l'ancien calcul taux_commission (produits publiés avant
+                // cette fonctionnalité).
+                $prixVente = $produit->prix_vente ?? $produit->prix;
+                $sousTotal = $prixVente * $ligne['quantite'];
                 $montantTotal += $sousTotal;
 
                 $lignesAPersister[] = [
                     'produit_id' => $produit->id,
                     'quantite' => $ligne['quantite'],
-                    'prix_unitaire' => $produit->prix,
+                    'prix_unitaire' => $prixVente,
+                    'prix_partenaire_unitaire' => $produit->prix_vente !== null ? $produit->prix : null,
                 ];
 
                 $produit->decrement('quantite_stock', $ligne['quantite']);

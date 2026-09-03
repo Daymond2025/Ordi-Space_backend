@@ -97,6 +97,46 @@ class FournisseurPortefeuilleTest extends TestCase
         $this->assertDatabaseCount('transactions_portefeuille_fournisseurs', 1);
     }
 
+    /**
+     * Écran de publication : un produit avec prix_vente défini paie le
+     * fournisseur sur l'intégralité de son prix partenaire, sans déduction
+     * taux_commission — la marge Ordi'Space vient uniquement de l'écart
+     * prix de vente/prix partenaire, pas d'une ponction sur le fournisseur.
+     */
+    public function test_le_fournisseur_touche_le_prix_partenaire_integral_pour_un_produit_publie(): void
+    {
+        $produit = $this->creerProduitPhysique(['prix' => 15000, 'prix_vente' => 18000, 'statut_produit' => STATUT_PRODUIT_VALIDE]);
+        $fournisseur = Fournisseur::findOrFail($produit->fournisseur_id);
+        $fournisseur->update(['taux_commission' => 20]);
+
+        $client = $this->creerClient();
+        $adresse = $this->creerAdresseAvecLocalite($client);
+        $admin = $this->creerAdmin();
+
+        $creation = $this->actingAs($client)->postJson('/api/v1/commandes', [
+            'adresse_id' => $adresse->id,
+            'lignes' => [['produit_id' => $produit->id, 'quantite' => 1]],
+        ]);
+        $commandeId = $creation->json('data.id');
+
+        // Le client paie bien le prix de vente (18 000), pas le prix partenaire.
+        $this->assertDatabaseHas('commandes', ['id' => $commandeId, 'montant_total' => 18000]);
+        $this->assertDatabaseHas('lignes_commande', [
+            'commande_id' => $commandeId, 'prix_unitaire' => 18000, 'prix_partenaire_unitaire' => 15000,
+        ]);
+
+        $this->actingAs($admin)->patchJson("/api/v1/admin/commandes/{$commandeId}/statut", [
+            'statut_commande' => 'livree',
+        ])->assertOk();
+
+        // Prix partenaire intégral (15 000), aucune déduction malgré taux_commission=20%.
+        $this->assertDatabaseHas('transactions_portefeuille_fournisseurs', [
+            'fournisseur_id' => $fournisseur->user_id, 'type' => 'credit', 'montant' => 15000,
+            'commission_prelevee' => 0, 'commande_id' => $commandeId,
+        ]);
+        $this->assertEquals(15000, $fournisseur->fresh()->solde_portefeuille);
+    }
+
     public function test_admin_et_coordinateur_peuvent_enregistrer_un_paiement(): void
     {
         $fournisseurUser = $this->creerFournisseur();

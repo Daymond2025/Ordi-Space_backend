@@ -176,7 +176,8 @@ defined('SEGMENT_CLIENT_VIP') || define('SEGMENT_CLIENT_VIP', 'vip');
 // --- Assistance : questions fréquentes (contenu publié par l'Administrateur) --
 defined('STATUT_QUESTION_BROUILLON') || define('STATUT_QUESTION_BROUILLON', 'brouillon');
 defined('STATUT_QUESTION_PUBLIE') || define('STATUT_QUESTION_PUBLIE', 'publie');
-defined('AUDIO_MIMES_AUTORISES') || define('AUDIO_MIMES_AUTORISES', 'mp3,wav,m4a,ogg');
+// webm : format par défaut de MediaRecorder dans les navigateurs Chromium.
+defined('AUDIO_MIMES_AUTORISES') || define('AUDIO_MIMES_AUTORISES', 'mp3,wav,m4a,ogg,webm');
 defined('AUDIO_MAX_POIDS_KO') || define('AUDIO_MAX_POIDS_KO', 15360); // 15 Mo
 defined('ASSISTANCE_AUDIO_DOSSIER') || define('ASSISTANCE_AUDIO_DOSSIER', 'assistance');
 
@@ -195,6 +196,9 @@ defined('TYPE_MESSAGE_DOCUMENT') || define('TYPE_MESSAGE_DOCUMENT', 'document');
 defined('TYPE_MESSAGE_RAPPORT') || define('TYPE_MESSAGE_RAPPORT', 'rapport');
 // Instantané de commande publié une seule fois à sa création — voir CommandeController::store().
 defined('TYPE_MESSAGE_COMMANDE_CREEE') || define('TYPE_MESSAGE_COMMANDE_CREEE', 'commande_creee');
+// Instantané {prix_liste, prix_propose} publié au démarrage d'une négociation
+// de prix — voir MessageController::demarrerNegociationPrix().
+defined('TYPE_MESSAGE_PROPOSITION_PRIX') || define('TYPE_MESSAGE_PROPOSITION_PRIX', 'proposition_prix');
 defined('MESSAGE_CONTENU_MAX_LONGUEUR') || define('MESSAGE_CONTENU_MAX_LONGUEUR', 5000);
 // Image et audio de message réutilisent les mimes/plafonds existants, mais
 // un dossier dédié (pas mélangé aux pièces jointes métier produits/FAQ).

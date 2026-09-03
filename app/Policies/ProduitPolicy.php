@@ -47,8 +47,30 @@ class ProduitPolicy
         return $user->can(PERMISSION_PRODUITS_VALIDER) && $produit->statut_produit !== STATUT_PRODUIT_VALIDE;
     }
 
+    /**
+     * Ajustement du prix (ProduitController::modifierPrix) — même acteurs que
+     * valider(), mais sans restriction de statut : le coordinateur peut
+     * corriger un prix aussi bien pendant la revue qu'après publication.
+     */
+    public function modifierPrix(User $user, Produit $produit): bool
+    {
+        return $user->can(PERMISSION_PRODUITS_VALIDER);
+    }
+
     public function delete(User $user, Produit $produit): bool
     {
         return $user->can(PERMISSION_PRODUITS_SUPPRIMER);
+    }
+
+    /**
+     * Correctifs de fiche (nom, description, catégorie, caractéristiques,
+     * cadeaux — ProduitController::modifierFiche()) par le coordinateur sur
+     * un produit qui ne lui appartient pas — délibérément séparée de
+     * update() pour ne jamais donner accès à la lourde route de
+     * remplacement complet (prix/stock inclus) réservée au fournisseur.
+     */
+    public function modifierFiche(User $user, Produit $produit): bool
+    {
+        return $user->can(PERMISSION_PRODUITS_VALIDER);
     }
 }

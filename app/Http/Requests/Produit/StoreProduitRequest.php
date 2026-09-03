@@ -29,6 +29,15 @@ class StoreProduitRequest extends FormRequest
             // Numérique = licence/logiciel livré sans passer par un livreur.
             'type_livraison' => ['nullable', Rule::in([TYPE_LIVRAISON_PHYSIQUE, TYPE_LIVRAISON_NUMERIQUE])],
             'duree_garantie_mois' => ['nullable', 'integer', 'min:0', 'max:120'],
+            'processeur' => ['nullable', 'string', 'max:150'],
+            'memoire_ram' => ['nullable', 'string', 'max:150'],
+            'stockage' => ['nullable', 'string', 'max:150'],
+            'taille' => ['nullable', 'string', 'max:150'],
+            'systeme_exploitation' => ['nullable', 'string', 'max:150'],
+            'carte_graphique' => ['nullable', 'string', 'max:150'],
+            'couleur' => ['nullable', 'string', 'max:100'],
+            'cadeaux' => ['nullable', 'array'],
+            'cadeaux.*' => ['string', 'max:100'],
             // Vrais fichiers uploadés (multipart/form-data), stockés localement
             // par ProduitController — voir IMAGE_MAX_POIDS_KO / IMAGE_MIMES_AUTORISES.
             'images' => ['nullable', 'array', 'max:'.IMAGE_PRODUIT_MAX_PAR_ENVOI],

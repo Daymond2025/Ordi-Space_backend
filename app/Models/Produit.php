@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,19 +11,45 @@ class Produit extends Model
 {
     protected $table = 'produits';
 
+    /**
+     * commission_ordispace est un accesseur calculé (pas de colonne) — sans
+     * $appends il n'apparaîtrait jamais dans les réponses JSON consommées
+     * par le frontend.
+     */
+    protected $appends = ['commission_ordispace'];
+
     protected $fillable = [
         'fournisseur_id', 'categorie_id', 'nom_produit', 'description',
         'prix', 'quantite_stock', 'statut_produit', 'date_ajout',
         'type_livraison', 'duree_garantie_mois', 'est_booste',
+        'processeur', 'memoire_ram', 'stockage', 'taille',
+        'systeme_exploitation', 'carte_graphique', 'couleur', 'cadeaux',
+        'prix_vente', 'commission_agent', 'commission_apporteur',
     ];
 
     protected function casts(): array
     {
         return [
             'prix' => 'decimal:2',
+            'prix_vente' => 'decimal:2',
+            'commission_agent' => 'decimal:2',
+            'commission_apporteur' => 'decimal:2',
             'date_ajout' => 'datetime',
             'est_booste' => 'boolean',
+            'cadeaux' => 'array',
         ];
+    }
+
+    /**
+     * Marge Ordi'Space = prix de vente − prix partenaire (`prix`) — calculée
+     * à la volée (jamais stockée) pour rester cohérente même si l'un des
+     * deux prix est modifié séparément après publication.
+     */
+    protected function commissionOrdispace(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->prix_vente !== null ? round($this->prix_vente - $this->prix, 2) : null,
+        );
     }
 
     public function estNumerique(): bool

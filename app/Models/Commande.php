@@ -180,9 +180,23 @@ class Commande extends Model
                 continue;
             }
 
-            $montantBrut = $lignes->sum(fn (LigneCommande $l) => (float) $l->prix_unitaire * $l->quantite);
-            $montantNet = round($montantBrut * (1 - (float) $fournisseur->taux_commission / 100), 2);
-            $commissionPrelevee = round($montantBrut - $montantNet, 2);
+            // Nouveau flux (prix_partenaire_unitaire renseigné, produit publié
+            // via l'écran de publication) : le fournisseur touche l'intégralité
+            // de son prix partenaire, taux_commission ne s'applique plus — la
+            // marge Ordi'Space vient de l'écart prix de vente/prix partenaire,
+            // pas d'une ponction sur le fournisseur. Lignes historiques
+            // (prix_partenaire_unitaire nul, produits publiés avant cette
+            // fonctionnalité) : ancien calcul taux_commission inchangé.
+            $lignesNouveauFlux = $lignes->filter(fn (LigneCommande $l) => $l->prix_partenaire_unitaire !== null);
+            $lignesHistoriques = $lignes->filter(fn (LigneCommande $l) => $l->prix_partenaire_unitaire === null);
+
+            $montantNouveauFlux = $lignesNouveauFlux->sum(fn (LigneCommande $l) => (float) $l->prix_partenaire_unitaire * $l->quantite);
+
+            $montantBrutHistorique = $lignesHistoriques->sum(fn (LigneCommande $l) => (float) $l->prix_unitaire * $l->quantite);
+            $montantNetHistorique = round($montantBrutHistorique * (1 - (float) $fournisseur->taux_commission / 100), 2);
+            $commissionPrelevee = round($montantBrutHistorique - $montantNetHistorique, 2);
+
+            $montantNet = round($montantNouveauFlux + $montantNetHistorique, 2);
 
             $fournisseur->crediterPortefeuille($montantNet, "Vente commande #{$this->id}", $this->id, $commissionPrelevee);
         }

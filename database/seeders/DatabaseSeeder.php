@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Administrateur;
 use App\Models\CanalVente;
+use App\Models\Categorie;
 use App\Models\Commercial;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -24,6 +25,19 @@ class DatabaseSeeder extends Seeder
 
         $this->seedAdministrateurRacine();
         $this->seedAgentIa();
+        $this->seedCategoriesAjoutProduitCoordinateur();
+    }
+
+    /**
+     * Catégories des tuiles de l'écran "Ajout d'un produit" (Espace
+     * Coordinateur) — "Ordinateur portable" réutilise la catégorie
+     * "Ordinateurs portables" déjà existante, les 5 autres sont nouvelles.
+     */
+    private function seedCategoriesAjoutProduitCoordinateur(): void
+    {
+        foreach (['Ordinateur bureau', 'Chargeur', 'Souris', 'Sacs pc', 'Autre'] as $nom) {
+            Categorie::firstOrCreate(['nom_categorie' => $nom]);
+        }
     }
 
     /**

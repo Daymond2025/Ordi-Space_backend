@@ -74,6 +74,9 @@ Route::prefix('v1')->group(function () {
     // liaison de modèle de route absorbe "activite-recente" comme un ID.
     Route::get('produits/activite-recente', [MessageController::class, 'produitsActifs'])
         ->middleware(['auth:sanctum', 'permission:'.PERMISSION_MESSAGES_PRODUIT_GERER]);
+    // Même précaution d'ordre que activite-recente ci-dessus.
+    Route::get('produits/statistiques', [ProduitController::class, 'statistiques'])
+        ->middleware(['auth:sanctum', 'permission:'.PERMISSION_PRODUITS_CONSULTER]);
     Route::get('produits/{produit}', [ProduitController::class, 'show']);
     // Référentiel des localités (communes d'Abidjan + villes de CI) — lu par
     // fournisseur/admin (barème produit) et client/commercial (adresse).
@@ -110,8 +113,11 @@ Route::prefix('v1')->group(function () {
         Route::put('produits/{produit}', [ProduitController::class, 'update'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
         Route::delete('produits/{produit}', [ProduitController::class, 'destroy'])->middleware('permission:'.PERMISSION_PRODUITS_SUPPRIMER);
         Route::post('produits/{produit}/valider', [ProduitController::class, 'valider'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
-        Route::post('produits/{produit}/images', [ProduitController::class, 'ajouterImages'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
-        Route::delete('produits/{produit}/images/{image}', [ProduitController::class, 'supprimerImage'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
+        Route::post('produits/{produit}/publier', [ProduitController::class, 'publier'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
+        Route::patch('produits/{produit}/prix', [ProduitController::class, 'modifierPrix'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
+        Route::patch('produits/{produit}/fiche', [ProduitController::class, 'modifierFiche'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
+        Route::post('produits/{produit}/images', [ProduitController::class, 'ajouterImages'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER.'|'.PERMISSION_PRODUITS_VALIDER);
+        Route::delete('produits/{produit}/images/{image}', [ProduitController::class, 'supprimerImage'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER.'|'.PERMISSION_PRODUITS_VALIDER);
         Route::patch('produits/{produit}/booster', [ProduitController::class, 'basculerBoost'])->middleware('permission:'.PERMISSION_PRODUITS_BOOSTER);
         Route::patch('produits/{produit}/stock', [ProduitController::class, 'modifierStock'])->middleware('permission:'.PERMISSION_PRODUITS_GERER_STOCK);
         Route::get('produits/{produit}/frais-livraison', [ProduitController::class, 'previsualiserFraisLivraison'])->middleware('permission:'.PERMISSION_COMMANDES_CREER);
@@ -121,6 +127,9 @@ Route::prefix('v1')->group(function () {
             Route::get('produits/{produit}/messages', [MessageController::class, 'indexProduit']);
             Route::post('produits/{produit}/messages', [MessageController::class, 'storeProduit']);
             Route::get('produits/{produit}/conversation', [MessageController::class, 'conversationProduit']);
+            Route::post('produits/{produit}/negociation-prix', [MessageController::class, 'demarrerNegociationPrix']);
+            Route::get('produits/{produit}/negociation-prix', [MessageController::class, 'negociationPrix']);
+            Route::post('produits/{produit}/negociation-prix/messages', [MessageController::class, 'repondreNegociationPrix']);
         });
 
         // Fournisseurs — Espace Coordinateur (Centre des opérations).

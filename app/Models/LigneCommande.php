@@ -11,11 +11,11 @@ class LigneCommande extends Model
 {
     protected $table = 'lignes_commande';
 
-    protected $fillable = ['commande_id', 'produit_id', 'quantite', 'prix_unitaire'];
+    protected $fillable = ['commande_id', 'produit_id', 'quantite', 'prix_unitaire', 'prix_partenaire_unitaire'];
 
     protected function casts(): array
     {
-        return ['prix_unitaire' => 'decimal:2'];
+        return ['prix_unitaire' => 'decimal:2', 'prix_partenaire_unitaire' => 'decimal:2'];
     }
 
     public function commande(): BelongsTo

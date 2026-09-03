@@ -30,7 +30,23 @@ class StoreMessageRequest extends FormRequest
 
         return [
             'contenu' => ['required_without:fichier', 'prohibits:fichier', 'string', 'max:'.MESSAGE_CONTENU_MAX_LONGUEUR],
-            'fichier' => ['required_without:contenu', 'file', 'mimes:'.$tousMimes],
+            // Validation par extension plutôt que par la règle `mimes:` de
+            // Laravel (qui passe par le registre mimetype de Symfony) : ce
+            // registre ne mappe `webm` qu'à `video/webm`, alors que
+            // MediaRecorder produit typiquement `audio/webm` côté navigateur
+            // — la règle native rejetterait alors un vrai message vocal.
+            // MessageController::inferTypeEtStocker() ne regarde de toute
+            // façon que l'extension, donc cette validation reste cohérente.
+            'fichier' => [
+                'required_without:contenu',
+                'file',
+                function ($attribute, $value, $fail) use ($tousMimes) {
+                    $extension = strtolower($value->getClientOriginalExtension());
+                    if (! in_array($extension, explode(',', $tousMimes), true)) {
+                        $fail("Le champ {$attribute} doit être un fichier de type : {$tousMimes}.");
+                    }
+                },
+            ],
             'type' => ['nullable', Rule::in([TYPE_MESSAGE_NOTE_VOCALE])],
         ];
     }
