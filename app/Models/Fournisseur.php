@@ -14,7 +14,8 @@ class Fournisseur extends Model
 
     protected $fillable = [
         'user_id', 'nom_entreprise', 'adresse_entreprise', 'contact_pro',
-        'nom_gerant', 'horaires_ouverture', 'lien_maps', 'taux_commission', 'solde_portefeuille',
+        'nom_gerant', 'telephone_gerant', 'horaires_ouverture', 'lien_maps', 'zone_couverte',
+        'taux_commission', 'solde_portefeuille',
     ];
 
     protected function casts(): array
@@ -59,6 +60,7 @@ class Fournisseur extends Model
         return TransactionPortefeuilleFournisseur::create([
             'fournisseur_id' => $this->user_id,
             'type' => TYPE_TRANSACTION_PORTEFEUILLE_CREDIT,
+            'statut' => STATUT_TRANSACTION_PORTEFEUILLE_EN_ATTENTE,
             'montant' => $montant,
             'commission_prelevee' => $commissionPrelevee,
             'motif' => $motif,
@@ -88,5 +90,29 @@ class Fournisseur extends Model
             'solde_apres' => $this->solde_portefeuille,
             'date_transaction' => now(),
         ]);
+    }
+
+    /**
+     * "Payer tout" (écran Portefeuille fournisseur) — bascule tous les
+     * crédits en_attente en payé et crée un débit unique du total, plutôt que
+     * enregistrerPaiement() qui reste un débit manuel libre sans lien avec
+     * des crédits précis. $referencePaiement (Wave, Orange Money, etc.) est
+     * saisie par le coordinateur au moment du règlement réel hors app — copiée
+     * telle quelle sur chaque crédit réglé par ce paiement.
+     */
+    public function payerCreditsEnAttente(int $acteurId, string $referencePaiement): TransactionPortefeuilleFournisseur
+    {
+        $creditsEnAttente = $this->transactionsPortefeuille()
+            ->where('type', TYPE_TRANSACTION_PORTEFEUILLE_CREDIT)
+            ->where('statut', STATUT_TRANSACTION_PORTEFEUILLE_EN_ATTENTE);
+
+        $total = (float) $creditsEnAttente->sum('montant');
+
+        $creditsEnAttente->update([
+            'statut' => STATUT_TRANSACTION_PORTEFEUILLE_PAYE,
+            'reference_paiement' => $referencePaiement,
+        ]);
+
+        return $this->debiterPortefeuille($total, 'Paiement groupé des ventes en attente', $acteurId);
     }
 }

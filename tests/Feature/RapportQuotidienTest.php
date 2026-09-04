@@ -54,7 +54,11 @@ class RapportQuotidienTest extends TestCase
         $this->assertStringContainsString('1 commande', $rapport->contenu);
         $this->assertStringContainsString('1 validée', $rapport->contenu);
         $this->assertStringContainsString('0 annulée', $rapport->contenu);
-        $this->assertSame([
+        // assertEquals (pas assertSame) : la colonne MySQL `donnees` est de
+        // type JSON, qui réordonne les clés d'objet en interne (par longueur
+        // puis alphabétiquement) indépendamment de l'ordre d'insertion — le
+        // contenu décodé est correct, seul l'ordre des clés diffère.
+        $this->assertEquals([
             'date' => now()->subDay()->toDateString(),
             'envoyees' => 1,
             'validees' => 1,

@@ -126,6 +126,9 @@ defined('PARRAINAGE_CODE_SUFFIXE') || define('PARRAINAGE_CODE_SUFFIXE', '2026');
 defined('TYPE_TRANSACTION_PORTEFEUILLE_CREDIT') || define('TYPE_TRANSACTION_PORTEFEUILLE_CREDIT', 'credit');
 defined('TYPE_TRANSACTION_PORTEFEUILLE_DEBIT') || define('TYPE_TRANSACTION_PORTEFEUILLE_DEBIT', 'debit');
 
+defined('STATUT_TRANSACTION_PORTEFEUILLE_EN_ATTENTE') || define('STATUT_TRANSACTION_PORTEFEUILLE_EN_ATTENTE', 'en_attente');
+defined('STATUT_TRANSACTION_PORTEFEUILLE_PAYE') || define('STATUT_TRANSACTION_PORTEFEUILLE_PAYE', 'paye');
+
 // --- Livraison gratuite automatique (cf. Privilege type livraison_gratuite) --
 // Déclenchée à la Nième commande du client (2 = sa deuxième commande).
 defined('SEUIL_COMMANDE_LIVRAISON_GRATUITE') || define('SEUIL_COMMANDE_LIVRAISON_GRATUITE', 2);

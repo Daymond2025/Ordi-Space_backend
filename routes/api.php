@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\ClientRapideController;
 use App\Http\Controllers\Api\CommandeController;
 use App\Http\Controllers\Api\LivreurController;
 use App\Http\Controllers\Api\Coordinateur\EspaceController as CoordinateurEspaceController;
+use App\Http\Controllers\Api\Coordinateur\PortefeuilleController as CoordinateurPortefeuilleController;
 use App\Http\Controllers\Api\FournisseurController;
 use App\Http\Controllers\Api\Garantix\AbonnementController;
 use App\Http\Controllers\Api\Garantix\ExclusionController;
@@ -140,8 +141,11 @@ Route::prefix('v1')->group(function () {
                 Route::get('{fournisseur}/produits', [FournisseurController::class, 'produits']);
                 Route::get('{fournisseur}/commandes', [FournisseurController::class, 'commandes']);
                 Route::get('{fournisseur}/portefeuille', [FournisseurController::class, 'portefeuille']);
+                Route::get('{fournisseur}/statistiques', [FournisseurController::class, 'statistiques']);
             });
             Route::post('{fournisseur}/portefeuille/paiement', [FournisseurController::class, 'enregistrerPaiement'])
+                ->middleware('permission:'.PERMISSION_FOURNISSEURS_PORTEFEUILLE_GERER);
+            Route::post('{fournisseur}/portefeuille/payer-tout', [FournisseurController::class, 'payerTout'])
                 ->middleware('permission:'.PERMISSION_FOURNISSEURS_PORTEFEUILLE_GERER);
             Route::patch('{fournisseur}/commission', [FournisseurController::class, 'modifierCommission'])
                 ->middleware('permission:'.PERMISSION_FOURNISSEURS_COMMISSION_GERER);
@@ -264,6 +268,11 @@ Route::prefix('v1')->group(function () {
         Route::prefix('coordinateur')->middleware('role:'.ROLE_COORDINATEUR)->group(function () {
             Route::get('espace/statistiques', [CoordinateurEspaceController::class, 'statistiques'])
                 ->middleware('permission:'.PERMISSION_STATISTIQUES_PERIMETRE);
+            Route::middleware('permission:'.PERMISSION_FOURNISSEURS_CONSULTER)->group(function () {
+                Route::get('portefeuille', [CoordinateurPortefeuilleController::class, 'index']);
+                Route::get('portefeuille/transactions/{transaction}', [CoordinateurPortefeuilleController::class, 'show']);
+                Route::get('portefeuille/transactions/{transaction}/recu', [CoordinateurPortefeuilleController::class, 'recu']);
+            });
         });
 
         // Assistance : FAQ + audio (contenu publié par l'Administrateur).
