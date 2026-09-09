@@ -271,7 +271,10 @@ Route::prefix('v1')->group(function () {
 
         // Espace Coordinateur — préfixe étendu par les phases suivantes
         // (chat produit/commande, ledger fournisseur, rapport quotidien).
-        Route::prefix('coordinateur')->middleware('role:'.ROLE_COORDINATEUR)->group(function () {
+        // L'Administrateur (superviseur global) doit pouvoir accéder à ce
+        // groupe comme un coordinateur — il a déjà toutes les permissions
+        // (RolesAndPermissionsSeeder), seul le rôle Spatie manquait ici.
+        Route::prefix('coordinateur')->middleware('role:'.ROLE_COORDINATEUR.'|'.ROLE_ADMINISTRATEUR)->group(function () {
             Route::get('espace/statistiques', [CoordinateurEspaceController::class, 'statistiques'])
                 ->middleware('permission:'.PERMISSION_STATISTIQUES_PERIMETRE);
             Route::middleware('permission:'.PERMISSION_FOURNISSEURS_CONSULTER)->group(function () {

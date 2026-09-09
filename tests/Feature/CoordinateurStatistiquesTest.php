@@ -133,4 +133,20 @@ class CoordinateurStatistiquesTest extends TestCase
 
         $this->actingAs($fournisseur)->getJson('/api/v1/coordinateur/espace/statistiques')->assertForbidden();
     }
+
+    /**
+     * L'Administrateur (superviseur global) doit accéder au même groupe de
+     * routes que le Coordinateur — il a déjà toutes les permissions, seul le
+     * rôle Spatie manquait (cf. routes/api.php, groupe coordinateur).
+     */
+    public function test_un_administrateur_peut_consulter_les_statistiques_de_lespace_coordinateur(): void
+    {
+        $admin = $this->creerAdmin();
+        $this->creerCommande(STATUT_COMMANDE_LIVREE, now());
+
+        $reponse = $this->actingAs($admin)->getJson('/api/v1/coordinateur/espace/statistiques?periode=aujourd_hui');
+
+        $reponse->assertOk();
+        $reponse->assertJsonPath('data.commandes_recues', 1);
+    }
 }
