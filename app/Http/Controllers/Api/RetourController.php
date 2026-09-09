@@ -18,6 +18,15 @@ class RetourController extends Controller
 
         if ($user->type_utilisateur === ROLE_FOURNISSEUR) {
             $query->where('fournisseur_id', $user->id);
+        } elseif ($user->type_utilisateur === ROLE_CLIENT) {
+            // Le client ne voit que les retours qu'il a lui-même ouverts (store()).
+            $query->whereHas('ligneCommande.commande', fn ($q) => $q->where('client_id', $user->id));
+        } elseif (! in_array($user->type_utilisateur, [ROLE_ADMINISTRATEUR, ROLE_COORDINATEUR], true)) {
+            // Livreur/Commercial/Technicien n'ont aucune raison de voir des
+            // retours — sans ce garde-fou, l'absence de scoping ci-dessus
+            // leur renvoyait la liste complète de tous les retours de la
+            // plateforme (motifs, produits, clients).
+            abort(403);
         }
 
         return $this->success($query->latest('date_retour')->paginate(paginate_per_page($request)));

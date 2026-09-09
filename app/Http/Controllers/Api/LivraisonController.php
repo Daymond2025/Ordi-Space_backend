@@ -69,6 +69,36 @@ class LivraisonController extends Controller
         return $this->success($livraison->fresh());
     }
 
+    /**
+     * Acceptation d'une mission assignée par le coordinateur (statut
+     * 'assignee' — voir CommandeController::assignerLivreur()) — distinct de
+     * affecter() ci-dessus, qui reste une auto-prise en charge immédiate
+     * depuis le vivier, sans étape d'acceptation.
+     */
+    public function accepter(Request $request, Livraison $livraison): JsonResponse
+    {
+        abort_unless($livraison->livreur_id === $request->user()->id, 403);
+
+        if ($livraison->statut_livraison !== STATUT_LIVRAISON_ASSIGNEE) {
+            throw ValidationException::withMessages(['livraison' => ["Cette livraison n'est pas en attente d'acceptation."]]);
+        }
+
+        $livraison->update([
+            'statut_livraison' => STATUT_LIVRAISON_EN_COURS,
+            'date_prise_en_charge' => now(),
+        ]);
+
+        JournalAudit::enregistrer(
+            $livraison->commande->client_id,
+            ACTION_COMMANDE_STATUT_MODIFIE,
+            'commande',
+            "Mission de la commande n°{$livraison->commande_id} acceptée par le livreur.",
+            commandeId: $livraison->commande_id,
+        );
+
+        return $this->success($livraison->fresh());
+    }
+
     public function livrer(Request $request, Livraison $livraison): JsonResponse
     {
         abort_unless($livraison->livreur_id === $request->user()->id, 403);

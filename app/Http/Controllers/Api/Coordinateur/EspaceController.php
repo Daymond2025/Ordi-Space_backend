@@ -52,19 +52,6 @@ class EspaceController extends Controller
      */
     private function resoudrePeriode(Request $request): array
     {
-        if ($request->filled('date_debut') && $request->filled('date_fin')) {
-            return [
-                Carbon::parse($request->string('date_debut'))->startOfDay(),
-                Carbon::parse($request->string('date_fin'))->endOfDay(),
-            ];
-        }
-
-        return match ($request->string('periode')->toString() ?: 'aujourd_hui') {
-            'tout' => [null, null],
-            'semaine' => [now()->startOfWeek(), now()->endOfWeek()],
-            'semaine_derniere' => [now()->subWeek()->startOfWeek(), now()->subWeek()->endOfWeek()],
-            'mois' => [now()->startOfMonth(), now()->endOfMonth()],
-            default => [now()->startOfDay(), now()->endOfDay()],
-        };
+        return resoudre_periode($request);
     }
 }

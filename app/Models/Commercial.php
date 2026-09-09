@@ -12,7 +12,7 @@ class Commercial extends Model
     protected $primaryKey = 'user_id';
     public $incrementing = false;
 
-    protected $fillable = ['user_id', 'type_commercial', 'matricule', 'nom_modele_ia'];
+    protected $fillable = ['user_id', 'type_commercial', 'matricule', 'nom_modele_ia', 'nom_entreprise', 'localisation'];
 
     public function user(): BelongsTo
     {

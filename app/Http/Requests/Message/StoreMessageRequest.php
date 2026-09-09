@@ -30,13 +30,15 @@ class StoreMessageRequest extends FormRequest
 
         return [
             'contenu' => ['required_without:fichier', 'prohibits:fichier', 'string', 'max:'.MESSAGE_CONTENU_MAX_LONGUEUR],
-            // Validation par extension plutôt que par la règle `mimes:` de
-            // Laravel (qui passe par le registre mimetype de Symfony) : ce
-            // registre ne mappe `webm` qu'à `video/webm`, alors que
-            // MediaRecorder produit typiquement `audio/webm` côté navigateur
-            // — la règle native rejetterait alors un vrai message vocal.
-            // MessageController::inferTypeEtStocker() ne regarde de toute
-            // façon que l'extension, donc cette validation reste cohérente.
+            // L'extension déclarée par le client reste le seul moyen de
+            // choisir la CATÉGORIE (image/audio/vidéo/document) — nécessaire
+            // pour `webm`, que le registre mimetype de Symfony ne mappe qu'à
+            // `video/webm` alors que MediaRecorder produit typiquement
+            // `audio/webm` côté navigateur (la règle native `mimes:` le
+            // rejetterait). Mais le CONTENU réel (getMimeType(), sniffé via
+            // finfo, pas fourni par le client) doit ensuite correspondre à
+            // cette catégorie — un fichier renommé avec une extension qui ne
+            // correspond pas à son contenu réel est rejeté.
             'fichier' => [
                 'required_without:contenu',
                 'file',
@@ -44,6 +46,24 @@ class StoreMessageRequest extends FormRequest
                     $extension = strtolower($value->getClientOriginalExtension());
                     if (! in_array($extension, explode(',', $tousMimes), true)) {
                         $fail("Le champ {$attribute} doit être un fichier de type : {$tousMimes}.");
+                        return;
+                    }
+
+                    $mime = $value->getMimeType();
+                    $prefixesAttendus = match (true) {
+                        in_array($extension, explode(',', IMAGE_MIMES_AUTORISES), true) => ['image/'],
+                        $extension === 'webm' => ['audio/', 'video/'],
+                        in_array($extension, explode(',', AUDIO_MIMES_AUTORISES), true) => ['audio/'],
+                        in_array($extension, explode(',', VIDEO_MIMES_AUTORISES), true) => ['video/'],
+                        in_array($extension, explode(',', DOCUMENT_MIMES_AUTORISES), true) => ['application/'],
+                        default => [],
+                    };
+
+                    $correspond = empty($prefixesAttendus)
+                        || collect($prefixesAttendus)->contains(fn ($prefixe) => str_starts_with($mime, $prefixe));
+
+                    if (! $correspond) {
+                        $fail("Le fichier ne correspond pas au type déclaré par son extension ({$extension}).");
                     }
                 },
             ],

@@ -86,6 +86,20 @@ class MessageProduitTest extends TestCase
         $this->assertDatabaseHas('messages', ['produit_id' => $produit->id, 'type' => 'image']);
     }
 
+    public function test_un_fichier_dont_le_contenu_ne_correspond_pas_a_lextension_est_rejete(): void
+    {
+        $coordinateur = $this->creerCoordinateur();
+        $produit = $this->creerProduitPhysique();
+
+        // Extension .jpg autorisée, mais contenu réel détecté comme du texte
+        // brut — l'extension seule ne suffit plus à passer la validation.
+        $reponse = $this->actingAs($coordinateur)->postJson("/api/v1/produits/{$produit->id}/messages", [
+            'fichier' => UploadedFile::fake()->create('photo.jpg', 10, 'text/plain'),
+        ]);
+
+        $reponse->assertUnprocessable();
+    }
+
     public function test_video_trop_lourde_est_rejetee(): void
     {
         $coordinateur = $this->creerCoordinateur();

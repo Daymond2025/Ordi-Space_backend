@@ -17,6 +17,10 @@ defined('PAGINATION_MAX') || define('PAGINATION_MAX', 100);
 // --- Authentification / 2FA ---------------------------------------------
 defined('OTP_LONGUEUR') || define('OTP_LONGUEUR', 6);
 defined('OTP_EXPIRATION_MINUTES') || define('OTP_EXPIRATION_MINUTES', 5);
+// Au-delà de ce nombre d'échecs, le code est invalidé (il faut en redemander
+// un) — limite le brute-force même si l'attaquant répartit ses tentatives
+// sur plusieurs IP pour contourner le throttle réseau.
+defined('OTP_TENTATIVES_MAX') || define('OTP_TENTATIVES_MAX', 5);
 
 // --- Téléphone (connexion Client par WhatsApp + OTP) ---------------------
 // Indicatif appliqué aux numéros locaux (ex. "07 79 36 38 09") saisis sans
@@ -65,9 +69,18 @@ defined('STATUT_COMMANDE_NUMERO_INCORRECT') || define('STATUT_COMMANDE_NUMERO_IN
 // ----- Statuts LIVRAISON (cf. migration create_livraisons_table) -----------
 defined('STATUT_LIVRAISON_EN_PREPARATION') || define('STATUT_LIVRAISON_EN_PREPARATION', 'en_preparation');
 defined('STATUT_LIVRAISON_EN_ATTENTE_LIVREUR') || define('STATUT_LIVRAISON_EN_ATTENTE_LIVREUR', 'en_attente_livreur');
+// Assignée par le coordinateur, en attente d'acceptation par le livreur —
+// distinct de EN_COURS, qui ne s'applique qu'une fois la mission acceptée.
+defined('STATUT_LIVRAISON_ASSIGNEE') || define('STATUT_LIVRAISON_ASSIGNEE', 'assignee');
 defined('STATUT_LIVRAISON_EN_COURS') || define('STATUT_LIVRAISON_EN_COURS', 'en_cours');
 defined('STATUT_LIVRAISON_LIVREE') || define('STATUT_LIVRAISON_LIVREE', 'livree');
 defined('STATUT_LIVRAISON_ECHOUEE') || define('STATUT_LIVRAISON_ECHOUEE', 'echouee');
+
+// Retour physique au dépôt (commande annulée pendant qu'un livreur a déjà le
+// colis) — noms distincts de STATUT_RETOUR_* ci-dessous (domaine retour-produit
+// fournisseur, table `retours`, sans rapport).
+defined('STATUT_RETOUR_LIVRAISON_EN_COURS') || define('STATUT_RETOUR_LIVRAISON_EN_COURS', 'en_cours');
+defined('STATUT_RETOUR_LIVRAISON_EFFECTUE') || define('STATUT_RETOUR_LIVRAISON_EFFECTUE', 'effectue');
 
 // --- Paiement (cf. migration create_paiements_table) ---------------------
 defined('MODE_PAIEMENT_MOBILE_MONEY') || define('MODE_PAIEMENT_MOBILE_MONEY', 'mobile_money');
@@ -206,6 +219,9 @@ defined('MESSAGE_CONTENU_MAX_LONGUEUR') || define('MESSAGE_CONTENU_MAX_LONGUEUR'
 // Image et audio de message réutilisent les mimes/plafonds existants, mais
 // un dossier dédié (pas mélangé aux pièces jointes métier produits/FAQ).
 defined('MESSAGE_IMAGE_DOSSIER') || define('MESSAGE_IMAGE_DOSSIER', 'messages/images');
+// Preuves jointes à une réclamation (écran "Détails" du coordinateur) — même
+// disque/mimes/plafond que les images produit, dossier dédié.
+defined('RECLAMATION_PREUVE_DOSSIER') || define('RECLAMATION_PREUVE_DOSSIER', 'reclamations/preuves');
 defined('MESSAGE_AUDIO_DOSSIER') || define('MESSAGE_AUDIO_DOSSIER', 'messages/audio');
 // Vidéo et document : aucun précédent dans le code, constantes nouvelles.
 defined('VIDEO_MIMES_AUTORISES') || define('VIDEO_MIMES_AUTORISES', 'mp4,mov,webm');

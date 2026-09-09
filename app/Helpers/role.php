@@ -65,6 +65,10 @@ defined('PERMISSION_PRODUITS_GERER_STOCK') || define('PERMISSION_PRODUITS_GERER_
 // Écran détail commande (Espace Coordinateur) : transition libre de statut,
 // sans passer par la machine à états stricte de commandes.traiter.
 defined('PERMISSION_COMMANDES_CHANGER_STATUT') || define('PERMISSION_COMMANDES_CHANGER_STATUT', 'commandes.changer_statut');
+// Espace Agent (liste des commerciaux, bottombar).
+defined('PERMISSION_COMMERCIAUX_CONSULTER') || define('PERMISSION_COMMERCIAUX_CONSULTER', 'commerciaux.consulter');
+// Activer/suspendre un compte commercial (écran profil commercial).
+defined('PERMISSION_COMMERCIAUX_GERER') || define('PERMISSION_COMMERCIAUX_GERER', 'commerciaux.gerer');
 
 if (! function_exists('roles_auto_inscription')) {
     /**

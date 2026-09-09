@@ -95,17 +95,30 @@ class AuthController extends Controller
     {
         $user = User::findOrFail($request->integer('user_id'));
 
+        // Au-delà de OTP_TENTATIVES_MAX échecs, le code est invalidé même
+        // s'il n'a pas encore expiré — limite le brute-force distribué sur
+        // plusieurs IP (le throttle réseau seul est contournable ainsi).
+        if ($user->two_factor_tentatives >= OTP_TENTATIVES_MAX) {
+            $user->forceFill(['two_factor_code' => null, 'two_factor_expires_at' => null])->save();
+
+            throw ValidationException::withMessages([
+                'code' => ['Trop de tentatives — demandez un nouveau code.'],
+            ]);
+        }
+
         $codeValide = $user->two_factor_code
             && $user->two_factor_expires_at?->isFuture()
             && Hash::check($request->string('code'), $user->two_factor_code);
 
         if (! $codeValide) {
+            $user->increment('two_factor_tentatives');
+
             throw ValidationException::withMessages([
                 'code' => ['Code invalide ou expiré.'],
             ]);
         }
 
-        $user->forceFill(['two_factor_code' => null, 'two_factor_expires_at' => null])->save();
+        $user->forceFill(['two_factor_code' => null, 'two_factor_expires_at' => null, 'two_factor_tentatives' => 0])->save();
 
         return $this->success($this->issueSession($user, $request->string('device_name')));
     }

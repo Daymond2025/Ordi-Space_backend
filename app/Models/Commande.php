@@ -222,6 +222,17 @@ class Commande extends Model
                 foreach ($this->lignes as $ligne) {
                     $ligne->produit?->increment('quantite_stock', $ligne->quantite);
                 }
+
+                // Le livreur a déjà le colis en main (mission acceptée, en
+                // route) : la livraison est marquée échouée et signalée pour
+                // un retour physique au dépôt — cf. écran "Les Missions".
+                if ($this->livraison?->livreur_id && $this->livraison->statut_livraison === STATUT_LIVRAISON_EN_COURS) {
+                    $this->livraison->update([
+                        'statut_livraison' => STATUT_LIVRAISON_ECHOUEE,
+                        'retour_necessaire' => true,
+                        'statut_retour' => STATUT_RETOUR_LIVRAISON_EN_COURS,
+                    ]);
+                }
             }
 
             if ($cible === STATUT_COMMANDE_VALIDEE) {
@@ -236,10 +247,13 @@ class Commande extends Model
             }
 
             if ($cible === STATUT_COMMANDE_EN_LIVRAISON) {
+                // 'assignee' (pas 'en_cours' directement) : le livreur doit
+                // accepter la mission avant qu'elle ne devienne active — voir
+                // LivraisonController::accepter(). date_prise_en_charge n'est
+                // posée qu'à ce moment-là, plus ici.
                 $this->livraison?->update([
                     'livreur_id' => $livreurId,
-                    'statut_livraison' => STATUT_LIVRAISON_EN_COURS,
-                    'date_prise_en_charge' => now(),
+                    'statut_livraison' => STATUT_LIVRAISON_ASSIGNEE,
                 ]);
             }
 

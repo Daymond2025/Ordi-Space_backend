@@ -12,7 +12,12 @@ class Livreur extends Model
     protected $primaryKey = 'user_id';
     public $incrementing = false;
 
-    protected $fillable = ['user_id', 'type_vehicule', 'zone_couverture'];
+    protected $fillable = ['user_id', 'type_vehicule', 'zone_couverture', 'disponible'];
+
+    protected function casts(): array
+    {
+        return ['disponible' => 'boolean'];
+    }
 
     public function user(): BelongsTo
     {

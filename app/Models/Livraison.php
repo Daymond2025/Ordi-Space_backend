@@ -12,6 +12,7 @@ class Livraison extends Model
     protected $fillable = [
         'commande_id', 'livreur_id', 'adresse_id', 'date_prise_en_charge',
         'date_livraison_prevue', 'date_livraison_effective', 'statut_livraison', 'preuve_livraison',
+        'retour_necessaire', 'statut_retour', 'date_retour_effectue',
     ];
 
     protected function casts(): array
@@ -20,6 +21,8 @@ class Livraison extends Model
             'date_prise_en_charge' => 'datetime',
             'date_livraison_prevue' => 'datetime',
             'date_livraison_effective' => 'datetime',
+            'date_retour_effectue' => 'datetime',
+            'retour_necessaire' => 'boolean',
         ];
     }
 

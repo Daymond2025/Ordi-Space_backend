@@ -470,11 +470,13 @@ class CommandeController extends Controller
         // résolu), pas seulement validee/en_preparation/en_livraison — même
         // philosophie de liberté totale que changerStatut(). Seule contrainte
         // réelle : la commande doit avoir une livraison (pas 100% numérique).
+        // 'assignee' (pas 'en_cours' directement) : le livreur doit accepter
+        // la mission avant qu'elle ne devienne active — voir LivraisonController
+        // ::accepter(). date_prise_en_charge n'est posée qu'à ce moment-là.
         DB::transaction(function () use ($commande, $data) {
             $commande->livraison->update([
                 'livreur_id' => $data['livreur_id'],
-                'statut_livraison' => STATUT_LIVRAISON_EN_COURS,
-                'date_prise_en_charge' => now(),
+                'statut_livraison' => STATUT_LIVRAISON_ASSIGNEE,
             ]);
             $commande->update(['statut_commande' => STATUT_COMMANDE_EN_LIVRAISON]);
         });

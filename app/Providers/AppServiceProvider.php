@@ -21,5 +21,13 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
+
+        // verify-otp : le throttle par IP seul (route api.php) est
+        // contournable en changeant d'IP entre chaque tentative — celui-ci
+        // limite en plus par compte ciblé (user_id du body), quelle que soit
+        // l'IP d'origine.
+        RateLimiter::for('otp-verify', function (Request $request) {
+            return Limit::perMinute(5)->by('otp-verify:'.$request->input('user_id'));
+        });
     }
 }

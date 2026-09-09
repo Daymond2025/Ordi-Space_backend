@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Adresse;
+use App\Models\JournalAudit;
 use App\Models\LigneCommande;
 use App\Models\NotificationOrdispace;
 use App\Models\Produit;
@@ -187,6 +188,25 @@ class MoiController extends Controller
             'abonnement_garantix_en_attente' => $ligne->abonnementsGarantix->first(fn ($a) => $a->estEnAttente()),
             'accessoires_compatibles' => $accessoiresCompatibles,
         ]);
+    }
+
+    /**
+     * "Mes activités" (écran Compte, Espace Coordinateur) — journal des
+     * actions effectuées PAR l'utilisateur connecté (JournalAudit::acteur_id,
+     * déjà rempli par défaut sur auth('sanctum')->id() côté
+     * JournalAudit::enregistrer()), filtrable par la même période que
+     * l'accueil Space (resoudre_periode(), partagée avec EspaceController).
+     */
+    public function activites(Request $request): JsonResponse
+    {
+        [$debut, $fin] = resoudre_periode($request);
+
+        $activites = JournalAudit::where('acteur_id', $request->user()->id)
+            ->when($debut && $fin, fn ($q) => $q->whereBetween('date_heure', [$debut, $fin]))
+            ->latest('date_heure')
+            ->paginate(paginate_per_page($request));
+
+        return $this->success($activites);
     }
 
     public function notifications(Request $request): JsonResponse

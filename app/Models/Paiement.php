@@ -12,6 +12,7 @@ class Paiement extends Model
     protected $fillable = [
         'commande_id', 'livreur_id', 'montant', 'mode_paiement',
         'statut_paiement', 'reference_transaction', 'date_paiement',
+        'date_limite_depot', 'date_depot',
     ];
 
     protected function casts(): array
@@ -19,6 +20,8 @@ class Paiement extends Model
         return [
             'montant' => 'decimal:2',
             'date_paiement' => 'datetime',
+            'date_limite_depot' => 'datetime',
+            'date_depot' => 'datetime',
             // Donnée sensible (n° Mobile Money / n° reçu) chiffrée au repos.
             'reference_transaction' => 'encrypted',
         ];

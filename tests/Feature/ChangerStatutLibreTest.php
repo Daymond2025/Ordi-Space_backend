@@ -80,6 +80,53 @@ class ChangerStatutLibreTest extends TestCase
         $this->assertSame(5, $produit->fresh()->quantite_stock);
     }
 
+    /**
+     * Le livreur a déjà le colis (mission acceptée, en_cours) quand la
+     * commande est annulée : la livraison doit être signalée pour un retour
+     * physique au dépôt — voir Commande::appliquerChangementStatut().
+     */
+    public function test_annuler_pendant_que_le_livreur_est_en_cours_signale_un_retour(): void
+    {
+        $coordinateur = $this->creerCoordinateur();
+        $commande = $this->creerCommande($this->creerCommercial());
+        $commande->update(['statut_commande' => STATUT_COMMANDE_EN_LIVRAISON]);
+
+        $livreurUser = User::factory()->create(['type_utilisateur' => ROLE_LIVREUR]);
+        $livreurUser->assignRole(ROLE_LIVREUR);
+        Livreur::create(['user_id' => $livreurUser->id]);
+        $commande->loadMissing('livraison')->livraison->update([
+            'livreur_id' => $livreurUser->id,
+            'statut_livraison' => STATUT_LIVRAISON_EN_COURS,
+        ]);
+
+        $this->actingAs($coordinateur)->postJson("/api/v1/commandes/{$commande->id}/statut", [
+            'statut_commande' => STATUT_COMMANDE_ANNULEE,
+        ])->assertOk();
+
+        $livraison = $commande->livraison->fresh();
+        $this->assertSame(STATUT_LIVRAISON_ECHOUEE, $livraison->statut_livraison);
+        $this->assertTrue($livraison->retour_necessaire);
+        $this->assertSame(STATUT_RETOUR_LIVRAISON_EN_COURS, $livraison->statut_retour);
+    }
+
+    /**
+     * Annulation AVANT toute assignation de livreur (pas de livraison en
+     * cours) : aucun retour à signaler, comportement inchangé.
+     */
+    public function test_annuler_sans_livreur_assigne_ne_signale_aucun_retour(): void
+    {
+        $coordinateur = $this->creerCoordinateur();
+        $commande = $this->creerCommande($this->creerCommercial());
+
+        $this->actingAs($coordinateur)->postJson("/api/v1/commandes/{$commande->id}/statut", [
+            'statut_commande' => STATUT_COMMANDE_ANNULEE,
+        ])->assertOk();
+
+        $livraison = $commande->fresh('livraison')->livraison;
+        $this->assertFalse((bool) $livraison->retour_necessaire);
+        $this->assertNull($livraison->statut_retour);
+    }
+
     public function test_en_livraison_est_rejete_il_faut_passer_par_assigner_livreur(): void
     {
         $coordinateur = $this->creerCoordinateur();

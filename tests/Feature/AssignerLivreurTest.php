@@ -57,7 +57,14 @@ class AssignerLivreurTest extends TestCase
         ]);
 
         $reponse->assertOk();
-        $this->assertDatabaseHas('livraisons', ['commande_id' => $commande->id, 'livreur_id' => $livreur->id]);
+        $this->assertDatabaseHas('livraisons', [
+            'commande_id' => $commande->id,
+            'livreur_id' => $livreur->id,
+            // 'assignee', pas 'en_cours' directement : le livreur doit
+            // accepter la mission (LivraisonController::accepter()) avant
+            // qu'elle ne devienne active.
+            'statut_livraison' => STATUT_LIVRAISON_ASSIGNEE,
+        ]);
         $this->assertDatabaseHas('commandes', ['id' => $commande->id, 'statut_commande' => STATUT_COMMANDE_EN_LIVRAISON]);
         $this->assertDatabaseHas('journal_audit', ['commande_id' => $commande->id]);
     }

@@ -31,6 +31,7 @@ class User extends Authenticatable
         'remember_token',
         'two_factor_code',
         'two_factor_expires_at',
+        'two_factor_tentatives',
     ];
 
     protected function casts(): array
@@ -60,6 +61,7 @@ class User extends Authenticatable
         $this->forceFill([
             'two_factor_code' => Hash::make($code),
             'two_factor_expires_at' => now()->addMinutes(OTP_EXPIRATION_MINUTES),
+            'two_factor_tentatives' => 0,
         ])->save();
 
         return $code;

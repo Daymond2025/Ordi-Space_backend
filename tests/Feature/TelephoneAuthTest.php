@@ -177,4 +177,41 @@ class TelephoneAuthTest extends TestCase
 
         $this->assertNotNull($admin);
     }
+
+    public function test_un_code_errone_incremente_le_compteur_de_tentatives(): void
+    {
+        $inscription = $this->postJson('/api/v1/auth/telephone/inscription', [
+            'telephone' => '0700000012', 'nom' => 'Diallo',
+        ]);
+
+        $this->postJson('/api/v1/auth/verify-otp', [
+            'user_id' => $inscription->json('data.user_id'), 'code' => '000000', 'device_name' => 'test-device',
+        ])->assertUnprocessable();
+
+        $this->assertDatabaseHas('users', [
+            'id' => $inscription->json('data.user_id'), 'two_factor_tentatives' => 1,
+        ]);
+    }
+
+    public function test_le_code_est_invalide_apres_trop_de_tentatives_echouees(): void
+    {
+        $inscription = $this->postJson('/api/v1/auth/telephone/inscription', [
+            'telephone' => '0700000013', 'nom' => 'Bakayoko',
+        ]);
+        $userId = $inscription->json('data.user_id');
+        $bonCode = $inscription->json('data.code_debug');
+
+        // Simule OTP_TENTATIVES_MAX échecs déjà comptabilisés (sans refaire
+        // les appels HTTP un par un, pour ne pas dépendre du throttle réseau
+        // de la route, qui est un mécanisme distinct testé ailleurs).
+        User::where('id', $userId)->update(['two_factor_tentatives' => OTP_TENTATIVES_MAX]);
+
+        // Même avec le BON code, la tentative est refusée : le code a été
+        // invalidé après le seuil, il faut en redemander un.
+        $this->postJson('/api/v1/auth/verify-otp', [
+            'user_id' => $userId, 'code' => $bonCode, 'device_name' => 'test-device',
+        ])->assertUnprocessable();
+
+        $this->assertDatabaseHas('users', ['id' => $userId, 'two_factor_code' => null]);
+    }
 }

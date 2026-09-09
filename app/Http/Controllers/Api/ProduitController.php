@@ -122,6 +122,14 @@ class ProduitController extends Controller
             abort(404);
         }
 
+        // Le téléphone du fournisseur n'est chargé (et donc exposé) que pour le
+        // coordinateur/admin (bouton "Appeler" de la discussion produit) —
+        // jamais pour les clients/invités qui consomment cette même route
+        // publique.
+        if ($user && in_array($user->type_utilisateur, [ROLE_ADMINISTRATEUR, ROLE_COORDINATEUR], true)) {
+            $produit->fournisseur?->load('user');
+        }
+
         return $this->success($produit);
     }
 

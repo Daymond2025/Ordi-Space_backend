@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\Auth\TelephoneAuthController;
 use App\Http\Controllers\Api\CategorieController;
 use App\Http\Controllers\Api\ClientRapideController;
 use App\Http\Controllers\Api\CommandeController;
+use App\Http\Controllers\Api\CommercialController;
 use App\Http\Controllers\Api\LivreurController;
 use App\Http\Controllers\Api\Coordinateur\EspaceController as CoordinateurEspaceController;
 use App\Http\Controllers\Api\Coordinateur\PortefeuilleController as CoordinateurPortefeuilleController;
@@ -51,7 +52,7 @@ Route::prefix('v1')->group(function () {
     Route::prefix('auth')->group(function () {
         Route::post('register', [AuthController::class, 'register']);
         Route::post('login', [AuthController::class, 'login'])->middleware('throttle:5,1');
-        Route::post('verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:5,1');
+        Route::post('verify-otp', [AuthController::class, 'verifyOtp'])->middleware(['throttle:5,1', 'throttle:otp-verify']);
 
         // Connexion Client par téléphone (WhatsApp + OTP) — voir
         // TelephoneAuthController. La dernière étape réutilise verify-otp
@@ -94,6 +95,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('adresses/{adresse}', [MoiController::class, 'supprimerAdresse']);
             Route::get('achats', [MoiController::class, 'achats']);
             Route::get('achats/{ligne}', [MoiController::class, 'achat']);
+            Route::get('activites', [MoiController::class, 'activites']);
             Route::get('notifications', [MoiController::class, 'notifications']);
             Route::patch('notifications/{notification}/lue', [MoiController::class, 'marquerNotificationLue']);
             Route::get('privileges-utilises', [MoiController::class, 'privilegesUtilises']);
@@ -184,6 +186,7 @@ Route::prefix('v1')->group(function () {
         // le contrôleur distingue les deux cas lui-même.
         Route::post('commandes/{commande}/paiement', [PaiementController::class, 'encaisser']);
         Route::get('commandes/{commande}/paiement', [PaiementController::class, 'show'])->middleware('permission:'.PERMISSION_COMMANDES_CONSULTER);
+        Route::post('paiements/{paiement}/deposer', [PaiementController::class, 'deposer']);
 
         Route::post('lignes-commande/{ligneCommande}/retour', [RetourController::class, 'store']);
         Route::get('retours', [RetourController::class, 'index']);
@@ -192,6 +195,7 @@ Route::prefix('v1')->group(function () {
         Route::middleware('permission:'.PERMISSION_LIVRAISONS_GERER)->group(function () {
             Route::get('livraisons', [LivraisonController::class, 'index']);
             Route::post('livraisons/{livraison}/affecter', [LivraisonController::class, 'affecter']);
+            Route::post('livraisons/{livraison}/accepter', [LivraisonController::class, 'accepter']);
             Route::post('livraisons/{livraison}/livrer', [LivraisonController::class, 'livrer']);
         });
         Route::get('livraisons/{livraison}', [LivraisonController::class, 'show']);
@@ -261,6 +265,8 @@ Route::prefix('v1')->group(function () {
             Route::get('{reclamation}', [ReclamationController::class, 'show']);
             Route::patch('{reclamation}/repondre', [ReclamationController::class, 'repondre'])
                 ->middleware('permission:'.PERMISSION_RECLAMATIONS_GERER);
+            Route::post('{reclamation}/preuves', [ReclamationController::class, 'ajouterPreuve']);
+            Route::delete('{reclamation}/preuves/{preuve}', [ReclamationController::class, 'supprimerPreuve']);
         });
 
         // Espace Coordinateur — préfixe étendu par les phases suivantes
@@ -273,6 +279,20 @@ Route::prefix('v1')->group(function () {
                 Route::get('portefeuille/transactions/{transaction}', [CoordinateurPortefeuilleController::class, 'show']);
                 Route::get('portefeuille/transactions/{transaction}/recu', [CoordinateurPortefeuilleController::class, 'recu']);
             });
+            Route::get('livreurs', [LivreurController::class, 'liste'])
+                ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
+            Route::get('livraisons-disponibles', [LivreurController::class, 'livraisonsDisponibles'])
+                ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
+            Route::get('livreurs/{livreur}/missions', [LivreurController::class, 'missions'])
+                ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
+            Route::get('livreurs/{livreur}', [LivreurController::class, 'show'])
+                ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
+            Route::get('commerciaux', [CommercialController::class, 'liste'])
+                ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
+            Route::get('commerciaux/{commercial}', [CommercialController::class, 'show'])
+                ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
+            Route::patch('commerciaux/{commercial}/statut', [CommercialController::class, 'changerStatut'])
+                ->middleware('permission:'.PERMISSION_COMMERCIAUX_GERER);
         });
 
         // Assistance : FAQ + audio (contenu publié par l'Administrateur).

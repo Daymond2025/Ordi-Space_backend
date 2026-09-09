@@ -34,6 +34,11 @@ class PaiementController extends Controller
             'reference_transaction' => ['nullable', 'string', 'max:255'],
         ]);
 
+        // Délai de reversement du cash à l'entreprise — uniquement quand un
+        // livreur encaisse physiquement des espèces (mobile money ne transite
+        // jamais par ses mains). Voir écran "Les Missions" (badge "Dépôt").
+        $especesEncaisseesParLivreur = $livreurAutorise && $data['mode_paiement'] === MODE_PAIEMENT_ESPECES;
+
         $paiement = Paiement::create([
             ...$data,
             'commande_id' => $commande->id,
@@ -43,6 +48,7 @@ class PaiementController extends Controller
             'montant' => $commande->montantNet(),
             'statut_paiement' => STATUT_PAIEMENT_CONFIRME,
             'date_paiement' => now(),
+            'date_limite_depot' => $especesEncaisseesParLivreur ? now()->addHours(24) : null,
         ]);
 
         return $this->success($paiement, status: 201);
@@ -53,5 +59,15 @@ class PaiementController extends Controller
         abort_unless($commande->paiement, 404);
 
         return $this->success($commande->paiement);
+    }
+
+    /** Le livreur confirme avoir reversé à l'entreprise le cash COD encaissé. */
+    public function deposer(Request $request, Paiement $paiement): JsonResponse
+    {
+        abort_unless($paiement->livreur_id === $request->user()->id, 403);
+
+        $paiement->update(['date_depot' => now()]);
+
+        return $this->success($paiement->fresh());
     }
 }

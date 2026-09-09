@@ -115,3 +115,31 @@ if (! function_exists('paginate_per_page')) {
         return min($request->integer('per_page', PAGINATION_PAR_DEFAUT), PAGINATION_MAX);
     }
 }
+
+if (! function_exists('resoudre_periode')) {
+    /**
+     * Bornes de dates à partir de ?periode= (ou ?date_debut=/?date_fin=
+     * explicites) — extrait de EspaceController::resoudrePeriode() pour être
+     * réutilisé par MoiController::activites() ("Mes activités", Espace
+     * Coordinateur) sans dupliquer la logique.
+     *
+     * @return array{0: ?\Illuminate\Support\Carbon, 1: ?\Illuminate\Support\Carbon}
+     */
+    function resoudre_periode(\Illuminate\Http\Request $request): array
+    {
+        if ($request->filled('date_debut') && $request->filled('date_fin')) {
+            return [
+                \Illuminate\Support\Carbon::parse($request->string('date_debut'))->startOfDay(),
+                \Illuminate\Support\Carbon::parse($request->string('date_fin'))->endOfDay(),
+            ];
+        }
+
+        return match ($request->string('periode')->toString() ?: 'aujourd_hui') {
+            'tout' => [null, null],
+            'semaine' => [now()->startOfWeek(), now()->endOfWeek()],
+            'semaine_derniere' => [now()->subWeek()->startOfWeek(), now()->subWeek()->endOfWeek()],
+            'mois' => [now()->startOfMonth(), now()->endOfMonth()],
+            default => [now()->startOfDay(), now()->endOfDay()],
+        };
+    }
+}
