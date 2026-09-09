@@ -80,6 +80,20 @@ class ProduitStockEtCatalogueTest extends TestCase
         $this->assertFalse($ids->contains($enStock->id));
     }
 
+    public function test_le_filtre_indisponible_fonctionne_aussi_pour_ladministrateur(): void
+    {
+        $admin = $this->creerAdmin();
+        $enStock = $this->creerProduitPhysique(['quantite_stock' => 5]);
+        $rupture = $this->creerProduitPhysique(['quantite_stock' => 0]);
+
+        $reponse = $this->actingAs($admin)->getJson('/api/v1/produits?statut=indisponible');
+
+        $reponse->assertOk();
+        $ids = collect($reponse->json('data.data'))->pluck('id');
+        $this->assertTrue($ids->contains($rupture->id));
+        $this->assertFalse($ids->contains($enStock->id));
+    }
+
     public function test_filtre_fournisseur_id_est_universel(): void
     {
         $produitA = $this->creerProduitPhysique();

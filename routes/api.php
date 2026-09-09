@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Admin\AssistantIaController as AdminAssistantIaController;
 use App\Http\Controllers\Api\Admin\ClientController;
 use App\Http\Controllers\Api\Admin\CommandeController as AdminCommandeController;
+use App\Http\Controllers\Api\Admin\CoordinateurController as AdminCoordinateurController;
 use App\Http\Controllers\Api\Admin\FideliteController;
 use App\Http\Controllers\Api\Admin\StatistiqueController;
 use App\Http\Controllers\Api\Admin\UtilisateurController;
@@ -330,6 +331,7 @@ Route::prefix('v1')->group(function () {
             Route::get('fidelite', [FideliteController::class, 'index']);
             Route::get('assistant-ia/clients', [AdminAssistantIaController::class, 'index']);
             Route::get('assistant-ia/clients/{utilisateur}/messages', [AdminAssistantIaController::class, 'messages']);
+            Route::get('coordinateurs/{coordinateur}/activites', [AdminCoordinateurController::class, 'activites']);
         });
     });
 });

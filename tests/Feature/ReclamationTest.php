@@ -188,6 +188,26 @@ class ReclamationTest extends TestCase
         ])->assertOk();
     }
 
+    public function test_le_filtre_type_auteur_restreint_a_une_entite(): void
+    {
+        $coordinateur = $this->creerCoordinateur();
+        $fournisseur = $this->creerFournisseur();
+        $client = $this->creerClient();
+
+        $this->actingAs($fournisseur)->postJson('/api/v1/reclamations', [
+            'sujet' => 'Sujet fournisseur', 'description' => 'Description fournisseur',
+        ])->assertCreated();
+        $this->actingAs($client)->postJson('/api/v1/reclamations', [
+            'sujet' => 'Sujet client', 'description' => 'Description client',
+        ])->assertCreated();
+
+        $liste = $this->actingAs($coordinateur)->getJson('/api/v1/reclamations?type_auteur='.ROLE_FOURNISSEUR);
+        $sujets = collect($liste->json('data.data') ?? $liste->json('data'))->pluck('sujet');
+
+        $this->assertContains('Sujet fournisseur', $sujets);
+        $this->assertNotContains('Sujet client', $sujets);
+    }
+
     public function test_le_titre_est_deduit_du_sujet_quand_il_est_absent(): void
     {
         $client = $this->creerClient();

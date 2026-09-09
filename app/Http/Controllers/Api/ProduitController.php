@@ -39,7 +39,11 @@ class ProduitController extends Controller
 
         if ($user?->type_utilisateur === ROLE_FOURNISSEUR) {
             $query->where('fournisseur_id', $user->id);
-        } elseif ($user?->type_utilisateur === ROLE_COORDINATEUR) {
+        } elseif (in_array($user?->type_utilisateur, [ROLE_COORDINATEUR, ROLE_ADMINISTRATEUR], true)) {
+            // L'Admin bénéficie du même filtre ?statut= que le Coordinateur
+            // (écran Catalogue de l'Espace Coordinateur côté Admin_Web) —
+            // notamment ?statut=indisponible, qui ne dérive pas d'une simple
+            // colonne mais du stock.
             $this->filtrerCatalogueCoordinateur($query, $request);
         } elseif (! in_array($user?->type_utilisateur, [ROLE_ADMINISTRATEUR], true)) {
             $query->where('statut_produit', STATUT_PRODUIT_VALIDE);

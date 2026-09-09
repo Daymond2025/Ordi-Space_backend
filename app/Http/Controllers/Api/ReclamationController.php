@@ -37,6 +37,14 @@ class ReclamationController extends Controller
             $query->where('statut', $request->string('statut'));
         }
 
+        // Filtre par type d'entité auteur — utilisé par l'écran Réclamations
+        // de l'Espace Coordinateur (Admin_Web) pour distinguer les 5 entités,
+        // et par /clients/reclamations (Admin_Web) pour rester scopé aux
+        // clients uniquement (ancien format qui suppose client.user.*).
+        if ($request->filled('type_auteur')) {
+            $query->whereHas('auteur', fn ($q) => $q->where('type_utilisateur', $request->string('type_auteur')));
+        }
+
         return $this->success($query->latest('date_reclamation')->paginate(paginate_per_page($request)));
     }
 
