@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Admin\ClientController;
 use App\Http\Controllers\Api\Admin\CommandeController as AdminCommandeController;
 use App\Http\Controllers\Api\Admin\CoordinateurController as AdminCoordinateurController;
 use App\Http\Controllers\Api\Admin\FideliteController;
+use App\Http\Controllers\Api\Admin\LivreurController as AdminLivreurController;
 use App\Http\Controllers\Api\Admin\StatistiqueController;
 use App\Http\Controllers\Api\Admin\UtilisateurController;
 use App\Http\Controllers\Api\AssistantIaController;
@@ -349,6 +350,7 @@ Route::prefix('v1')->group(function () {
             Route::get('commandes/{commande}', [AdminCommandeController::class, 'show']);
             Route::patch('commandes/{commande}/statut', [AdminCommandeController::class, 'changerStatut']);
             Route::get('fidelite', [FideliteController::class, 'index']);
+            Route::get('livreurs/tableau-de-bord', [AdminLivreurController::class, 'tableauDeBord']);
             Route::get('assistant-ia/clients', [AdminAssistantIaController::class, 'index']);
             Route::get('assistant-ia/clients/{utilisateur}/messages', [AdminAssistantIaController::class, 'messages']);
             Route::get('coordinateurs/{coordinateur}/activites', [AdminCoordinateurController::class, 'activites']);
