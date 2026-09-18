@@ -26,6 +26,15 @@ class RegisterRequest extends FormRequest
 
             // Requis uniquement si type_utilisateur = fournisseur
             'nom_entreprise' => ['required_if:type_utilisateur,'.ROLE_FOURNISSEUR, 'string', 'max:150'],
+
+            // Requis uniquement si type_utilisateur = livreur — décision PDG :
+            // le livreur manipule l'argent du client, ces pièces permettent de
+            // l'identifier formellement en cas de vol/litige (voir
+            // AuthController::register() et Livreur::photoPermis() et sœurs).
+            'photo' => ['required_if:type_utilisateur,'.ROLE_LIVREUR, 'file', 'image', 'mimes:'.IMAGE_MIMES_AUTORISES, 'max:'.IMAGE_MAX_POIDS_KO],
+            'photo_permis' => ['required_if:type_utilisateur,'.ROLE_LIVREUR, 'file', 'image', 'mimes:'.IMAGE_MIMES_AUTORISES, 'max:'.IMAGE_MAX_POIDS_KO],
+            'photo_cni' => ['required_if:type_utilisateur,'.ROLE_LIVREUR, 'file', 'image', 'mimes:'.IMAGE_MIMES_AUTORISES, 'max:'.IMAGE_MAX_POIDS_KO],
+            'photo_carte_grise' => ['required_if:type_utilisateur,'.ROLE_LIVREUR, 'file', 'image', 'mimes:'.IMAGE_MIMES_AUTORISES, 'max:'.IMAGE_MAX_POIDS_KO],
         ];
     }
 }

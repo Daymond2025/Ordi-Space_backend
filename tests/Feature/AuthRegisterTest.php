@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Livreur;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -22,6 +25,7 @@ class AuthRegisterTest extends TestCase
     {
         parent::setUp();
         $this->seed(DatabaseSeeder::class);
+        Storage::fake(IMAGE_PRODUIT_DISQUE);
     }
 
     private function donneesLivreur(array $override = []): array
@@ -34,6 +38,10 @@ class AuthRegisterTest extends TestCase
             'password' => 'Password123',
             'password_confirmation' => 'Password123',
             'type_utilisateur' => ROLE_LIVREUR,
+            'photo' => UploadedFile::fake()->create('photo.jpg', 100, 'image/jpeg'),
+            'photo_permis' => UploadedFile::fake()->create('permis.jpg', 100, 'image/jpeg'),
+            'photo_cni' => UploadedFile::fake()->create('cni.jpg', 100, 'image/jpeg'),
+            'photo_carte_grise' => UploadedFile::fake()->create('carte_grise.jpg', 100, 'image/jpeg'),
         ], $override);
     }
 
@@ -43,7 +51,48 @@ class AuthRegisterTest extends TestCase
 
         $reponse->assertCreated();
         $reponse->assertJsonPath('data.user.type_utilisateur', ROLE_LIVREUR);
-        $this->assertTrue(User::where('email', 'jean.koffi@example.com')->exists());
+        $utilisateur = User::where('email', 'jean.koffi@example.com')->firstOrFail();
+        $this->assertNotNull($utilisateur->getRawOriginal('photo'));
+
+        $livreur = Livreur::findOrFail($utilisateur->id);
+        $this->assertNotNull($livreur->getRawOriginal('photo_permis'));
+        $this->assertNotNull($livreur->getRawOriginal('photo_cni'));
+        $this->assertNotNull($livreur->getRawOriginal('photo_carte_grise'));
+    }
+
+    /**
+     * Décision PDG : le livreur manipule l'argent du client à la livraison —
+     * photo de profil, permis, CNI et carte grise sont donc obligatoires dès
+     * l'inscription (pas une étape ultérieure optionnelle), pour pouvoir
+     * l'identifier formellement en cas de vol/litige.
+     */
+    public function test_l_inscription_du_livreur_est_rejetee_si_un_document_manque(): void
+    {
+        foreach (['photo', 'photo_permis', 'photo_cni', 'photo_carte_grise'] as $champ) {
+            $donnees = $this->donneesLivreur();
+            unset($donnees[$champ]);
+
+            $reponse = $this->postJson('/api/v1/auth/register', $donnees);
+
+            $reponse->assertUnprocessable();
+            $this->assertArrayHasKey($champ, $reponse->json('error.fields'), "Le champ {$champ} aurait dû être requis.");
+        }
+
+        $this->assertFalse(User::where('email', 'jean.koffi@example.com')->exists());
+    }
+
+    public function test_les_documents_du_livreur_ne_sont_pas_exiges_pour_un_fournisseur(): void
+    {
+        $reponse = $this->postJson('/api/v1/auth/register', [
+            'nom' => 'Diallo',
+            'email' => 'diallo.fournisseur@example.com',
+            'password' => 'Password123',
+            'password_confirmation' => 'Password123',
+            'type_utilisateur' => ROLE_FOURNISSEUR,
+            'nom_entreprise' => 'Diallo Informatique',
+        ]);
+
+        $reponse->assertCreated();
     }
 
     public function test_l_inscription_est_rejetee_si_l_email_existe_deja(): void

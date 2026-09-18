@@ -228,6 +228,10 @@ defined('LIVRAISON_PREUVE_DOSSIER') || define('LIVRAISON_PREUVE_DOSSIER', 'livra
 defined('PHOTO_PROFIL_DOSSIER') || define('PHOTO_PROFIL_DOSSIER', 'utilisateurs/photos');
 // Types de véhicule déclarables par un Livreur (écran "Mon Profil").
 defined('TYPES_VEHICULE_LIVREUR') || define('TYPES_VEHICULE_LIVREUR', ['moto', 'voiture', 'tricycle', 'velo']);
+// Permis, CNI, carte grise — exigés dès l'auto-inscription du Livreur
+// (décision PDG : il manipule l'argent du client, ces pièces permettent de
+// l'identifier formellement en cas de vol/litige).
+defined('LIVREUR_DOCUMENT_DOSSIER') || define('LIVREUR_DOCUMENT_DOSSIER', 'livreurs/documents');
 defined('MESSAGE_AUDIO_DOSSIER') || define('MESSAGE_AUDIO_DOSSIER', 'messages/audio');
 // Vidéo et document : aucun précédent dans le code, constantes nouvelles.
 defined('VIDEO_MIMES_AUTORISES') || define('VIDEO_MIMES_AUTORISES', 'mp4,mov,webm');

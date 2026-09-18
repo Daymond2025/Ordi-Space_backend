@@ -51,6 +51,9 @@ class AuthController extends Controller
                 'password' => Hash::make($data['password']),
                 'type_utilisateur' => $data['type_utilisateur'],
                 'statut_compte' => STATUT_COMPTE_ACTIF,
+                // Photo de profil : uniquement fournie (et exigée) pour le
+                // Livreur pour l'instant — voir RegisterRequest.
+                'photo' => isset($data['photo']) ? $data['photo']->store(PHOTO_PROFIL_DOSSIER, IMAGE_PRODUIT_DISQUE) : null,
             ]);
 
             match ($data['type_utilisateur']) {
@@ -61,7 +64,14 @@ class AuthController extends Controller
                 // Un agent IA n'est jamais créé via l'auto-inscription publique :
                 // il reçoit un jeton de service émis directement par un Administrateur.
                 ROLE_COMMERCIAL => Commercial::create(['user_id' => $user->id, 'type_commercial' => TYPE_COMMERCIAL_HUMAIN]),
-                ROLE_LIVREUR => Livreur::create(['user_id' => $user->id]),
+                // Permis/CNI/carte grise obligatoires à l'inscription (décision
+                // PDG) — voir RegisterRequest et Livreur::photoPermis() et sœurs.
+                ROLE_LIVREUR => Livreur::create([
+                    'user_id' => $user->id,
+                    'photo_permis' => $data['photo_permis']->store(LIVREUR_DOCUMENT_DOSSIER, IMAGE_PRODUIT_DISQUE),
+                    'photo_cni' => $data['photo_cni']->store(LIVREUR_DOCUMENT_DOSSIER, IMAGE_PRODUIT_DISQUE),
+                    'photo_carte_grise' => $data['photo_carte_grise']->store(LIVREUR_DOCUMENT_DOSSIER, IMAGE_PRODUIT_DISQUE),
+                ]),
             };
 
             $user->assignRole($data['type_utilisateur']);

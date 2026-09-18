@@ -73,6 +73,15 @@ class LivreurController extends Controller
             'prenom' => $livreur->user->prenom,
             'telephone' => $livreur->user->telephone,
             'disponible' => $livreur->disponible,
+            // Pièces exigées à l'inscription (voir AuthController::register())
+            // — consultables ici pour identifier formellement le livreur en
+            // cas de vol/litige (décision PDG, il manipule l'argent du client).
+            'documents' => [
+                'photo' => $livreur->user->photo,
+                'photo_permis' => $livreur->photo_permis,
+                'photo_cni' => $livreur->photo_cni,
+                'photo_carte_grise' => $livreur->photo_carte_grise,
+            ],
             'statistiques' => [
                 'commandes_total' => (clone $livraisons)->count(),
                 'commandes_livrees' => (clone $livraisons)->where('statut_livraison', STATUT_LIVRAISON_LIVREE)->count(),
