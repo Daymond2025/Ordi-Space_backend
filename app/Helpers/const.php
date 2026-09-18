@@ -222,6 +222,12 @@ defined('MESSAGE_IMAGE_DOSSIER') || define('MESSAGE_IMAGE_DOSSIER', 'messages/im
 // Preuves jointes à une réclamation (écran "Détails" du coordinateur) — même
 // disque/mimes/plafond que les images produit, dossier dédié.
 defined('RECLAMATION_PREUVE_DOSSIER') || define('RECLAMATION_PREUVE_DOSSIER', 'reclamations/preuves');
+// Preuve de livraison (photo prise par le livreur à la remise du colis).
+defined('LIVRAISON_PREUVE_DOSSIER') || define('LIVRAISON_PREUVE_DOSSIER', 'livraisons/preuves');
+// Photo de profil (tout utilisateur) — mêmes mimes/plafond que les images produit.
+defined('PHOTO_PROFIL_DOSSIER') || define('PHOTO_PROFIL_DOSSIER', 'utilisateurs/photos');
+// Types de véhicule déclarables par un Livreur (écran "Mon Profil").
+defined('TYPES_VEHICULE_LIVREUR') || define('TYPES_VEHICULE_LIVREUR', ['moto', 'voiture', 'tricycle', 'velo']);
 defined('MESSAGE_AUDIO_DOSSIER') || define('MESSAGE_AUDIO_DOSSIER', 'messages/audio');
 // Vidéo et document : aucun précédent dans le code, constantes nouvelles.
 defined('VIDEO_MIMES_AUTORISES') || define('VIDEO_MIMES_AUTORISES', 'mp4,mov,webm');

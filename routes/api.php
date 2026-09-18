@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\Sav\DemandeSavController;
 use App\Http\Controllers\Api\Sav\InterventionController;
 use App\Http\Controllers\Api\Sav\RendezVousController;
 use App\Http\Controllers\Api\TutorielController;
+use App\Http\Controllers\Api\WaveWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -69,6 +70,12 @@ Route::prefix('v1')->group(function () {
         });
     });
 
+    // Webhook Wave (encaissement Mobile Money à la livraison) — public par
+    // nature (appelé par Wave, pas par un utilisateur connecté), sécurisé par
+    // la signature "Wave-Signature" plutôt que par auth:sanctum. Voir
+    // WaveWebhookController et App\Services\Wave\WaveCheckoutService.
+    Route::post('webhooks/wave', [WaveWebhookController::class, 'handle']);
+
     // Catalogue public — navigation libre, sans compte (décision produit :
     // "entrée libre", seules les actions comme commander exigent un compte).
     Route::get('categories', [CategorieController::class, 'index']);
@@ -90,6 +97,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('moi')->group(function () {
             Route::get('profil', [MoiController::class, 'profil']);
             Route::patch('profil', [MoiController::class, 'modifierProfil']);
+            Route::post('profil/photo', [MoiController::class, 'modifierPhoto']);
             Route::get('portefeuille', [MoiController::class, 'portefeuille']);
             Route::get('adresses', [MoiController::class, 'adresses']);
             Route::post('adresses', [MoiController::class, 'ajouterAdresse']);
@@ -100,6 +108,11 @@ Route::prefix('v1')->group(function () {
             Route::get('notifications', [MoiController::class, 'notifications']);
             Route::patch('notifications/{notification}/lue', [MoiController::class, 'marquerNotificationLue']);
             Route::get('privileges-utilises', [MoiController::class, 'privilegesUtilises']);
+            Route::get('paiements', [MoiController::class, 'paiements']);
+            Route::post('paiements/reverser', [MoiController::class, 'reverserPaiements']);
+            Route::get('recapitulatif-jour', [MoiController::class, 'recapitulatifJour']);
+            Route::patch('disponibilite', [MoiController::class, 'basculerDisponibilite']);
+            Route::patch('vehicule', [MoiController::class, 'modifierVehicule']);
 
             Route::get('panier', [PanierController::class, 'index']);
             Route::post('panier/lignes', [PanierController::class, 'ajouter']);
@@ -186,8 +199,10 @@ Route::prefix('v1')->group(function () {
         // (commande 100% numérique) sont tous deux autorisés à encaisser,
         // le contrôleur distingue les deux cas lui-même.
         Route::post('commandes/{commande}/paiement', [PaiementController::class, 'encaisser']);
+        Route::post('commandes/{commande}/paiement/wave', [PaiementController::class, 'initierPaiementWave']);
         Route::get('commandes/{commande}/paiement', [PaiementController::class, 'show'])->middleware('permission:'.PERMISSION_COMMANDES_CONSULTER);
         Route::post('paiements/{paiement}/deposer', [PaiementController::class, 'deposer']);
+        Route::post('paiements/{paiement}/confirmer-manuellement', [PaiementController::class, 'confirmerManuellement']);
 
         Route::post('lignes-commande/{ligneCommande}/retour', [RetourController::class, 'store']);
         Route::get('retours', [RetourController::class, 'index']);
@@ -197,7 +212,12 @@ Route::prefix('v1')->group(function () {
             Route::get('livraisons', [LivraisonController::class, 'index']);
             Route::post('livraisons/{livraison}/affecter', [LivraisonController::class, 'affecter']);
             Route::post('livraisons/{livraison}/accepter', [LivraisonController::class, 'accepter']);
+            Route::post('livraisons/{livraison}/recuperer', [LivraisonController::class, 'recuperer']);
+            Route::post('livraisons/{livraison}/demarrer-livraison', [LivraisonController::class, 'demarrerLivraison']);
+            Route::post('livraisons/{livraison}/arriver', [LivraisonController::class, 'arriver']);
             Route::post('livraisons/{livraison}/livrer', [LivraisonController::class, 'livrer']);
+            Route::post('livraisons/{livraison}/annuler', [LivraisonController::class, 'annuler']);
+            Route::post('livraisons/{livraison}/retourner', [LivraisonController::class, 'retourner']);
         });
         Route::get('livraisons/{livraison}', [LivraisonController::class, 'show']);
 

@@ -28,6 +28,20 @@ class AuthController extends Controller
     {
         $data = $request->validated();
 
+        // Même normalisation/contrôle d'unicité qu'ailleurs (TelephoneAuthController,
+        // MoiController::modifierProfil()) : sans ça, deux formats du même
+        // numéro passent la validation puis font échouer l'insertion sur la
+        // contrainte unique en base (500 brut au lieu d'une erreur propre).
+        if (! empty($data['telephone'])) {
+            $data['telephone'] = normaliser_telephone($data['telephone']);
+
+            if (User::where('telephone', $data['telephone'])->exists()) {
+                throw ValidationException::withMessages([
+                    'telephone' => ['Ce numéro est déjà utilisé par un autre compte.'],
+                ]);
+            }
+        }
+
         $user = DB::transaction(function () use ($data) {
             $user = User::create([
                 'nom' => $data['nom'],

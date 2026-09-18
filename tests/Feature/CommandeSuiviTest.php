@@ -8,6 +8,7 @@ use App\Models\Livreur;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\Feature\Concerns\InteragitAvecApi;
 use Tests\TestCase;
 
@@ -46,7 +47,7 @@ class CommandeSuiviTest extends TestCase
 
         $this->actingAs($livreurUser)->postJson("/api/v1/livraisons/{$livraison->id}/affecter")->assertOk();
         $this->actingAs($livreurUser)->postJson("/api/v1/livraisons/{$livraison->id}/livrer", [
-            'preuve_livraison' => 'Remis en main propre',
+            'preuve_livraison' => UploadedFile::fake()->create('preuve.jpg', 100, 'image/jpeg'),
         ])->assertOk();
 
         $suivi = $this->actingAs($coordinateur)->getJson("/api/v1/commandes/{$commande->id}/suivi");

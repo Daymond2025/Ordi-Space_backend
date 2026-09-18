@@ -90,6 +90,10 @@ class LivraisonAccepterTest extends TestCase
         $livraison->refresh();
         $this->assertSame(STATUT_LIVRAISON_EN_COURS, $livraison->statut_livraison);
         $this->assertNotNull($livraison->date_prise_en_charge);
+        $this->assertDatabaseHas('notifications_ordispace', [
+            'user_id' => $livreur->id,
+            'type_notification' => 'mission_acceptee',
+        ]);
     }
 
     public function test_un_autre_livreur_ne_peut_pas_accepter(): void
@@ -107,5 +111,47 @@ class LivraisonAccepterTest extends TestCase
         $livraison = $this->creerLivraison($livreur->id, STATUT_LIVRAISON_EN_COURS);
 
         $this->actingAs($livreur)->postJson("/api/v1/livraisons/{$livraison->id}/accepter")->assertStatus(422);
+    }
+
+    public function test_le_livreur_prend_en_charge_une_mission_du_vivier(): void
+    {
+        $livreur = $this->creerLivreur();
+        $livraison = $this->creerLivraison(null, STATUT_LIVRAISON_EN_ATTENTE_LIVREUR);
+
+        $reponse = $this->actingAs($livreur)->postJson("/api/v1/livraisons/{$livraison->id}/affecter");
+
+        $reponse->assertOk();
+        $livraison->refresh();
+        $this->assertSame($livreur->id, $livraison->livreur_id);
+        $this->assertSame(STATUT_LIVRAISON_EN_COURS, $livraison->statut_livraison);
+        $this->assertDatabaseHas('notifications_ordispace', [
+            'user_id' => $livreur->id,
+            'type_notification' => 'mission_acceptee',
+        ]);
+    }
+
+    /**
+     * Régression : une livraison fraîchement créée (statut "en_preparation",
+     * livreur_id null — voir CommandeController::store()) n'est pas encore
+     * publiée au vivier par le coordinateur. affecter() ne vérifiait que
+     * livreur_id, pas statut_livraison : n'importe quel livreur pouvait
+     * s'emparer d'une commande pas encore prête en devinant son id.
+     */
+    public function test_un_livreur_ne_peut_pas_prendre_en_charge_une_livraison_pas_encore_publiee_au_vivier(): void
+    {
+        $livreur = $this->creerLivreur();
+        $livraison = $this->creerLivraison(null, STATUT_LIVRAISON_EN_PREPARATION);
+
+        $this->actingAs($livreur)->postJson("/api/v1/livraisons/{$livraison->id}/affecter")->assertStatus(422);
+        $this->assertNull($livraison->fresh()->livreur_id);
+    }
+
+    public function test_on_ne_peut_pas_affecter_une_livraison_deja_prise(): void
+    {
+        $livreur = $this->creerLivreur();
+        $autreLivreur = $this->creerLivreur();
+        $livraison = $this->creerLivraison($autreLivreur->id, STATUT_LIVRAISON_EN_ATTENTE_LIVREUR);
+
+        $this->actingAs($livreur)->postJson("/api/v1/livraisons/{$livraison->id}/affecter")->assertStatus(422);
     }
 }

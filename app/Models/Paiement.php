@@ -11,7 +11,7 @@ class Paiement extends Model
 
     protected $fillable = [
         'commande_id', 'livreur_id', 'montant', 'mode_paiement',
-        'statut_paiement', 'reference_transaction', 'date_paiement',
+        'statut_paiement', 'reference_transaction', 'wave_checkout_session_id', 'wave_launch_url', 'date_paiement',
         'date_limite_depot', 'date_depot',
     ];
 

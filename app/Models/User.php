@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -21,6 +23,7 @@ class User extends Authenticatable
         'prenom',
         'email',
         'telephone',
+        'photo',
         'password',
         'type_utilisateur',
         'statut_compte',
@@ -42,6 +45,17 @@ class User extends Authenticatable
             'two_factor_expires_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * En base, un chemin relatif sur le disque "public" — jamais une URL
+     * absolue (même convention que Livraison::preuveLivraison()).
+     */
+    protected function photo(): Attribute
+    {
+        return Attribute::make(
+            get: fn (?string $value) => $value ? Storage::disk(IMAGE_PRODUIT_DISQUE)->url($value) : null,
+        );
     }
 
     public function requiresTwoFactor(): bool

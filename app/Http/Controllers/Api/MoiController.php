@@ -6,13 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\Adresse;
 use App\Models\JournalAudit;
 use App\Models\LigneCommande;
+use App\Models\Livraison;
 use App\Models\NotificationOrdispace;
+use App\Models\Paiement;
 use App\Models\Produit;
 use App\Models\User;
 use App\Models\UtilisationPrivilege;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
@@ -29,7 +32,29 @@ class MoiController extends Controller
             $data['solde_portefeuille'] = $user->client->solde_portefeuille;
         }
 
+        if ($user->type_utilisateur === ROLE_LIVREUR) {
+            $data['disponible'] = $user->livreur->disponible;
+            $data['type_vehicule'] = $user->livreur->type_vehicule;
+        }
+
         return $this->success($data);
+    }
+
+    /**
+     * Bascule "En ligne / Hors ligne" (écran Space, app Livreur) — ce même
+     * champ Livreur::disponible existe déjà côté Coordinateur (lecture seule
+     * sur LivreurController::show()), mais aucun endpoint ne permettait
+     * jusqu'ici au livreur de le modifier lui-même.
+     */
+    public function basculerDisponibilite(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+
+        $data = $request->validate(['disponible' => ['required', 'boolean']]);
+
+        $request->user()->livreur->update($data);
+
+        return $this->success(['disponible' => $data['disponible']]);
     }
 
     /**
@@ -97,6 +122,50 @@ class MoiController extends Controller
             ->all());
 
         return $this->success($user->fresh());
+    }
+
+    /**
+     * Photo de profil — même triptyque validation/stockage/accessor que
+     * ReclamationController::ajouterPreuve(), commun à tous les rôles.
+     * Remplace l'ancienne photo sur le disque plutôt que de l'accumuler.
+     */
+    public function modifierPhoto(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'photo' => ['required', 'file', 'image', 'mimes:'.IMAGE_MIMES_AUTORISES, 'max:'.IMAGE_MAX_POIDS_KO],
+        ]);
+
+        $ancienneCheminBrut = $user->getRawOriginal('photo');
+
+        $user->update([
+            'photo' => $data['photo']->store(PHOTO_PROFIL_DOSSIER, IMAGE_PRODUIT_DISQUE),
+        ]);
+
+        if ($ancienneCheminBrut) {
+            Storage::disk(IMAGE_PRODUIT_DISQUE)->delete($ancienneCheminBrut);
+        }
+
+        return $this->success($user->fresh());
+    }
+
+    /**
+     * Type de véhicule du Livreur — seul champ de son profil "métier" qui
+     * n'était éditable nulle part (contrairement à disponible, voir
+     * basculerDisponibilite()).
+     */
+    public function modifierVehicule(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+
+        $data = $request->validate([
+            'type_vehicule' => ['required', 'string', Rule::in(TYPES_VEHICULE_LIVREUR)],
+        ]);
+
+        $request->user()->livreur->update($data);
+
+        return $this->success(['type_vehicule' => $data['type_vehicule']]);
     }
 
     public function adresses(Request $request): JsonResponse
@@ -207,6 +276,101 @@ class MoiController extends Controller
             ->paginate(paginate_per_page($request));
 
         return $this->success($activites);
+    }
+
+    /**
+     * "Mes paiements" (app Livreur) — les gains PROPRES du livreur, c'est-à-
+     * dire ses frais de livraison (Commande::frais_livraison) sur ses
+     * missions livrées, pas l'encaissement client (Paiement::montant, une
+     * notion différente : voir POST /paiements/{id}/deposer, le dépôt du
+     * cash COD à l'entreprise, inchangé par cette méthode). Aucun retrait
+     * n'existe dans l'app : quand le client paie par Mobile Money,
+     * l'entreprise reverse son gain au livreur en dehors de l'app ; quand il
+     * paie en espèces, le livreur prélève directement son gain sur le cash
+     * encaissé. `solde_total` est donc un cumul qui ne décroît jamais ici.
+     * `periode` (resoudre_periode(), même helper que activites()) filtre les
+     * compteurs et la liste de missions — jamais `solde_total`.
+     * `gains_non_deposes` reste la notion préexistante et séparée du cash COD
+     * pas encore reversé à l'entreprise (voir POST /paiements/{id}/deposer) —
+     * utilisée par l'écran Space ("X FCFA disponible"), pas par "Mes paiements".
+     */
+    public function paiements(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+
+        [$debut, $fin] = resoudre_periode($request);
+
+        $livraisons = Livraison::where('livreur_id', $request->user()->id);
+        $livraisonsLivrees = (clone $livraisons)->where('statut_livraison', STATUT_LIVRAISON_LIVREE);
+        $paiementsEncaisses = $request->user()->livreur->paiementsEncaisses()
+            ->where('statut_paiement', STATUT_PAIEMENT_CONFIRME);
+
+        return $this->success([
+            'solde_total' => (clone $livraisonsLivrees)->with('commande')->get()->sum(fn (Livraison $l) => (float) $l->commande->frais_livraison),
+            'gains_non_deposes' => (clone $paiementsEncaisses)->whereNull('date_depot')->sum('montant'),
+            // Échéance la plus proche parmi les dépôts en attente — carte
+            // "Espèce à reverser" (compte à rebours) sur "Mes paiements".
+            'date_limite_depot_urgente' => (clone $paiementsEncaisses)->whereNull('date_depot')->min('date_limite_depot'),
+            'missions_recues' => (clone $livraisons)
+                ->where('statut_livraison', '!=', STATUT_LIVRAISON_EN_ATTENTE_LIVREUR)
+                ->when($debut && $fin, fn ($q) => $q->whereBetween('date_prise_en_charge', [$debut, $fin]))
+                ->count(),
+            'missions_validees' => (clone $livraisonsLivrees)
+                ->when($debut && $fin, fn ($q) => $q->whereBetween('date_livraison_effective', [$debut, $fin]))
+                ->count(),
+            'gains_periode' => (clone $livraisonsLivrees)
+                ->when($debut && $fin, fn ($q) => $q->whereBetween('date_livraison_effective', [$debut, $fin]))
+                ->with('commande')->get()->sum(fn (Livraison $l) => (float) $l->commande->frais_livraison),
+            'missions' => (clone $livraisonsLivrees)
+                ->when($debut && $fin, fn ($q) => $q->whereBetween('date_livraison_effective', [$debut, $fin]))
+                ->with(['commande.lignes.produit.fournisseur', 'adresse.localite'])
+                ->latest('date_livraison_effective')
+                ->paginate(paginate_per_page($request)),
+        ]);
+    }
+
+    /**
+     * "Reverser" (carte "Espèce à reverser" sur "Mes paiements") — dépose en
+     * une fois tous les paiements cash confirmés pas encore reversés à
+     * l'entreprise (mêmes critères que gains_non_deposes ci-dessus), plutôt
+     * que de répéter POST /paiements/{id}/deposer un par un : la carte
+     * affiche un montant consolidé, l'action doit l'être aussi.
+     */
+    public function reverserPaiements(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+
+        $paiements = $request->user()->livreur->paiementsEncaisses()
+            ->where('statut_paiement', STATUT_PAIEMENT_CONFIRME)
+            ->whereNull('date_depot')
+            ->get();
+
+        $paiements->each(fn (Paiement $p) => $p->update(['date_depot' => now()]));
+
+        return $this->success(['nombre_reverse' => $paiements->count()]);
+    }
+
+    /**
+     * Récapitulatif du jour affiché sur l'écran "Livraison terminée !" —
+     * nombre de missions livrées aujourd'hui et somme des frais de livraison
+     * gagnés par le livreur (Commande::frais_livraison, la rémunération du
+     * livreur — pas Paiement::montant utilisé par paiements() ci-dessus, qui
+     * est l'encaissement client et une notion distincte).
+     */
+    public function recapitulatifJour(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+
+        $livraisonsAujourdhui = Livraison::where('livreur_id', $request->user()->id)
+            ->where('statut_livraison', STATUT_LIVRAISON_LIVREE)
+            ->whereDate('date_livraison_effective', today())
+            ->with('commande')
+            ->get();
+
+        return $this->success([
+            'livraisons_du_jour' => $livraisonsAujourdhui->count(),
+            'revenu_du_jour' => $livraisonsAujourdhui->sum(fn (Livraison $l) => (float) $l->commande->frais_livraison),
+        ]);
     }
 
     public function notifications(Request $request): JsonResponse

@@ -10,7 +10,7 @@ class Adresse extends Model
 {
     protected $table = 'adresses';
 
-    protected $fillable = ['client_id', 'libelle', 'rue', 'ville', 'pays', 'localite_id'];
+    protected $fillable = ['client_id', 'libelle', 'rue', 'ville', 'pays', 'localite_id', 'lien_maps'];
 
     public function client(): BelongsTo
     {
