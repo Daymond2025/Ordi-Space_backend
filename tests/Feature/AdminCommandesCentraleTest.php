@@ -10,6 +10,7 @@ use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Tests\Feature\Concerns\InteragitAvecApi;
+use Tests\Feature\Concerns\PasseCommandePublique;
 use Tests\TestCase;
 
 /**
@@ -19,7 +20,7 @@ use Tests\TestCase;
  */
 class AdminCommandesCentraleTest extends TestCase
 {
-    use RefreshDatabase, InteragitAvecApi;
+    use RefreshDatabase, InteragitAvecApi, PasseCommandePublique;
 
     protected function setUp(): void
     {
@@ -106,11 +107,13 @@ class AdminCommandesCentraleTest extends TestCase
         $vitrine = Vitrine::pour($livreur);
         $produit = $this->creerProduitPhysique(['quantite_stock' => 5, 'commission_revente' => 15000, 'nom_produit' => 'Laptop Page Acheteur']);
 
-        $this->postJson('/api/v1/public/commandes', [
+        $this->configurerWavePublic();
+        $this->fauxWave();
+        $this->passerCommandePublique([
             'origine' => 'vitrine', 'code' => $vitrine->code, 'produit_id' => $produit->id, 'src' => 'qr', 'quantite' => 1,
             'nom' => 'Traoré', 'prenom' => 'Fanta', 'telephone' => '0700112233',
             'localite_id' => Localite::where('nom', 'Cocody')->value('id'), 'adresse' => 'Angré 8e tranche',
-        ])->assertCreated();
+        ]);
 
         $ligne = $this->actingAs($this->creerAdmin())->getJson('/api/v1/admin/commandes?q=Fanta')->json('data.commandes.data.0');
 
@@ -120,6 +123,10 @@ class AdminCommandesCentraleTest extends TestCase
         $this->assertSame('Laptop Page Acheteur', $ligne['nom_produit']);
         $this->assertSame(STATUT_COMMANDE_EN_ATTENTE, $ligne['statut_commande']);
         $this->assertSame('Fanta Traoré', $ligne['client']);
+        // La confirmation payée en ligne est visible, et déduite du reliquat du client.
+        $this->assertSame(200, $ligne['confirmation']['montant']);
+        $this->assertSame(STATUT_PAIEMENT_CONFIRME, $ligne['confirmation']['statut']);
+        $this->assertEquals($ligne['total_a_payer'] - 200, $ligne['reliquat']);
     }
 
     public function test_l_onglet_commandes_est_reserve_a_l_admin(): void

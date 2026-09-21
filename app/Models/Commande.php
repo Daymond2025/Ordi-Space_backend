@@ -86,6 +86,29 @@ class Commande extends Model
         return $this->hasOne(Paiement::class, 'commande_id');
     }
 
+    /** Paiement de confirmation (page acheteur) qui a donné naissance à cette commande, s'il y en a un. */
+    public function acompte(): HasOne
+    {
+        return $this->hasOne(AcompteConfirmation::class, 'commande_id');
+    }
+
+    /** Montant de la confirmation effectivement payée (jamais remboursable), 0 si aucune. */
+    public function acomptePaye(): float
+    {
+        $acompte = $this->acompte;
+
+        return $acompte && $acompte->statut === STATUT_PAIEMENT_CONFIRME ? (float) $acompte->montant : 0.0;
+    }
+
+    /**
+     * Reliquat : ce que le client doit encore, à la livraison — le total moins la confirmation qu'il
+     * a déjà payée en ligne. Le livreur l'encaisse pour le compte d'Ordi'Space.
+     */
+    public function reliquat(): float
+    {
+        return max(0.0, $this->montantNet() - $this->acomptePaye());
+    }
+
     public function messages(): HasMany
     {
         return $this->hasMany(Message::class, 'commande_id');

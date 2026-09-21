@@ -107,7 +107,8 @@ Route::prefix('v1')->group(function () {
         Route::get('vitrines/{code}/produits/{produit}', [BoutiquePubliqueController::class, 'produitVitrine']);
         Route::post('liens/{code}/vue', [BoutiquePubliqueController::class, 'vueLien'])->middleware('throttle:30,1');
         Route::post('vitrines/{code}/vue', [BoutiquePubliqueController::class, 'vueVitrine'])->middleware('throttle:30,1');
-        Route::post('commandes', [BoutiquePubliqueController::class, 'commander'])->middleware('throttle:10,1');
+        Route::post('confirmations', [BoutiquePubliqueController::class, 'initierConfirmation'])->middleware('throttle:10,1');
+        Route::get('confirmations/{token}', [BoutiquePubliqueController::class, 'confirmation'])->middleware('throttle:60,1');
     });
 
     Route::middleware('auth:sanctum')->group(function () {
@@ -388,6 +389,7 @@ Route::prefix('v1')->group(function () {
             Route::get('clients/{utilisateur}', [ClientController::class, 'show']);
             Route::post('clients/{utilisateur}/notifier', [ClientController::class, 'notifier']);
             Route::get('commandes', [AdminCommandeController::class, 'index']);
+            Route::get('confirmations', [AdminCommandeController::class, 'confirmations']);
             Route::get('commandes/{commande}', [AdminCommandeController::class, 'show']);
             Route::patch('commandes/{commande}/statut', [AdminCommandeController::class, 'changerStatut']);
             Route::get('fidelite', [FideliteController::class, 'index']);

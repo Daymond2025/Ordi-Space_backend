@@ -35,6 +35,32 @@ use Illuminate\Validation\ValidationException;
 class CommandePubliqueService
 {
     /**
+     * Ce que la commande coûterait en livraison, ou une erreur claire si elle est impossible
+     * (produit indisponible, stock insuffisant, commune non desservie). Sert à refuser AVANT de
+     * faire payer la confirmation ; creer() refait ces contrôles, verrou de stock compris.
+     */
+    public function verifierDisponibilite(Produit $produit, int $quantite, int $localiteId): float
+    {
+        if (! $produit->estVisibleALaVente() || $produit->estNumerique()) {
+            throw ValidationException::withMessages(['produit' => ["Ce produit n'est pas disponible à la commande."]]);
+        }
+
+        if ($produit->quantite_stock < $quantite) {
+            throw ValidationException::withMessages([
+                'quantite' => [$produit->quantite_stock > 0 ? "Il ne reste que {$produit->quantite_stock} exemplaire(s) en stock." : 'Ce produit est en rupture de stock.'],
+            ]);
+        }
+
+        $localite = Localite::findOrFail($localiteId);
+        $frais = FraisLivraisonProduit::where('produit_id', $produit->id)->where('localite_id', $localite->id)->value('montant');
+        if ($frais === null) {
+            throw ValidationException::withMessages(['localite_id' => ["La livraison de ce produit n'est pas proposée vers « {$localite->nom} »."]]);
+        }
+
+        return (float) $frais;
+    }
+
+    /**
      * @param array{nom: string, prenom?: ?string, telephone: string, localite_id: int, adresse: string, notes?: ?string} $acheteur
      */
     public function creer(User $vendeur, Produit $produit, int $quantite, array $acheteur, string $source, ?LienAffilie $lien = null): Commande
@@ -129,7 +155,7 @@ class CommandePubliqueService
             'commande',
             $source === 'manuelle'
                 ? "Commande de {$commande->montant_total} CFA saisie par un livreur pour son client (n°{$commande->id})."
-                : "Commande de {$commande->montant_total} CFA passée depuis un lien de vente (n°{$commande->id}).",
+                : "Commande de {$commande->montant_total} CFA passée depuis un lien de vente, confirmation payée (n°{$commande->id}).",
             commandeId: $commande->id,
             acteurId: $vendeur->id,
         );

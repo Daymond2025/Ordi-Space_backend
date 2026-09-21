@@ -91,7 +91,9 @@ class LivraisonController extends Controller
             'frais_livraison' => $commande->frais_livraison,
             'montant_produit' => (float) $commande->montant_total,
             'nombre_colis' => (int) $commande->lignes->sum('quantite'),
-            'montant_total_a_payer' => $commande->montantNet(),
+            // Le reliquat du client (total moins la confirmation déjà payée en ligne) : ce que le livreur encaisse.
+            'montant_total_a_payer' => $commande->reliquat(),
+            'acompte_confirmation_paye' => $commande->acomptePaye(),
             'preuve_livraison' => $livraison->preuve_livraison,
             'date_livraison_prevue' => $livraison->date_livraison_prevue,
             'date_livraison_effective' => $livraison->date_livraison_effective,

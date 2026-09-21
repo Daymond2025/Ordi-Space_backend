@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AcompteConfirmation;
+use App\Models\FraisLivraisonProduit;
 use App\Models\LienAffilie;
+use App\Models\Localite;
 use App\Models\Produit;
 use App\Models\User;
 use App\Models\Vitrine;
-use App\Services\CommandePubliqueService;
+use App\Services\AcompteConfirmationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -96,8 +99,11 @@ class BoutiquePubliqueController extends Controller
         return $this->success(['clics' => $vitrine->clics, 'scans' => $vitrine->scans]);
     }
 
-    /** Passe la commande — voir CommandePubliqueService. Limitée par IP au niveau de la route. */
-    public function commander(Request $request, CommandePubliqueService $service): JsonResponse
+    /**
+     * Passe la commande : ouvre le paiement de confirmation (voir AcompteConfirmationService).
+     * Rien n'est commandé tant que Wave n'a pas confirmé ce paiement. Limitée par IP au niveau de la route.
+     */
+    public function initierConfirmation(Request $request, AcompteConfirmationService $service): JsonResponse
     {
         $data = $request->validate([
             'origine' => ['required', Rule::in(['lien', 'vitrine'])],
@@ -113,7 +119,7 @@ class BoutiquePubliqueController extends Controller
                 }
             }],
             'localite_id' => ['required', 'integer', 'exists:localites,id'],
-            'adresse' => ['required', 'string', 'max:255'],
+            'adresse' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -133,17 +139,57 @@ class BoutiquePubliqueController extends Controller
             $source = ($data['src'] ?? null) === 'qr' ? 'qr' : 'whatsapp';
         }
 
-        $commande = $service->creer($vendeur, $produit, $data['quantite'], $data, $source, $lien);
+        // Le formulaire de l'acheteur ne demande pas d'adresse précise : la commune suffit,
+        // l'équipe la précise par téléphone à la validation.
+        $data['adresse'] = $data['adresse'] ?? (Localite::findOrFail($data['localite_id'])->nom.' — adresse à préciser par téléphone');
 
-        return $this->success([
-            'reference' => $commande->id,
-            'nom_produit' => $produit->nom_produit,
-            'quantite' => $data['quantite'],
-            'montant_produits' => (float) $commande->montant_total,
-            'frais_livraison' => (float) $commande->frais_livraison,
-            'total_a_payer' => $commande->montantNet(),
-            'vendeur' => $this->formaterVendeur($vendeur),
-        ], status: 201);
+        $acompte = $service->initier($vendeur, $produit, $data['quantite'], $data, $source, $lien);
+
+        return $this->success($this->formaterConfirmation($acompte), status: 201);
+    }
+
+    /** Où en est une confirmation : appelée par la page de retour de Wave (et relancée tant qu'elle attend le webhook). */
+    public function confirmation(string $token): JsonResponse
+    {
+        return $this->success($this->formaterConfirmation(AcompteConfirmation::where('token', $token)->with('commande')->firstOrFail()));
+    }
+
+    /** Résumé de la commande (créée ou, tant que le paiement n'est pas confirmé, à venir) et statut de la confirmation. */
+    private function formaterConfirmation(AcompteConfirmation $acompte): array
+    {
+        $donnees = $acompte->donnees;
+        $commande = $acompte->commande;
+        $produit = Produit::find($donnees['produit_id']);
+        $vendeur = User::find($donnees['vendeur_id']);
+        $quantite = (int) $donnees['quantite'];
+
+        if ($commande) {
+            $montantProduits = (float) $commande->montant_total;
+            $frais = (float) $commande->frais_livraison;
+        } else {
+            $montantProduits = (float) ($produit?->prix_vente ?? $produit?->prix ?? 0) * $quantite;
+            $frais = (float) ($produit ? FraisLivraisonProduit::where('produit_id', $produit->id)->where('localite_id', $donnees['acheteur']['localite_id'])->value('montant') : 0);
+        }
+        $total = $montantProduits + $frais;
+
+        return [
+            'token' => $acompte->token,
+            'statut' => $acompte->statut,
+            'montant_confirmation' => $acompte->montant,
+            // Adresse de paiement Wave : inutile (et retirée) une fois le paiement traité.
+            'wave_launch_url' => $acompte->statut === STATUT_PAIEMENT_EN_ATTENTE ? $acompte->wave_launch_url : null,
+            'reference' => $commande?->id,
+            'nom_produit' => $produit?->nom_produit,
+            'quantite' => $quantite,
+            'montant_produits' => $montantProduits,
+            'frais_livraison' => $frais,
+            'total_a_payer' => $total,
+            // Reliquat : ce que l'acheteur paiera encore à la livraison, une fois la confirmation réglée.
+            'reliquat' => max(0, $total - $acompte->montant),
+            // Payé mais commande impossible (stock épuisé entre-temps) : l'équipe rappelle l'acheteur.
+            'anomalie' => $acompte->estAnomalie(),
+            'vendeur' => $vendeur ? $this->formaterVendeur($vendeur) : null,
+        ];
     }
 
     /** Produits proposables à la vente par vitrine : publiés, en stock et ouverts à la revente (commission renseignée). */
@@ -176,6 +222,9 @@ class BoutiquePubliqueController extends Controller
         return [
             'id' => $produit->id,
             'nom_produit' => $produit->nom_produit,
+            'marque' => $produit->marque,
+            // Paiement de confirmation réclamé pour commander (Wave, non remboursable) — voir AcompteConfirmationService.
+            'montant_confirmation' => (int) config('services.wave.acompte_confirmation'),
             'description' => $produit->description,
             'prix_vente' => (float) ($produit->prix_vente ?? $produit->prix),
             'prix_barre' => $produit->prix_barre !== null ? (float) $produit->prix_barre : null,

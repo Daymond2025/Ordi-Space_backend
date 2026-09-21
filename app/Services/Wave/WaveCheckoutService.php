@@ -2,6 +2,7 @@
 
 namespace App\Services\Wave;
 
+use App\Models\AcompteConfirmation;
 use App\Models\Commande;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -19,7 +20,30 @@ use Throwable;
  */
 class WaveCheckoutService
 {
+    /** Encaissement à la livraison : le reliquat du client (total moins la confirmation déjà réglée). */
     public function creerSession(Commande $commande): array
+    {
+        return $this->appeler(
+            (int) round($commande->reliquat()),
+            (string) $commande->id,
+            config('services.wave.checkout_success_url'),
+            config('services.wave.checkout_error_url'),
+            "la commande n°{$commande->id}",
+        );
+    }
+
+    /**
+     * Paiement de confirmation d'une commande de la page acheteur : Wave ramène l'acheteur
+     * sur `$urlRetour` (succès comme échec — la page lit alors le statut réel, confirmé
+     * uniquement par le webhook). La référence "acompte-{id}" distingue ces paiements de
+     * ceux d'une livraison.
+     */
+    public function creerSessionAcompte(AcompteConfirmation $acompte, string $urlRetour): array
+    {
+        return $this->appeler($acompte->montant, "acompte-{$acompte->id}", $urlRetour, $urlRetour, "la confirmation n°{$acompte->id}");
+    }
+
+    private function appeler(int $montant, string $reference, ?string $urlSucces, ?string $urlErreur, string $contexte): array
     {
         $apiKey = config('services.wave.api_key');
 
@@ -29,9 +53,8 @@ class WaveCheckoutService
             ]);
         }
 
-        // XOF n'admet aucune décimale (voir docs.wave.com/checkout) — nos
-        // montants sont déjà des francs CFA entiers, un simple round() suffit.
-        $montant = (int) round($commande->montantNet());
+        // XOF n'admet aucune décimale (voir docs.wave.com/checkout) — nos montants
+        // sont déjà des francs CFA entiers.
         $min = config('services.wave.min_amount');
         $max = config('services.wave.max_amount');
 
@@ -47,13 +70,13 @@ class WaveCheckoutService
                 ->post(rtrim((string) config('services.wave.base_url'), '/').'/checkout/sessions', [
                     'amount' => (string) $montant,
                     'currency' => 'XOF',
-                    'client_reference' => (string) $commande->id,
-                    'success_url' => config('services.wave.checkout_success_url'),
-                    'error_url' => config('services.wave.checkout_error_url'),
+                    'client_reference' => $reference,
+                    'success_url' => $urlSucces,
+                    'error_url' => $urlErreur,
                 ])
                 ->throw();
         } catch (Throwable $e) {
-            Log::error("Échec de création de session Wave pour la commande n°{$commande->id} : {$e->getMessage()}");
+            Log::error("Échec de création de session Wave pour {$contexte} : {$e->getMessage()}");
 
             throw ValidationException::withMessages([
                 'wave' => ['Impossible de contacter Wave pour le moment, réessayez.'],

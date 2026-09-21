@@ -47,9 +47,9 @@ class PaiementController extends Controller
             ...$data,
             'commande_id' => $commande->id,
             'livreur_id' => $livreurAutorise ? $user->id : null,
-            // Montant net : total des lignes moins la remise Privilège Space
-            // éventuellement appliquée à la commande (cf. montantNet()).
-            'montant' => $commande->montantNet(),
+            // Reliquat du client : total net (lignes moins remise Privilège Space, plus
+            // livraison) moins la confirmation déjà réglée en ligne (cf. reliquat()).
+            'montant' => $commande->reliquat(),
             'statut_paiement' => STATUT_PAIEMENT_CONFIRME,
             'date_paiement' => now(),
             'date_limite_depot' => $especesEncaisseesParLivreur ? now()->addHours(24) : null,
@@ -85,7 +85,7 @@ class PaiementController extends Controller
             'commande_id' => $commande->id,
             'livreur_id' => $livreurAutorise ? $user->id : null,
             'mode_paiement' => MODE_PAIEMENT_MOBILE_MONEY,
-            'montant' => $commande->montantNet(),
+            'montant' => $commande->reliquat(),
             'statut_paiement' => STATUT_PAIEMENT_EN_ATTENTE,
             'wave_checkout_session_id' => $session['id'] ?? null,
             'wave_launch_url' => $session['wave_launch_url'] ?? null,

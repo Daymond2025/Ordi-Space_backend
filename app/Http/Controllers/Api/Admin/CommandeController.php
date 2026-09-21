@@ -3,9 +3,13 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AcompteConfirmation;
 use App\Models\Commande;
 use App\Models\Coordinateur;
 use App\Models\JournalAudit;
+use App\Models\Localite;
+use App\Models\Produit;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -44,7 +48,7 @@ class CommandeController extends Controller
 
         $terme = trim($data['q'] ?? '');
 
-        $commandes = Commande::with(['client.user', 'lignes.produit', 'canalVente', 'venteBoutique.livreur:id,nom,prenom', 'livraison.livreur.user:id,nom,prenom', 'paiement'])
+        $commandes = Commande::with(['client.user', 'lignes.produit', 'canalVente', 'venteBoutique.livreur:id,nom,prenom', 'livraison.livreur.user:id,nom,prenom', 'paiement', 'acompte'])
             ->when($data['statut'] ?? null, fn ($q, $statut) => $q->where('statut_commande', $statut))
             ->when(($data['origine'] ?? null) === 'boutique', fn ($q) => $q->whereHas('venteBoutique'))
             ->when(($data['origine'] ?? null) === 'directe', fn ($q) => $q->whereDoesntHave('venteBoutique'))
@@ -84,6 +88,13 @@ class CommandeController extends Controller
                     'source' => $vente?->source,
                     'livreur' => $livreurLivraison ? trim(($livreurLivraison->prenom ?? '').' '.($livreurLivraison->nom ?? '')) : null,
                     'statut_paiement' => $commande->paiement?->statut_paiement,
+                    // Confirmation payée en ligne (page acheteur) : montant non remboursable, déduit du reliquat du client.
+                    'confirmation' => $commande->acompte ? [
+                        'montant' => $commande->acompte->montant,
+                        'statut' => $commande->acompte->statut,
+                        'date' => $commande->acompte->date_paiement,
+                    ] : null,
+                    'reliquat' => $commande->reliquat(),
                 ];
             });
 
@@ -94,6 +105,77 @@ class CommandeController extends Controller
             ],
             'commandes' => $commandes,
         ]);
+    }
+
+    /**
+     * Suivi des paiements de confirmation (page acheteur) : ceux qui ont abouti (et donné une
+     * commande), ceux qui attendent Wave, ceux qui ont échoué ou ont été abandonnés, et les
+     * anomalies — payés mais commande impossible à créer (stock épuisé entre-temps), à traiter
+     * à la main puisque l'argent est déjà encaissé et non remboursable.
+     * Filtre `statut` : en_attente, confirme, echoue, anomalie ; `q` : nom, téléphone ou n° de commande.
+     */
+    public function confirmations(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'statut' => ['nullable', Rule::in([STATUT_PAIEMENT_EN_ATTENTE, STATUT_PAIEMENT_CONFIRME, STATUT_PAIEMENT_ECHOUE, 'anomalie'])],
+            'q' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $anomalie = fn ($q) => $q->where('statut', STATUT_PAIEMENT_CONFIRME)->whereNull('commande_id');
+
+        $stats = [
+            'en_attente' => AcompteConfirmation::where('statut', STATUT_PAIEMENT_EN_ATTENTE)->count(),
+            'confirme' => AcompteConfirmation::where('statut', STATUT_PAIEMENT_CONFIRME)->count(),
+            'echoue' => AcompteConfirmation::where('statut', STATUT_PAIEMENT_ECHOUE)->count(),
+            'anomalie' => AcompteConfirmation::where($anomalie)->count(),
+            'encaisse' => (int) AcompteConfirmation::where('statut', STATUT_PAIEMENT_CONFIRME)->sum('montant'),
+        ];
+
+        $terme = trim($data['q'] ?? '');
+
+        $page = AcompteConfirmation::query()
+            ->when(($data['statut'] ?? null) === 'anomalie', $anomalie)
+            ->when($data['statut'] ?? null, fn ($q, $statut) => $statut === 'anomalie' ? $q : $q->where('statut', $statut))
+            ->when($terme !== '', function ($q) use ($terme) {
+                $q->where(function ($q) use ($terme) {
+                    if (ctype_digit($terme)) {
+                        $q->orWhere('commande_id', (int) $terme);
+                    }
+                    $q->orWhere('donnees', 'like', "%{$terme}%");
+                });
+            })
+            ->latest('id')
+            ->paginate(paginate_per_page($request));
+
+        $produits = Produit::whereIn('id', $page->pluck('donnees.produit_id'))->pluck('nom_produit', 'id');
+        $vendeurs = User::whereIn('id', $page->pluck('donnees.vendeur_id'))->get(['id', 'nom', 'prenom'])->keyBy('id');
+        $localites = Localite::whereIn('id', $page->pluck('donnees.acheteur.localite_id'))->pluck('nom', 'id');
+
+        $lignes = $page->through(function (AcompteConfirmation $acompte) use ($produits, $vendeurs, $localites) {
+            $donnees = $acompte->donnees;
+            $acheteur = $donnees['acheteur'];
+            $vendeur = $vendeurs[$donnees['vendeur_id']] ?? null;
+
+            return [
+                'id' => $acompte->id,
+                'date' => $acompte->created_at,
+                'statut' => $acompte->statut,
+                'montant' => $acompte->montant,
+                'date_paiement' => $acompte->date_paiement,
+                'anomalie' => $acompte->estAnomalie(),
+                'erreur' => $acompte->erreur,
+                'commande_id' => $acompte->commande_id,
+                'client' => trim(($acheteur['prenom'] ?? '').' '.$acheteur['nom']),
+                'client_telephone' => $acheteur['telephone'],
+                'nom_produit' => $produits[$donnees['produit_id']] ?? null,
+                'quantite' => (int) $donnees['quantite'],
+                'localite' => $localites[$acheteur['localite_id']] ?? null,
+                'vendeur' => $vendeur ? trim(($vendeur->prenom ?? '').' '.($vendeur->nom ?? '')) : null,
+                'source' => $donnees['source'],
+            ];
+        });
+
+        return $this->success(['stats' => $stats, 'confirmations' => $lignes]);
     }
 
     /**
@@ -115,9 +197,11 @@ class CommandeController extends Controller
             'livraison.livreur.user',
             'livraison.adresse',
             'paiement',
+            'acompte',
             'privilege',
             'parrain.user',
         ]);
+        $commande->setAttribute('reliquat', $commande->reliquat());
 
         return $this->success($commande);
     }

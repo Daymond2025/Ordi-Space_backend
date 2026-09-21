@@ -162,6 +162,7 @@ defined('ACTION_PANNE_DECLAREE') || define('ACTION_PANNE_DECLAREE', 'panne_decla
 defined('ACTION_PRIVILEGE_UTILISE') || define('ACTION_PRIVILEGE_UTILISE', 'privilege_utilise');
 defined('ACTION_PANIER_AJOUT') || define('ACTION_PANIER_AJOUT', 'panier_ajout');
 defined('ACTION_TUTORIEL_VU') || define('ACTION_TUTORIEL_VU', 'tutoriel_vu');
+defined('ACTION_ACOMPTE_CONFIRMATION_PAYE') || define('ACTION_ACOMPTE_CONFIRMATION_PAYE', 'acompte_confirmation_paye');
 defined('ACTION_COMMANDE_STATUT_MODIFIE') || define('ACTION_COMMANDE_STATUT_MODIFIE', 'commande_statut_modifie');
 defined('ACTION_RECLAMATION_CREEE') || define('ACTION_RECLAMATION_CREEE', 'reclamation_creee');
 

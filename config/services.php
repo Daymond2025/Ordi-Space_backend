@@ -61,6 +61,9 @@ return [
         'max_amount' => (int) env('WAVE_API_MAX_AMOUNT', 500000),
         'checkout_success_url' => env('WAVE_CHECKOUT_SUCCESS_URL'),
         'checkout_error_url' => env('WAVE_CHECKOUT_ERROR_URL'),
+        // Paiement de confirmation d'une commande passée sur la page acheteur : en
+        // francs CFA, jamais remboursable, déduit du montant réglé à la livraison.
+        'acompte_confirmation' => (int) env('WAVE_ACOMPTE_CONFIRMATION', 200),
     ],
 
     // Base de l'app Livreur (Next.js) — sert à construire les liens affiliés
