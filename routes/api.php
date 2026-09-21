@@ -85,6 +85,7 @@ Route::prefix('v1')->group(function () {
     // Catalogue public — navigation libre, sans compte (décision produit :
     // "entrée libre", seules les actions comme commander exigent un compte).
     Route::get('categories', [CategorieController::class, 'index']);
+    Route::get('categories/filtres', [CategorieController::class, 'filtres']);
     Route::get('produits', [ProduitController::class, 'index']);
     // Doit être déclarée avant produits/{produit} ci-dessous : sinon la
     // liaison de modèle de route absorbe "activite-recente" comme un ID.
@@ -146,6 +147,9 @@ Route::prefix('v1')->group(function () {
 
         Route::prefix('boutique')->group(function () {
             Route::post('produits/{produit}/lien', [BoutiqueController::class, 'genererLien']);
+            Route::get('produits/{produit}/fournisseur', [BoutiqueController::class, 'fournisseurProduit']);
+            Route::get('fournisseurs', [BoutiqueController::class, 'fournisseurs']);
+            Route::post('commandes', [BoutiqueController::class, 'commander'])->middleware('throttle:20,1');
             Route::get('ventes', [BoutiqueController::class, 'ventes']);
             Route::get('profil', [BoutiqueController::class, 'profil']);
             Route::get('portefeuille', [PortefeuilleController::class, 'resume']);
@@ -158,6 +162,7 @@ Route::prefix('v1')->group(function () {
         });
 
         Route::post('categories', [CategorieController::class, 'store']);
+        Route::put('categories/{categorie}', [CategorieController::class, 'update']);
 
         // Catalogue PRODUIT : ordinateurs (fournisseur → coordinateur) ET
         // accessoires/logiciels (Admin, publiés directement) — même endpoint.

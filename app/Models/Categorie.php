@@ -9,7 +9,7 @@ class Categorie extends Model
 {
     protected $table = 'categories';
 
-    protected $fillable = ['nom_categorie', 'description'];
+    protected $fillable = ['nom_categorie', 'description', 'famille', 'groupe', 'libelle', 'ordre_filtre'];
 
     public function produits(): HasMany
     {

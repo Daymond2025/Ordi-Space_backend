@@ -4,14 +4,18 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Coordinateur;
+use App\Models\Fournisseur;
 use App\Models\LienAffilie;
 use App\Models\LigneCommande;
+use App\Models\Localite;
 use App\Models\Produit;
 use App\Models\VenteBoutique;
 use App\Models\Vitrine;
 use Illuminate\Http\JsonResponse;
+use App\Services\CommandePubliqueService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * "Boutique" — le Livreur revend des produits publiés par Fournisseur/
@@ -40,6 +44,93 @@ class BoutiqueController extends Controller
             'code' => $lien->code,
             'url' => $lien->url(),
         ]);
+    }
+
+    /**
+     * "Je passe la commande" (détail produit) : le livreur saisit lui-même la
+     * commande d'un client — nom, téléphone et ville — et l'envoie à l'équipe.
+     * Elle arrive "en attente" chez l'Admin/Coordinateur, comme toute commande,
+     * et devient une vente "commande manuelle" du livreur (commission figée,
+     * acquise à la validation). Seuls les produits ouverts à la revente
+     * (ceux de la Boutique) peuvent être commandés ainsi.
+     */
+    public function commander(Request $request, CommandePubliqueService $service): JsonResponse
+    {
+        $vendeur = $request->user();
+        abort_unless($vendeur->type_utilisateur === ROLE_LIVREUR, 403);
+
+        $data = $request->validate([
+            'produit_id' => ['required', 'integer'],
+            'nom' => ['required', 'string', 'max:100'],
+            'telephone' => ['required', 'string', 'max:30', function (string $attribut, mixed $valeur, \Closure $echec) {
+                if (strlen(preg_replace('/\D/', '', (string) $valeur)) < 8) {
+                    $echec('Le numéro de téléphone doit contenir au moins 8 chiffres.');
+                }
+            }],
+            'localite_id' => ['required', 'integer', 'exists:localites,id'],
+        ]);
+
+        $produit = Produit::where('statut_produit', STATUT_PRODUIT_VALIDE)
+            ->where('type_livraison', TYPE_LIVRAISON_PHYSIQUE)
+            ->whereNotNull('commission_revente')
+            ->find($data['produit_id']);
+
+        if (! $produit) {
+            throw ValidationException::withMessages(['produit_id' => ["Ce produit n'est pas ouvert à la revente."]]);
+        }
+
+        $localite = Localite::findOrFail($data['localite_id']);
+
+        $commande = $service->creer($vendeur, $produit, 1, [
+            'nom' => $data['nom'],
+            'telephone' => $data['telephone'],
+            'localite_id' => $localite->id,
+            // Le formulaire ne demande que la ville : l'adresse exacte est confirmée par téléphone à la validation.
+            'adresse' => "{$localite->nom} — adresse à confirmer avec le client",
+        ], 'manuelle');
+
+        return $this->success([
+            'reference' => $commande->id,
+            'nom_produit' => $produit->nom_produit,
+            'montant_produits' => (float) $commande->montant_total,
+            'frais_livraison' => (float) $commande->frais_livraison,
+            'total_a_payer' => $commande->montantNet(),
+        ], status: 201);
+    }
+
+    /** Fiche du fournisseur d'un produit (détail produit) — null pour un produit publié directement par l'Admin. */
+    public function fournisseurProduit(Request $request, Produit $produit): JsonResponse
+    {
+        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+        abort_unless($produit->estVisibleALaVente(), 404);
+
+        return $this->success(['fournisseur' => $produit->fournisseur?->fichePourLivreur()]);
+    }
+
+    /**
+     * Fournisseurs des produits que le livreur revend (produits dont il a un lien
+     * ou une vente) — pour le profil Boutique. Un fournisseur sans aucun moyen
+     * de le joindre ni de le situer est écarté : sa carte n'aiderait à rien.
+     */
+    public function fournisseurs(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+        $livreurId = $request->user()->id;
+
+        $produitIds = LienAffilie::where('livreur_id', $livreurId)->pluck('produit_id')
+            ->merge(
+                LigneCommande::whereIn('commande_id', VenteBoutique::where('livreur_id', $livreurId)->select('commande_id'))->pluck('produit_id')
+            )
+            ->unique();
+
+        $fournisseurs = Fournisseur::with('user')
+            ->whereIn('user_id', Produit::whereIn('id', $produitIds)->whereNotNull('fournisseur_id')->select('fournisseur_id'))
+            ->get()
+            ->map(fn (Fournisseur $fournisseur) => $fournisseur->fichePourLivreur())
+            ->filter(fn (array $fiche) => $fiche['telephone'] || $fiche['adresse'] || $fiche['lien_maps'])
+            ->values();
+
+        return $this->success($fournisseurs);
     }
 
     /**

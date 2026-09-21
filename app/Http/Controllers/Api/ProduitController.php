@@ -10,12 +10,15 @@ use App\Models\ImageProduit;
 use App\Models\Localite;
 use App\Models\Produit;
 use App\Models\ValidationProduit;
+use App\Services\FiltresCatalogue;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ProduitController extends Controller
@@ -52,6 +55,9 @@ class ProduitController extends Controller
         if ($request->filled('categorie_id')) {
             $query->where('categorie_id', $request->integer('categorie_id'));
         }
+
+        // Écran "Catégorie" de la Boutique (Livreur) : marque, RAM, stockage, taille…
+        FiltresCatalogue::appliquer($query, $request);
 
         if ($request->filled('booste')) {
             $query->where('est_booste', $request->boolean('booste'));
@@ -274,6 +280,12 @@ class ProduitController extends Controller
             'prix_vente' => ['required', 'numeric', 'min:0'],
             'commission_agent' => ['nullable', 'numeric', 'min:0'],
             'commission_apporteur' => ['nullable', 'numeric', 'min:0'],
+            // "Boutique" (Livreur) : commission de revente, prix de référence barré, réduction
+            // affichée et état — facultatifs, absents = inchangés.
+            'commission_revente' => ['nullable', 'numeric', 'min:0'],
+            'prix_barre' => ['nullable', 'numeric', 'min:0'],
+            'pourcentage_reduction' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'etat_produit' => ['nullable', Rule::in(ETATS_PRODUIT)],
         ]);
 
         DB::transaction(function () use ($request, $produit, $data) {
@@ -289,6 +301,7 @@ class ProduitController extends Controller
                 'commission_agent' => $data['commission_agent'] ?? 1000,
                 'commission_apporteur' => $data['commission_apporteur'] ?? round(($data['prix_vente'] - $produit->prix) * 0.25, 2),
                 'statut_produit' => STATUT_PRODUIT_VALIDE,
+                ...Arr::only($data, ['commission_revente', 'prix_barre', 'pourcentage_reduction', 'etat_produit']),
             ]);
         });
 
@@ -354,6 +367,8 @@ class ProduitController extends Controller
             'nom_produit' => ['sometimes', 'string', 'max:150'],
             'description' => ['nullable', 'string'],
             'categorie_id' => ['sometimes', 'exists:categories,id'],
+            'marque' => ['nullable', 'string', 'max:60'],
+            'etat_produit' => ['nullable', Rule::in(ETATS_PRODUIT)],
             'processeur' => ['nullable', 'string', 'max:150'],
             'memoire_ram' => ['nullable', 'string', 'max:150'],
             'stockage' => ['nullable', 'string', 'max:150'],

@@ -23,8 +23,13 @@ class StoreProduitRequest extends FormRequest
         return [
             'categorie_id' => ['required', 'exists:categories,id'],
             'nom_produit' => ['required', 'string', 'max:150'],
+            // Facultative : à défaut, déduite du nom (HP, Dell…) — voir Produit::booted().
+            'marque' => ['nullable', 'string', 'max:60'],
             'description' => ['nullable', 'string'],
             'prix' => ['required', 'numeric', 'min:0'],
+            // Prix public réel : fixé par l'Admin/le Coordinateur (le fournisseur ne fixe que
+            // son prix partenaire `prix`). Sans lui, la boutique affiche "Prix à venir".
+            'prix_vente' => ['nullable', 'numeric', 'min:0', Rule::prohibitedIf(fn () => $this->user()?->type_utilisateur === ROLE_FOURNISSEUR)],
             'quantite_stock' => ['required', 'integer', 'min:0'],
             // Numérique = licence/logiciel livré sans passer par un livreur.
             'type_livraison' => ['nullable', Rule::in([TYPE_LIVRAISON_PHYSIQUE, TYPE_LIVRAISON_NUMERIQUE])],

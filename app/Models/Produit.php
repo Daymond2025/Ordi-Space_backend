@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CaracteristiquesProduit;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,8 +26,26 @@ class Produit extends Model
         'processeur', 'memoire_ram', 'stockage', 'taille',
         'systeme_exploitation', 'carte_graphique', 'couleur', 'cadeaux', 'etat_produit',
         'prix_vente', 'commission_agent', 'commission_apporteur', 'commission_revente',
-        'pourcentage_reduction', 'prix_barre',
+        'pourcentage_reduction', 'prix_barre', 'marque',
     ];
+
+    /**
+     * Filtres du catalogue : `marque` est normalisée (majuscules pour les marques
+     * du filtre, déduite du nom si vide) et `ram_go`/`stockage_go`/`taille_pouces`
+     * sont recalculées à chaque enregistrement à partir des caractéristiques en
+     * texte libre — jamais saisies à la main, elles ne peuvent donc pas diverger.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Produit $produit) {
+            $produit->marque = CaracteristiquesProduit::normaliserMarque($produit->marque)
+                ?? CaracteristiquesProduit::marqueDepuisNom($produit->nom_produit);
+
+            $produit->ram_go = CaracteristiquesProduit::capaciteEnGo($produit->memoire_ram);
+            $produit->stockage_go = CaracteristiquesProduit::capaciteEnGo($produit->stockage);
+            $produit->taille_pouces = CaracteristiquesProduit::taillePouces($produit->taille);
+        });
+    }
 
     protected function casts(): array
     {

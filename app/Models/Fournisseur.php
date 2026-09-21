@@ -31,6 +31,33 @@ class Fournisseur extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    /**
+     * Fiche du fournisseur telle que la voit un livreur qui revend ses produits
+     * ou va récupérer un colis : de quoi le joindre et le trouver. Jamais le
+     * taux de commission ni le solde du portefeuille (données financières).
+     * Le numéro à appeler est celui du gérant, à défaut le contact pro, à
+     * défaut celui du compte.
+     */
+    public function fichePourLivreur(): array
+    {
+        $this->loadMissing('user');
+        $telephone = $this->telephone_gerant ?: ($this->contact_pro ?: $this->user?->telephone);
+
+        return [
+            'user_id' => $this->user_id,
+            'nom_entreprise' => $this->nom_entreprise,
+            'nom_gerant' => $this->nom_gerant,
+            'telephone' => $telephone,
+            'whatsapp_url' => lien_whatsapp($telephone),
+            'contact_pro' => $this->contact_pro && $this->contact_pro !== $telephone ? $this->contact_pro : null,
+            'adresse' => $this->adresse_entreprise,
+            'horaires' => $this->horaires_ouverture,
+            'zone_couverte' => $this->zone_couverte,
+            'lien_maps' => $this->lien_maps,
+            'photo' => $this->user?->photo,
+        ];
+    }
+
     public function produits(): HasMany
     {
         return $this->hasMany(Produit::class, 'fournisseur_id', 'user_id');

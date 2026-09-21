@@ -127,19 +127,24 @@ class CommandePubliqueService
             $commande->client_id,
             ACTION_COMMANDE_CREEE,
             'commande',
-            "Commande de {$commande->montant_total} CFA passée depuis un lien de vente (n°{$commande->id}).",
+            $source === 'manuelle'
+                ? "Commande de {$commande->montant_total} CFA saisie par un livreur pour son client (n°{$commande->id})."
+                : "Commande de {$commande->montant_total} CFA passée depuis un lien de vente (n°{$commande->id}).",
             commandeId: $commande->id,
             acteurId: $vendeur->id,
         );
 
-        NotificationOrdispace::create([
-            'user_id' => $vendeur->id,
-            'type_notification' => 'vente_boutique',
-            'titre' => 'Nouvelle commande',
-            'contenu' => "Une commande n°{$commande->id} vient d'être passée via ton lien de vente. Elle attend la validation de l'équipe.",
-            'lu' => false,
-            'date_envoi' => now(),
-        ]);
+        // Une commande saisie par le livreur lui-même n'a rien à lui apprendre : il vient de l'envoyer.
+        if ($source !== 'manuelle') {
+            NotificationOrdispace::create([
+                'user_id' => $vendeur->id,
+                'type_notification' => 'vente_boutique',
+                'titre' => 'Nouvelle commande',
+                'contenu' => "Une commande n°{$commande->id} vient d'être passée via ton lien de vente. Elle attend la validation de l'équipe.",
+                'lu' => false,
+                'date_envoi' => now(),
+            ]);
+        }
 
         return $commande;
     }

@@ -26,6 +26,7 @@ class DatabaseSeeder extends Seeder
         $this->seedAdministrateurRacine();
         $this->seedAgentIa();
         $this->seedCategoriesAjoutProduitCoordinateur();
+        $this->call(FiltresCatalogueSeeder::class);
     }
 
     /**

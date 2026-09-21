@@ -236,6 +236,11 @@ defined('LIVREUR_DOCUMENT_DOSSIER') || define('LIVREUR_DOCUMENT_DOSSIER', 'livre
 // l'extension (simple tableau PHP, pas un ENUM SQL) : ajouter une valeur ne
 // demande pas de migration.
 defined('ETATS_PRODUIT') || define('ETATS_PRODUIT', ['neuf', 'quasi_neuf', 'occasion', 'reconditionne']);
+// Marques proposées par le filtre "Marque" de la Boutique — stockées en majuscules
+// (voir Produit::booted()). Toute autre marque tombe sous le choix "Autre".
+defined('MARQUES_ORDINATEUR') || define('MARQUES_ORDINATEUR', ['HP', 'DELL', 'LENOVO', 'MACBOOK', 'ASUS', 'TOSHIBA', 'CHROMEBOOK']);
+// Onglets de l'écran "Catégorie" de la Boutique : une catégorie appartient à une famille.
+defined('FAMILLES_CATEGORIE') || define('FAMILLES_CATEGORIE', ['ordinateur', 'accessoires', 'logiciels']);
 // Canal d'arrivée d'une vente "Boutique" du livreur (écran "Centre des ventes") :
 // commande saisie à la main, lien partagé (WhatsApp), scan du QR de l'affiche.
 defined('SOURCES_VENTE_BOUTIQUE') || define('SOURCES_VENTE_BOUTIQUE', ['manuelle', 'whatsapp', 'qr']);
