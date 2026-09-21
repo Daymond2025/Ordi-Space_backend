@@ -17,8 +17,7 @@ class LandingPageTest extends TestCase
     private function definirPlateformes(array $urls): void
     {
         config(['plateformes' => array_merge([
-            'client' => null, 'livreur' => null, 'fournisseur' => null,
-            'commercial' => null, 'coordinateur' => null, 'admin' => null,
+            'client' => null, 'livreur' => null, 'fournisseur' => null, 'commercial' => null,
         ], $urls)]);
     }
 
@@ -27,10 +26,19 @@ class LandingPageTest extends TestCase
         $reponse = $this->get('/');
 
         $reponse->assertOk();
-        foreach (['Espace Client', 'Espace Livreur', 'Espace Fournisseur', 'Espace Commercial', 'Espace Coordinateur', 'Administration'] as $nom) {
+        foreach (['Espace Client', 'Espace Livreur', 'Espace Fournisseur', 'Espace Commercial'] as $nom) {
             $reponse->assertSee($nom);
         }
         $reponse->assertSee('Choisir mon espace');
+    }
+
+    public function test_les_applications_internes_ne_sont_pas_presentees_au_public(): void
+    {
+        $reponse = $this->get('/');
+
+        $reponse->assertDontSee('Espace Coordinateur');
+        $reponse->assertDontSee('Administration');
+        $reponse->assertDontSee('admin.daymondboutique.com', false);
     }
 
     public function test_une_plateforme_configuree_est_un_lien_et_les_autres_sont_bientot_disponibles(): void
@@ -41,8 +49,8 @@ class LandingPageTest extends TestCase
 
         $reponse->assertSee('href="https://client.exemple.test"', false);
         $reponse->assertSee('href="https://livreur.exemple.test"', false);
-        // Fournisseur, commercial, coordinateur, admin : pas d'adresse → « Bientôt disponible », jamais un lien vide.
-        $this->assertSame(4, substr_count($reponse->getContent(), 'Bientôt disponible</span>'));
+        // Fournisseur et commercial : pas d'adresse → « Bientôt disponible », jamais un lien vide.
+        $this->assertSame(2, substr_count($reponse->getContent(), 'Bientôt disponible</span>'));
         $reponse->assertDontSee('href=""', false);
     }
 

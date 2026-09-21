@@ -11,7 +11,9 @@ use Illuminate\Database\QueryException;
  * envoie chaque visiteur vers la plateforme qui le concerne. Conçue pour être
  * partagée en prospection (aperçu de lien WhatsApp/réseaux, un seul lien pour
  * tous les profils). Les adresses viennent de config/plateformes.php ; une
- * plateforme sans adresse est affichée « bientôt disponible ».
+ * plateforme sans adresse est affichée « bientôt disponible ». Seuls les
+ * espaces ouverts au public y figurent : les applications internes
+ * (Coordinateur, Administration) ne sont volontairement pas présentées.
  */
 class LandingController extends Controller
 {
@@ -27,11 +29,6 @@ class LandingController extends Controller
                 'titre' => 'Je veux travailler avec Ordi\'Space',
                 'description' => 'Livrez, vendez ou publiez : chaque métier a son espace dédié.',
                 'plateformes' => ['livreur', 'fournisseur', 'commercial'],
-            ],
-            'equipe' => [
-                'titre' => 'Équipe Ordi\'Space',
-                'description' => 'Accès réservé aux coordinateurs et aux administrateurs.',
-                'plateformes' => ['coordinateur', 'admin'],
             ],
         ];
 
@@ -109,26 +106,6 @@ class LandingController extends Controller
                     'Suivi de chaque commande jusqu\'à la livraison',
                 ],
                 'icone' => 'commercial',
-            ],
-            'coordinateur' => [
-                'nom' => 'Espace Coordinateur',
-                'accroche' => 'Validez, affectez, suivez.',
-                'points' => [
-                    'Validation des commandes',
-                    'Affectation des livreurs',
-                    'Fournisseurs, réclamations et paiements',
-                ],
-                'icone' => 'coordinateur',
-            ],
-            'admin' => [
-                'nom' => 'Administration',
-                'accroche' => 'Pilotez toute la plateforme.',
-                'points' => [
-                    'Commandes, clients, livreurs et finances',
-                    'Commissions et retraits',
-                    'Contenus, privilèges et assistance',
-                ],
-                'icone' => 'admin',
             ],
         ];
     }

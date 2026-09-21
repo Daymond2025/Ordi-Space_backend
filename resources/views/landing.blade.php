@@ -10,8 +10,6 @@
         'livreur' => '<rect x="2" y="7" width="12" height="9" rx="1"/><path d="M14 10h4l4 3v3h-8z"/><circle cx="6.5" cy="18" r="1.7"/><circle cx="16.5" cy="18" r="1.7"/>',
         'fournisseur' => '<path d="M4 9l1.5-4.5h13L20 9"/><path d="M4 9v10.5h16V9"/><path d="M4 9c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3s3-1.3 3-3c0 1.7 1.3 3 3 3"/>',
         'commercial' => '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 4 14.5v-9Z"/><path d="M8.5 8.5h7M8.5 12h4"/>',
-        'coordinateur' => '<circle cx="12" cy="5.5" r="2.5"/><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="M11 8l-4.5 7.8M13 8l4.5 7.8M7.5 18h9"/>',
-        'admin' => '<path d="M12 3.5 5 6v6c0 5 3.5 7.5 7 8.5 3.5-1 7-3.5 7-8.5V6l-7-2.5Z"/><path d="m9 12 2 2 4-4.5"/>',
     ];
 @endphp
 <!DOCTYPE html>
