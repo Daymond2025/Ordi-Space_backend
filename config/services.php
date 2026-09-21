@@ -63,4 +63,19 @@ return [
         'checkout_error_url' => env('WAVE_CHECKOUT_ERROR_URL'),
     ],
 
+    // Base de l'app Livreur (Next.js) — sert à construire les liens affiliés
+    // "Boutique" partagés au public (voir BoutiqueController::genererLien()).
+    // Pas encore de sous-domaine de prod dédié (contrairement à Admin/Client),
+    // d'où le repli sur le serveur de dev local.
+    'livreur_app' => [
+        'url' => env('LIVREUR_APP_URL', 'http://localhost:3000'),
+    ],
+
+    // Page d'arrivée de l'acheteur (Next.js, dossier page_commande) : là où
+    // mènent les liens de vente, la vitrine et le QR de l'affiche. Voir
+    // LienAffilie::url() / Vitrine::url() et BoutiquePubliqueController.
+    'page_commande' => [
+        'url' => env('PAGE_COMMANDE_URL', 'http://localhost:3010'),
+    ],
+
 ];

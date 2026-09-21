@@ -22,7 +22,7 @@ return [
     // Liste blanche explicite — jamais de wildcard (ligne de base sécurité).
     // Les 3 apps Next.js (coordinateur, commercial, admin) sont concernées ;
     // les apps Flutter appellent l'API hors navigateur et ne sont pas soumises à CORS.
-    'allowed_origins' => array_filter(explode(',', env('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:3001,http://localhost:3002'))),
+    'allowed_origins' => array_filter(explode(',', env('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3010'))),
 
     'allowed_origins_patterns' => [],
 

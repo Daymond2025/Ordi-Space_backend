@@ -109,4 +109,15 @@ class LivreurProfilTest extends TestCase
         $this->actingAs($client)->patchJson('/api/v1/moi/vehicule', ['type_vehicule' => 'moto'])
             ->assertForbidden();
     }
+
+    public function test_le_profil_du_livreur_expose_sa_zone_de_couverture(): void
+    {
+        $livreur = $this->creerLivreur();
+        $livreur->livreur->update(['zone_couverture' => 'Abidjan, Palmeraie']);
+
+        $this->actingAs($livreur)->getJson('/api/v1/moi/profil')
+            ->assertOk()
+            ->assertJsonPath('data.zone_couverture', 'Abidjan, Palmeraie')
+            ->assertJsonPath('data.type_vehicule', 'moto');
+    }
 }

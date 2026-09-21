@@ -34,6 +34,10 @@ class ProduitCreationCoordinateurTest extends TestCase
             'stockage' => '512GB SSD',
             'couleur' => 'Noir',
             'cadeaux' => ['Souris', 'Sac'],
+            'commission_revente' => 15000,
+            'etat_produit' => 'quasi_neuf',
+            'pourcentage_reduction' => 25,
+            'prix_barre' => 450000,
         ]);
 
         $reponse->assertCreated();
@@ -45,8 +49,26 @@ class ProduitCreationCoordinateurTest extends TestCase
             'memoire_ram' => '16GB',
             'stockage' => '512GB SSD',
             'couleur' => 'Noir',
+            'commission_revente' => 15000,
+            'etat_produit' => 'quasi_neuf',
+            'pourcentage_reduction' => 25,
+            'prix_barre' => 450000,
         ]);
         $this->assertSame(['Souris', 'Sac'], $reponse->json('data.cadeaux'));
+    }
+
+    public function test_letat_du_produit_doit_faire_partie_de_la_liste_autorisee(): void
+    {
+        $coordinateur = $this->creerCoordinateur();
+        $categorie = Categorie::firstOrCreate(['nom_categorie' => 'Ordinateurs portables']);
+
+        $this->actingAs($coordinateur)->postJson('/api/v1/produits', [
+            'categorie_id' => $categorie->id,
+            'nom_produit' => 'HP EliteBook 840',
+            'prix' => 350000,
+            'quantite_stock' => 5,
+            'etat_produit' => 'comme_neuf',
+        ])->assertUnprocessable();
     }
 
     public function test_un_fournisseur_cree_toujours_un_produit_en_attente_avec_son_propre_id(): void

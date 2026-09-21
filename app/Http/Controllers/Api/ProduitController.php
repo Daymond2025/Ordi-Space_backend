@@ -109,7 +109,9 @@ class ProduitController extends Controller
 
     public function show(Request $request, Produit $produit): JsonResponse
     {
-        $produit->load(['images', 'categorie', 'fournisseur']);
+        // "Livraison et Garantie" (fiche produit) — le barème frais_livraison
+        // est un simple tarif public par localité, aucune donnée sensible.
+        $produit->load(['images', 'categorie', 'fournisseur', 'fraisLivraison.localite']);
 
         // Route publique (hors auth:sanctum) : $request->user() ne résout
         // jamais le Bearer token ici (guard par défaut = web) — current_user()

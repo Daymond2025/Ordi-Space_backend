@@ -1,5 +1,4 @@
 <?php
-
 use App\Http\Controllers\Api\Admin\AssistantIaController as AdminAssistantIaController;
 use App\Http\Controllers\Api\Admin\ClientController;
 use App\Http\Controllers\Api\Admin\CommandeController as AdminCommandeController;
@@ -10,6 +9,12 @@ use App\Http\Controllers\Api\Admin\StatistiqueController;
 use App\Http\Controllers\Api\Admin\UtilisateurController;
 use App\Http\Controllers\Api\AssistantIaController;
 use App\Http\Controllers\Api\Auth\AuthController;
+use App\Http\Controllers\Api\BoutiqueController;
+use App\Http\Controllers\Api\BoutiquePubliqueController;
+use App\Http\Controllers\Api\Admin\BoutiqueController as AdminBoutiqueController;
+use App\Http\Controllers\Api\Admin\RetraitController as AdminRetraitController;
+use App\Http\Controllers\Api\ParametreController;
+use App\Http\Controllers\Api\PortefeuilleController;
 use App\Http\Controllers\Api\Auth\TelephoneAuthController;
 use App\Http\Controllers\Api\CategorieController;
 use App\Http\Controllers\Api\ClientRapideController;
@@ -93,6 +98,17 @@ Route::prefix('v1')->group(function () {
     // fournisseur/admin (barème produit) et client/commercial (adresse).
     Route::get('localites', [LocaliteController::class, 'index']);
 
+    // Page d'arrivée de l'acheteur (dossier page_commande) — sans compte.
+    // Les compteurs de visite et la commande sont limités par IP.
+    Route::prefix('public')->group(function () {
+        Route::get('liens/{code}', [BoutiquePubliqueController::class, 'lien']);
+        Route::get('vitrines/{code}', [BoutiquePubliqueController::class, 'vitrine']);
+        Route::get('vitrines/{code}/produits/{produit}', [BoutiquePubliqueController::class, 'produitVitrine']);
+        Route::post('liens/{code}/vue', [BoutiquePubliqueController::class, 'vueLien'])->middleware('throttle:30,1');
+        Route::post('vitrines/{code}/vue', [BoutiquePubliqueController::class, 'vueVitrine'])->middleware('throttle:30,1');
+        Route::post('commandes', [BoutiquePubliqueController::class, 'commander'])->middleware('throttle:10,1');
+    });
+
     Route::middleware('auth:sanctum')->group(function () {
 
         Route::prefix('moi')->group(function () {
@@ -120,6 +136,25 @@ Route::prefix('v1')->group(function () {
             Route::put('panier/lignes/{ligne}', [PanierController::class, 'modifier']);
             Route::delete('panier/lignes/{ligne}', [PanierController::class, 'supprimer']);
             Route::delete('panier', [PanierController::class, 'vider']);
+        });
+
+        // "Boutique" — le Livreur revend des produits publiés par
+        // Fournisseur/Coordinateur/Admin (commission par vente, lien
+        // affilié partageable). Voir BoutiqueController.
+        // Support Ordi'Space (numéro fixé par l'Admin) — lisible par tout compte connecté.
+        Route::get('support', [ParametreController::class, 'support']);
+
+        Route::prefix('boutique')->group(function () {
+            Route::post('produits/{produit}/lien', [BoutiqueController::class, 'genererLien']);
+            Route::get('ventes', [BoutiqueController::class, 'ventes']);
+            Route::get('profil', [BoutiqueController::class, 'profil']);
+            Route::get('portefeuille', [PortefeuilleController::class, 'resume']);
+            Route::get('portefeuille/commissions', [PortefeuilleController::class, 'commissions']);
+            Route::get('retraits', [PortefeuilleController::class, 'retraits']);
+            Route::post('retraits', [PortefeuilleController::class, 'demander']);
+            Route::put('retraits/{retrait}/annuler', [PortefeuilleController::class, 'annuler']);
+            Route::get('liens', [BoutiqueController::class, 'liens']);
+            Route::get('liens/{lien}', [BoutiqueController::class, 'lien']);
         });
 
         Route::post('categories', [CategorieController::class, 'store']);
@@ -347,10 +382,16 @@ Route::prefix('v1')->group(function () {
             Route::get('clients/tableau-de-bord', [ClientController::class, 'tableauDeBord']);
             Route::get('clients/{utilisateur}', [ClientController::class, 'show']);
             Route::post('clients/{utilisateur}/notifier', [ClientController::class, 'notifier']);
+            Route::get('commandes', [AdminCommandeController::class, 'index']);
             Route::get('commandes/{commande}', [AdminCommandeController::class, 'show']);
             Route::patch('commandes/{commande}/statut', [AdminCommandeController::class, 'changerStatut']);
             Route::get('fidelite', [FideliteController::class, 'index']);
             Route::get('livreurs/tableau-de-bord', [AdminLivreurController::class, 'tableauDeBord']);
+            Route::put('parametres/support', [ParametreController::class, 'modifierSupport']);
+            Route::get('boutique/commandes', [AdminBoutiqueController::class, 'commandes']);
+            Route::get('retraits', [AdminRetraitController::class, 'index']);
+            Route::post('retraits/{retrait}/valider', [AdminRetraitController::class, 'valider']);
+            Route::post('retraits/{retrait}/refuser', [AdminRetraitController::class, 'refuser']);
             Route::get('assistant-ia/clients', [AdminAssistantIaController::class, 'index']);
             Route::get('assistant-ia/clients/{utilisateur}/messages', [AdminAssistantIaController::class, 'messages']);
             Route::get('coordinateurs/{coordinateur}/activites', [AdminCoordinateurController::class, 'activites']);

@@ -81,6 +81,13 @@ class FraisLivraisonTest extends TestCase
 
         $this->assertDatabaseHas('frais_livraison_produits', ['produit_id' => $produitId, 'localite_id' => $cocody->id, 'montant' => 1500]);
         $this->assertDatabaseHas('frais_livraison_produits', ['produit_id' => $produitId, 'localite_id' => $yopougon->id, 'montant' => 2500]);
+
+        // Section "Livraison et Garantie" (fiche produit) — le barème doit
+        // être lisible publiquement, même sans compte (ProduitController::show()).
+        $ficheProduit = $this->getJson("/api/v1/produits/{$produitId}");
+        $ficheProduit->assertOk();
+        $this->assertCount(2, $ficheProduit->json('data.frais_livraison'));
+        $this->assertSame('Cocody', $ficheProduit->json('data.frais_livraison.0.localite.nom'));
     }
 
     public function test_un_bareme_non_vide_sur_un_produit_numerique_est_rejete(): void

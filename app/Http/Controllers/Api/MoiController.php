@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Adresse;
+use App\Models\Coordinateur;
 use App\Models\JournalAudit;
 use App\Models\LigneCommande;
 use App\Models\Livraison;
@@ -35,6 +36,9 @@ class MoiController extends Controller
         if ($user->type_utilisateur === ROLE_LIVREUR) {
             $data['disponible'] = $user->livreur->disponible;
             $data['type_vehicule'] = $user->livreur->type_vehicule;
+            // Ligne "Localisation" de l'écran "Mes infos".
+            $data['zone_couverture'] = $user->livreur->zone_couverture;
+            $data['coordinateur'] = Coordinateur::fichePourLivreur($user);
         }
 
         return $this->success($data);

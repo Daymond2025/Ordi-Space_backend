@@ -106,6 +106,43 @@ if (! function_exists('normaliser_telephone')) {
     }
 }
 
+if (! function_exists('normaliser_numero_ci')) {
+    /**
+     * E.164 pour wa.me, tel: et les transferts Mobile Money — un numéro local
+     * commençant par 0 garde ce 0 (numérotation ivoirienne à 10 chiffres,
+     * "+225 07 58 84 92 81"), contrairement à normaliser_telephone() qui le retire.
+     */
+    function normaliser_numero_ci(string $saisie): string
+    {
+        $chiffres = preg_replace('/\D/', '', $saisie) ?? '';
+
+        if (str_starts_with(trim($saisie), '+')) {
+            return '+'.$chiffres;
+        }
+
+        if (str_starts_with($chiffres, '00')) {
+            return '+'.substr($chiffres, 2);
+        }
+
+        return TELEPHONE_INDICATIF_PAYS_DEFAUT.$chiffres;
+    }
+}
+
+if (! function_exists('lien_whatsapp')) {
+    /**
+     * Lien de conversation WhatsApp (wa.me) d'un numéro — chiffres seuls,
+     * indicatif pays compris, sans le "+". Null si aucun numéro.
+     */
+    function lien_whatsapp(?string $telephone): ?string
+    {
+        if (! $telephone) {
+            return null;
+        }
+
+        return 'https://wa.me/'.preg_replace('/\D/', '', normaliser_telephone($telephone));
+    }
+}
+
 if (! function_exists('paginate_per_page')) {
     /**
      * Normalise le paramètre ?per_page= d'une requête (borné à PAGINATION_MAX).

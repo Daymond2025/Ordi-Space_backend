@@ -23,8 +23,9 @@ class Produit extends Model
         'prix', 'quantite_stock', 'statut_produit', 'date_ajout',
         'type_livraison', 'duree_garantie_mois', 'est_booste',
         'processeur', 'memoire_ram', 'stockage', 'taille',
-        'systeme_exploitation', 'carte_graphique', 'couleur', 'cadeaux',
-        'prix_vente', 'commission_agent', 'commission_apporteur',
+        'systeme_exploitation', 'carte_graphique', 'couleur', 'cadeaux', 'etat_produit',
+        'prix_vente', 'commission_agent', 'commission_apporteur', 'commission_revente',
+        'pourcentage_reduction', 'prix_barre',
     ];
 
     protected function casts(): array
@@ -34,6 +35,9 @@ class Produit extends Model
             'prix_vente' => 'decimal:2',
             'commission_agent' => 'decimal:2',
             'commission_apporteur' => 'decimal:2',
+            'commission_revente' => 'decimal:2',
+            'prix_barre' => 'decimal:2',
+            'pourcentage_reduction' => 'integer',
             'date_ajout' => 'datetime',
             'est_booste' => 'boolean',
             'cadeaux' => 'array',

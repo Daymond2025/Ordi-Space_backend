@@ -232,6 +232,23 @@ defined('TYPES_VEHICULE_LIVREUR') || define('TYPES_VEHICULE_LIVREUR', ['moto', '
 // (décision PDG : il manipule l'argent du client, ces pièces permettent de
 // l'identifier formellement en cas de vol/litige).
 defined('LIVREUR_DOCUMENT_DOSSIER') || define('LIVREUR_DOCUMENT_DOSSIER', 'livreurs/documents');
+// État déclaratif du produit (écran "Boutique") — liste ouverte à
+// l'extension (simple tableau PHP, pas un ENUM SQL) : ajouter une valeur ne
+// demande pas de migration.
+defined('ETATS_PRODUIT') || define('ETATS_PRODUIT', ['neuf', 'quasi_neuf', 'occasion', 'reconditionne']);
+// Canal d'arrivée d'une vente "Boutique" du livreur (écran "Centre des ventes") :
+// commande saisie à la main, lien partagé (WhatsApp), scan du QR de l'affiche.
+defined('SOURCES_VENTE_BOUTIQUE') || define('SOURCES_VENTE_BOUTIQUE', ['manuelle', 'whatsapp', 'qr']);
+// Retraits de commissions (portefeuille Boutique) : le livreur demande, l'Admin
+// paie hors de l'app puis valide (avec la référence du transfert) ou refuse.
+defined('STATUT_RETRAIT_EN_ATTENTE') || define('STATUT_RETRAIT_EN_ATTENTE', 'en_attente');
+defined('STATUT_RETRAIT_VALIDE') || define('STATUT_RETRAIT_VALIDE', 'valide');
+defined('STATUT_RETRAIT_REFUSE') || define('STATUT_RETRAIT_REFUSE', 'refuse');
+defined('STATUT_RETRAIT_ANNULE') || define('STATUT_RETRAIT_ANNULE', 'annule');
+defined('OPERATEURS_RETRAIT') || define('OPERATEURS_RETRAIT', ['Orange', 'Wave', 'Mtn', 'Moov']);
+defined('RETRAIT_MONTANT_MINIMUM') || define('RETRAIT_MONTANT_MINIMUM', 1000);
+// Clé du réglage global (table parametres) : numéro du support Ordi'Space affiché aux livreurs.
+defined('PARAMETRE_SUPPORT_TELEPHONE') || define('PARAMETRE_SUPPORT_TELEPHONE', 'support_telephone');
 defined('MESSAGE_AUDIO_DOSSIER') || define('MESSAGE_AUDIO_DOSSIER', 'messages/audio');
 // Vidéo et document : aucun précédent dans le code, constantes nouvelles.
 defined('VIDEO_MIMES_AUTORISES') || define('VIDEO_MIMES_AUTORISES', 'mp4,mov,webm');

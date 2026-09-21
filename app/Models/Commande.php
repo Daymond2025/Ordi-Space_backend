@@ -75,6 +75,12 @@ class Commande extends Model
         return $this->hasOne(Livraison::class, 'commande_id');
     }
 
+    /** Vente "Boutique" d'un livreur, si cette commande en est une (voir VenteBoutique). */
+    public function venteBoutique(): HasOne
+    {
+        return $this->hasOne(VenteBoutique::class, 'commande_id');
+    }
+
     public function paiement(): HasOne
     {
         return $this->hasOne(Paiement::class, 'commande_id');
