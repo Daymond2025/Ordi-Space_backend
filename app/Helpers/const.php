@@ -22,6 +22,14 @@ defined('OTP_EXPIRATION_MINUTES') || define('OTP_EXPIRATION_MINUTES', 5);
 // sur plusieurs IP pour contourner le throttle réseau.
 defined('OTP_TENTATIVES_MAX') || define('OTP_TENTATIVES_MAX', 5);
 
+// --- Mot de passe oublié (personnel : Fournisseur, Commercial, Livreur,
+// Coordinateur, Technicien, Administrateur — jamais Client, qui se connecte
+// par téléphone/OTP sans mot de passe) --------------------------------------
+// Plus généreux que OTP_EXPIRATION_MINUTES (2FA) : le code part par e-mail,
+// canal plus lent à consulter qu'un WhatsApp de connexion.
+defined('PASSWORD_RESET_EXPIRATION_MINUTES') || define('PASSWORD_RESET_EXPIRATION_MINUTES', 30);
+defined('PASSWORD_RESET_TENTATIVES_MAX') || define('PASSWORD_RESET_TENTATIVES_MAX', 5);
+
 // --- Téléphone (connexion Client par WhatsApp + OTP) ---------------------
 // Indicatif appliqué aux numéros locaux (ex. "07 79 36 38 09") saisis sans
 // indicatif — l'activité d'OrdiSpace est basée en Côte d'Ivoire.

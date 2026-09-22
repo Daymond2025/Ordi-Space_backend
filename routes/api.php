@@ -62,6 +62,13 @@ Route::prefix('v1')->group(function () {
         Route::post('login', [AuthController::class, 'login'])->middleware('throttle:5,1');
         Route::post('verify-otp', [AuthController::class, 'verifyOtp'])->middleware(['throttle:5,1', 'throttle:otp-verify']);
 
+        // Mot de passe oublié (personnel e-mail/mot de passe — pas le Client,
+        // qui se connecte par téléphone/OTP). Voir AuthController.
+        Route::prefix('mot-de-passe')->middleware('throttle:5,1')->group(function () {
+            Route::post('oublie', [AuthController::class, 'oublierMotDePasse']);
+            Route::post('reinitialiser', [AuthController::class, 'reinitialiserMotDePasse']);
+        });
+
         // Connexion Client par téléphone (WhatsApp + OTP) — voir
         // TelephoneAuthController. La dernière étape réutilise verify-otp
         // ci-dessus, générique à tout utilisateur.

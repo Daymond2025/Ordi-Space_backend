@@ -43,6 +43,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'derniere_connexion' => 'datetime',
             'two_factor_expires_at' => 'datetime',
+            'password_reset_expires_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
@@ -76,6 +77,32 @@ class User extends Authenticatable
             'two_factor_code' => Hash::make($code),
             'two_factor_expires_at' => now()->addMinutes(OTP_EXPIRATION_MINUTES),
             'two_factor_tentatives' => 0,
+        ])->save();
+
+        return $code;
+    }
+
+    /** Personnel identifié par e-mail/mot de passe — seuls ces rôles peuvent demander une réinitialisation. Client se connecte par téléphone/OTP, sans mot de passe utile. */
+    public function peutReinitialiserMotDePasse(): bool
+    {
+        return $this->type_utilisateur !== ROLE_CLIENT;
+    }
+
+    /**
+     * Génère un nouveau code de réinitialisation, le stocke (haché) avec son
+     * expiration, et le retourne en clair pour l'envoi par e-mail — même
+     * mécanique que emettreCodeOtp(), colonnes dédiées (voir migration
+     * add_password_reset_to_users_table) pour ne jamais interférer avec une
+     * connexion à deux facteurs en cours.
+     */
+    public function emettreCodeReinitialisation(): string
+    {
+        $code = generate_otp_code();
+
+        $this->forceFill([
+            'password_reset_code' => Hash::make($code),
+            'password_reset_expires_at' => now()->addMinutes(PASSWORD_RESET_EXPIRATION_MINUTES),
+            'password_reset_tentatives' => 0,
         ])->save();
 
         return $code;

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\OublierMotDePasseRequest;
+use App\Http\Requests\Auth\ReinitialiserMotDePasseRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\VerifyOtpRequest;
 use App\Models\Commercial;
@@ -11,6 +13,7 @@ use App\Models\Fournisseur;
 use App\Models\Livreur;
 use App\Models\User;
 use App\Notifications\OtpCodeNotification;
+use App\Notifications\PasswordResetCodeNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -145,6 +148,74 @@ class AuthController extends Controller
         $user->forceFill(['two_factor_code' => null, 'two_factor_expires_at' => null, 'two_factor_tentatives' => 0])->save();
 
         return $this->success($this->issueSession($user, $request->string('device_name')));
+    }
+
+    /**
+     * Étape 1 du mot de passe oublié : envoie un code par e-mail si l'adresse
+     * correspond à un compte du personnel. Répond TOUJOURS le même message de
+     * succès, que l'adresse existe ou non — sinon un attaquant pourrait tester
+     * des e-mails un par un pour savoir lesquels ont un compte (énumération).
+     */
+    public function oublierMotDePasse(OublierMotDePasseRequest $request): JsonResponse
+    {
+        $user = User::where('email', $request->string('email'))->first();
+
+        if ($user && $user->peutReinitialiserMotDePasse() && $user->statut_compte === STATUT_COMPTE_ACTIF) {
+            $user->notify(new PasswordResetCodeNotification($user->emettreCodeReinitialisation()));
+        }
+
+        return $this->success([
+            'message' => "Si un compte existe avec cette adresse, un code de réinitialisation vient de lui être envoyé par e-mail.",
+        ]);
+    }
+
+    /**
+     * Étape 2 : le code reçu par e-mail (30 min, voir
+     * PASSWORD_RESET_EXPIRATION_MINUTES) plus le nouveau mot de passe.
+     * Révoque toutes les sessions actives — le mot de passe précédent a pu
+     * être compromis, mieux vaut forcer une reconnexion partout.
+     */
+    public function reinitialiserMotDePasse(ReinitialiserMotDePasseRequest $request): JsonResponse
+    {
+        $user = User::where('email', $request->string('email'))->first();
+
+        // Même message qu'un mauvais code, pour ne pas confirmer/infirmer
+        // l'existence du compte à cette étape non plus.
+        $erreurGenerique = fn () => throw ValidationException::withMessages([
+            'code' => ['Code invalide ou expiré.'],
+        ]);
+
+        if (! $user || ! $user->peutReinitialiserMotDePasse()) {
+            $erreurGenerique();
+        }
+
+        // Au-delà de PASSWORD_RESET_TENTATIVES_MAX échecs, le code est
+        // invalidé même s'il n'a pas encore expiré — même parade anti-brute-
+        // force distribué que verifyOtp().
+        if ($user->password_reset_tentatives >= PASSWORD_RESET_TENTATIVES_MAX) {
+            $user->forceFill(['password_reset_code' => null, 'password_reset_expires_at' => null])->save();
+            $erreurGenerique();
+        }
+
+        $codeValide = $user->password_reset_code
+            && $user->password_reset_expires_at?->isFuture()
+            && Hash::check($request->string('code'), $user->password_reset_code);
+
+        if (! $codeValide) {
+            $user->increment('password_reset_tentatives');
+            $erreurGenerique();
+        }
+
+        $user->forceFill([
+            'password' => Hash::make($request->string('password')),
+            'password_reset_code' => null,
+            'password_reset_expires_at' => null,
+            'password_reset_tentatives' => 0,
+        ])->save();
+
+        $user->tokens()->delete();
+
+        return $this->success(['message' => 'Mot de passe mis à jour — connectez-vous avec votre nouveau mot de passe.']);
     }
 
     public function logout(Request $request): JsonResponse
