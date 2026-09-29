@@ -43,6 +43,11 @@ class StoreProduitRequest extends FormRequest
             'couleur' => ['nullable', 'string', 'max:100'],
             'cadeaux' => ['nullable', 'array'],
             'cadeaux.*' => ['string', 'max:100'],
+            // "Pack complet" (fiche produit) — texte libre (ce qui est
+            // matériellement inclus), distinct de `cadeaux` (liste prédéfinie
+            // marketing) — voir la migration contenu_pack.
+            'contenu_pack' => ['nullable', 'array'],
+            'contenu_pack.*' => ['string', 'max:100'],
             // "Boutique" — commission qu'un revendeur (Livreur) touche en
             // vendant ce produit via son lien affilié. Renseignée par qui
             // crée le produit (Fournisseur/Coordinateur/Admin), sans rapport

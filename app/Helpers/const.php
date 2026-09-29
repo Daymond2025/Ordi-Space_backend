@@ -84,6 +84,10 @@ defined('STATUT_LIVRAISON_EN_COURS') || define('STATUT_LIVRAISON_EN_COURS', 'en_
 defined('STATUT_LIVRAISON_LIVREE') || define('STATUT_LIVRAISON_LIVREE', 'livree');
 defined('STATUT_LIVRAISON_ECHOUEE') || define('STATUT_LIVRAISON_ECHOUEE', 'echouee');
 
+// Pas de saisie libre côté fournisseur (écran "Recherche d'un livreur") — un
+// pas fixe, en FCFA, à chaque clic sur "Augmenter".
+defined('FRAIS_LIVRAISON_INCREMENT') || define('FRAIS_LIVRAISON_INCREMENT', 500);
+
 // Retour physique au dépôt (commande annulée pendant qu'un livreur a déjà le
 // colis) — noms distincts de STATUT_RETOUR_* ci-dessous (domaine retour-produit
 // fournisseur, table `retours`, sans rapport).
@@ -149,6 +153,26 @@ defined('TYPE_TRANSACTION_PORTEFEUILLE_DEBIT') || define('TYPE_TRANSACTION_PORTE
 
 defined('STATUT_TRANSACTION_PORTEFEUILLE_EN_ATTENTE') || define('STATUT_TRANSACTION_PORTEFEUILLE_EN_ATTENTE', 'en_attente');
 defined('STATUT_TRANSACTION_PORTEFEUILLE_PAYE') || define('STATUT_TRANSACTION_PORTEFEUILLE_PAYE', 'paye');
+
+// --- Achats externes (Centre de paiement des commissions, app Fournisseur) --
+// Vente d'un produit faite par le fournisseur HORS du flux commande in-app
+// (il encaisse lui-même le client) — contrairement aux commandes normales,
+// où la marge Ordi'Space est déjà retenue via l'écart prix_vente/prix et où
+// le fournisseur ne doit donc jamais rien reverser (voir
+// Commande::crediterFournisseursSiEligible()), ici Ordi'Space n'a aucun autre
+// moyen de connaître la vente : le fournisseur la déclare et doit sa
+// commission (Fournisseur::taux_commission appliqué au montant déclaré).
+defined('STATUT_ACHAT_EXTERNE_EN_ATTENTE') || define('STATUT_ACHAT_EXTERNE_EN_ATTENTE', 'en_attente');
+defined('STATUT_ACHAT_EXTERNE_PAYE') || define('STATUT_ACHAT_EXTERNE_PAYE', 'paye');
+
+// "Modifier le montant" — demande du fournisseur de réduire la commission
+// due sur un achat externe, soumise à validation Coordinateur (pas encore
+// construite). Tant que `statut_modification` n'est pas "approuvee", le
+// montant ORIGINAL (`commission_due`) reste le seul dû — voir
+// ProduitController::demanderModificationAchatExterne().
+defined('STATUT_MODIFICATION_EN_ATTENTE') || define('STATUT_MODIFICATION_EN_ATTENTE', 'en_attente');
+defined('STATUT_MODIFICATION_APPROUVEE') || define('STATUT_MODIFICATION_APPROUVEE', 'approuvee');
+defined('STATUT_MODIFICATION_REJETEE') || define('STATUT_MODIFICATION_REJETEE', 'rejetee');
 
 // --- Livraison gratuite automatique (cf. Privilege type livraison_gratuite) --
 // Déclenchée à la Nième commande du client (2 = sa deuxième commande).

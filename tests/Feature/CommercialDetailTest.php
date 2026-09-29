@@ -79,6 +79,27 @@ class CommercialDetailTest extends TestCase
         $this->assertEquals(1500, $donnees['statistiques']['commission_totale']);
     }
 
+    public function test_la_liste_des_commandes_expose_lhistorique_du_commercial(): void
+    {
+        $coordinateur = $this->creerCoordinateur();
+        $commercialUser = $this->creerCommercial();
+        $autreCommercial = $this->creerCommercial();
+
+        $this->creerCommandePourCommercial($commercialUser, STATUT_COMMANDE_LIVREE, 1500);
+        $this->creerCommandePourCommercial($commercialUser, STATUT_COMMANDE_VALIDEE, 9999);
+        // Commande d'un autre commercial — ne doit jamais apparaître ici.
+        $this->creerCommandePourCommercial($autreCommercial, STATUT_COMMANDE_LIVREE, 1500);
+
+        $reponse = $this->actingAs($coordinateur)->getJson("/api/v1/coordinateur/commerciaux/{$commercialUser->id}/commandes");
+        $reponse->assertOk();
+
+        $lignes = $reponse->json('data.data');
+        $this->assertCount(2, $lignes);
+        foreach (['commande_id', 'nom_produit', 'nom_client', 'statut', 'montant_total', 'date_commande'] as $cle) {
+            $this->assertArrayHasKey($cle, $lignes[0]);
+        }
+    }
+
     public function test_le_coordinateur_peut_suspendre_puis_reactiver(): void
     {
         $coordinateur = $this->creerCoordinateur();

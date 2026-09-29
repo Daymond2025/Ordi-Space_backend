@@ -57,6 +57,9 @@ class RolesAndPermissionsSeeder extends Seeder
             PERMISSION_RETOURS_TRAITER, PERMISSION_STATISTIQUES_PERIMETRE,
             PERMISSION_MESSAGES_PRODUIT_GERER, PERMISSION_MESSAGES_COMMANDE_GERER,
             PERMISSION_PRODUITS_GERER_STOCK,
+            // Menu ☰ "Supprimer" (app Fournisseur) — voir ProduitPolicy::delete(),
+            // scopé à ses propres produits (jamais ceux d'un autre fournisseur).
+            PERMISSION_PRODUITS_SUPPRIMER,
         ],
         ROLE_COMMERCIAL => [
             PERMISSION_PRODUITS_CONSULTER, PERMISSION_COMMANDES_CREER, PERMISSION_COMMANDES_CONSULTER,
@@ -72,6 +75,10 @@ class RolesAndPermissionsSeeder extends Seeder
             PERMISSION_FOURNISSEURS_PORTEFEUILLE_GERER, PERMISSION_PRODUITS_GERER_STOCK,
             PERMISSION_COMMANDES_CHANGER_STATUT, PERMISSION_PRODUITS_SUPPRIMER, PERMISSION_PRODUITS_CREER,
             PERMISSION_COMMERCIAUX_CONSULTER, PERMISSION_COMMERCIAUX_GERER, PERMISSION_RECLAMATIONS_GERER,
+            // "SAV / Dépannages" (Compte, app Coordinateur) — planifier un
+            // rendez-vous et enregistrer une intervention, comme le
+            // technicien de maintenance (voir routes/api.php, groupe "sav").
+            PERMISSION_SAV_TRAITER,
         ],
         ROLE_CLIENT => [
             PERMISSION_PRODUITS_CONSULTER, PERMISSION_COMMANDES_CREER, PERMISSION_COMMANDES_CONSULTER, PERMISSION_SAV_CREER,

@@ -206,4 +206,37 @@ class ProduitStockEtCatalogueTest extends TestCase
         $reponse->assertJsonPath('data.memoire_ram', '16GB LPDDR5-5200');
         $reponse->assertJsonPath('data.cadeaux', ['Souris', 'Sacs']);
     }
+
+    public function test_le_fournisseur_proprietaire_voit_le_motif_de_rejet(): void
+    {
+        $coordinateur = $this->creerCoordinateur();
+        $produit = $this->creerProduitPhysique(['statut_produit' => STATUT_PRODUIT_EN_ATTENTE]);
+        $fournisseur = User::findOrFail($produit->fournisseur_id);
+
+        $this->actingAs($coordinateur)->postJson("/api/v1/produits/{$produit->id}/valider", [
+            'decision' => STATUT_PRODUIT_REJETE,
+            'motif_rejet' => 'Photos manquantes.',
+        ])->assertOk();
+
+        $reponse = $this->actingAs($fournisseur)->getJson("/api/v1/produits/{$produit->id}");
+
+        $reponse->assertOk();
+        $reponse->assertJsonPath('data.motif_rejet', 'Photos manquantes.');
+    }
+
+    public function test_un_autre_fournisseur_ne_voit_pas_le_motif_de_rejet(): void
+    {
+        $coordinateur = $this->creerCoordinateur();
+        $produit = $this->creerProduitPhysique(['statut_produit' => STATUT_PRODUIT_EN_ATTENTE]);
+        $autreFournisseur = $this->creerFournisseur();
+
+        $this->actingAs($coordinateur)->postJson("/api/v1/produits/{$produit->id}/valider", [
+            'decision' => STATUT_PRODUIT_REJETE,
+            'motif_rejet' => 'Photos manquantes.',
+        ])->assertOk();
+
+        // 404 : un produit non-valide reste invisible à qui n'est ni le
+        // propriétaire ni coordinateur/admin (même règle que $peutVoirNonValide).
+        $this->actingAs($autreFournisseur)->getJson("/api/v1/produits/{$produit->id}")->assertNotFound();
+    }
 }

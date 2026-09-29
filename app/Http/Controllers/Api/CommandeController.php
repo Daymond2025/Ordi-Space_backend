@@ -18,6 +18,7 @@ use App\Models\Privilege;
 use App\Models\Produit;
 use App\Models\User;
 use App\Models\UtilisationPrivilege;
+use App\Services\PushNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,8 @@ use Illuminate\Validation\ValidationException;
 
 class CommandeController extends Controller
 {
+    public function __construct(private readonly PushNotificationService $push) {}
+
     /**
      * Transitions "problème" autorisées pour un coordinateur, avant
      * validation définitive — voir traiterProbleme(). Un retour direct
@@ -85,20 +88,30 @@ class CommandeController extends Controller
 
         $relations = ['lignes.produit.images', 'lignes.produit.categorie', 'livraison', 'paiement', 'canalVente'];
         $estCoordinateurOuAdmin = in_array($request->user()->type_utilisateur, [ROLE_COORDINATEUR, ROLE_ADMINISTRATEUR], true);
+        // Écran détail commande (app Fournisseur) — même "apercu" que
+        // Coordinateur/Admin (client.user + livraison.adresse.localite
+        // suffisent à Commande::versApercu()), jamais les relations
+        // strictement internes au staff ci-dessous (commission, parrain...).
+        $estStaffOuFournisseur = $estCoordinateurOuAdmin || $request->user()->type_utilisateur === ROLE_FOURNISSEUR;
+
+        if ($estStaffOuFournisseur) {
+            $relations = array_merge($relations, ['client.user', 'livraison.adresse.localite']);
+        }
 
         if ($estCoordinateurOuAdmin) {
             $relations = array_merge($relations, [
-                'client.user', 'commercial.user', 'coordinateur.user', 'parrain.user', 'privilege',
-                'lignes.produit.fournisseur.user', 'livraison.livreur.user', 'livraison.adresse.localite',
+                'commercial.user', 'coordinateur.user', 'parrain.user', 'privilege',
+                'lignes.produit.fournisseur.user', 'livraison.livreur.user',
             ]);
         }
 
         $commande->load($relations);
 
-        // "apercu" (écran détail Coordinateur/Admin) : mêmes champs que
-        // l'instantané figé du message "commande_creee", mais recalculés à
-        // la demande pour refléter l'état courant — voir Commande::versApercu().
-        return $this->success($commande, meta: $estCoordinateurOuAdmin ? ['apercu' => $commande->versApercu()] : []);
+        // "apercu" (écran détail Coordinateur/Admin/Fournisseur) : mêmes
+        // champs que l'instantané figé du message "commande_creee", mais
+        // recalculés à la demande pour refléter l'état courant — voir
+        // Commande::versApercu().
+        return $this->success($commande, meta: $estStaffOuFournisseur ? ['apercu' => $commande->versApercu()] : []);
     }
 
     /**
@@ -431,7 +444,147 @@ class CommandeController extends Controller
             commandeId: $commande->id,
         );
 
+        $this->notifierLivreursDisponibles($commande->fresh('livraison'));
+
         return $this->success($commande->fresh('livraison'));
+    }
+
+    /**
+     * Écran "Recherche d'un livreur" (app Fournisseur) — le fournisseur
+     * renonce à la mise en recherche avant qu'un livreur n'ait accepté.
+     * Symétrique exact de marquerPreparee() : remet commande/livraison dans
+     * l'état où elles étaient juste avant (voir CommandeController::store(),
+     * une livraison naît toujours en STATUT_LIVRAISON_EN_PREPARATION).
+     */
+    public function annulerRecherche(Request $request, Commande $commande): JsonResponse
+    {
+        $livraison = $commande->livraison;
+        $estFournisseurConcerne = $commande->lignes()
+            ->whereHas('produit', fn ($q) => $q->where('fournisseur_id', $request->user()->id))
+            ->exists();
+
+        abort_unless($livraison && $estFournisseurConcerne, 403);
+
+        if ($commande->statut_commande !== STATUT_COMMANDE_EN_PREPARATION || $livraison->statut_livraison !== STATUT_LIVRAISON_EN_ATTENTE_LIVREUR) {
+            throw ValidationException::withMessages([
+                'statut_commande' => ["Cette commande n'est pas en recherche de livreur."],
+            ]);
+        }
+
+        $commande->update(['statut_commande' => STATUT_COMMANDE_VALIDEE]);
+        $livraison->update(['statut_livraison' => STATUT_LIVRAISON_EN_PREPARATION]);
+
+        JournalAudit::enregistrer(
+            $commande->client_id,
+            ACTION_COMMANDE_STATUT_MODIFIE,
+            'commande',
+            "Recherche de livreur annulée par le fournisseur pour la commande n°{$commande->id}.",
+            commandeId: $commande->id,
+        );
+
+        return $this->success($commande->fresh('livraison'));
+    }
+
+    /**
+     * Écran "Recherche d'un livreur" (app Fournisseur) — relève le frais de
+     * livraison d'un pas fixe pour inciter les livreurs disponibles à
+     * accepter plus vite, et les notifie à nouveau (voir FRAIS_LIVRAISON_INCREMENT).
+     */
+    public function augmenterFraisLivraison(Request $request, Commande $commande): JsonResponse
+    {
+        $livraison = $commande->livraison;
+        $estFournisseurConcerne = $commande->lignes()
+            ->whereHas('produit', fn ($q) => $q->where('fournisseur_id', $request->user()->id))
+            ->exists();
+
+        abort_unless($livraison && $estFournisseurConcerne, 403);
+        abort_unless($livraison->statut_livraison === STATUT_LIVRAISON_EN_ATTENTE_LIVREUR, 422);
+
+        $commande->update(['frais_livraison' => (float) $commande->frais_livraison + FRAIS_LIVRAISON_INCREMENT]);
+
+        JournalAudit::enregistrer(
+            $commande->client_id,
+            ACTION_COMMANDE_STATUT_MODIFIE,
+            'commande',
+            "Frais de livraison relevés à {$commande->frais_livraison} FCFA par le fournisseur pour la commande n°{$commande->id}.",
+            commandeId: $commande->id,
+        );
+
+        $this->notifierLivreursDisponibles($commande->fresh('livraison'));
+
+        return $this->success($commande->fresh());
+    }
+
+    /**
+     * "Assigner une nouvelle mission" (feuille détail livreur, app
+     * Fournisseur) — contrairement à assignerLivreur() (Coordinateur,
+     * réassignation managériale libre depuis n'importe quel statut), ici le
+     * fournisseur choisit un livreur précis pour SA PROPRE commande, mais
+     * UNIQUEMENT depuis le vivier (`EN_ATTENTE_LIVREUR`, pas encore prise) —
+     * jamais une réaffectation arbitraire. Reste cohérent avec "Envoyer à un
+     * livreur" (EcranRechercheLivreur.tsx) qui n'autorise pas de choix
+     * manuel : ici c'est un choix manuel, mais borné au vivier de SES
+     * propres commandes, pas un pouvoir de réaffectation générale.
+     */
+    public function assignerLivreurParFournisseur(Request $request, Commande $commande): JsonResponse
+    {
+        $livraison = $commande->livraison;
+        $estFournisseurConcerne = $commande->lignes()
+            ->whereHas('produit', fn ($q) => $q->where('fournisseur_id', $request->user()->id))
+            ->exists();
+
+        abort_unless($livraison && $estFournisseurConcerne, 403);
+        abort_unless($livraison->statut_livraison === STATUT_LIVRAISON_EN_ATTENTE_LIVREUR, 422);
+
+        $data = $request->validate(['livreur_id' => ['required', 'exists:livreurs,user_id']]);
+
+        DB::transaction(function () use ($commande, $data) {
+            $commande->livraison->update([
+                'livreur_id' => $data['livreur_id'],
+                'statut_livraison' => STATUT_LIVRAISON_ASSIGNEE,
+            ]);
+            $commande->update(['statut_commande' => STATUT_COMMANDE_EN_LIVRAISON]);
+        });
+
+        JournalAudit::enregistrer(
+            $commande->client_id,
+            ACTION_COMMANDE_STATUT_MODIFIE,
+            'commande',
+            "Commande n°{$commande->id} assignée au livreur (user #{$data['livreur_id']}) par le fournisseur.",
+            commandeId: $commande->id,
+            donnees: ['statut_apres' => STATUT_COMMANDE_EN_LIVRAISON, 'livreur_id' => $data['livreur_id']],
+        );
+
+        $livreurUser = User::find($data['livreur_id']);
+        if ($livreurUser) {
+            $this->push->envoyer(
+                $livreurUser,
+                'Nouvelle mission assignée',
+                "Le fournisseur t'a assigné la commande n°{$commande->id}.",
+                ['commande_id' => $commande->id]
+            );
+        }
+
+        return $this->success($commande->fresh('livraison'));
+    }
+
+    /**
+     * "Les livreurs les plus proches reçoivent comme un appel" — le projet
+     * n'a aucune position GPS livreur ni notion fiable de proximité
+     * (Livreur::zone_couverture est un texte libre jamais utilisé pour
+     * filtrer ailleurs) : on cible tous les livreurs actuellement "en ligne"
+     * (Livreur::disponible), seul signal réel de "cherche du travail
+     * maintenant" qui existe déjà dans le projet.
+     */
+    private function notifierLivreursDisponibles(Commande $commande): void
+    {
+        $adresse = $commande->livraison?->adresse;
+        $zone = $adresse ? ($adresse->localite ? "{$adresse->ville}, {$adresse->localite->nom}" : $adresse->ville) : null;
+        $frais = number_format((float) $commande->frais_livraison, 0, ',', '.');
+
+        $corps = "Commande n°{$commande->id}".($zone ? " — {$zone}" : '')." — {$frais} FCFA de frais de livraison.";
+
+        $this->push->envoyerAuxLivreursDisponibles('Nouvelle livraison disponible', $corps, ['commande_id' => $commande->id]);
     }
 
     /**

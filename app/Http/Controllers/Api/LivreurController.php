@@ -53,6 +53,68 @@ class LivreurController extends Controller
     }
 
     /**
+     * Onglet "Livreurs" (bottombar, app Fournisseur) — mêmes champs que
+     * liste() (Coordinateur) plus `photo`, moins `type_vehicule` (pas dans le
+     * mockup fournisseur) : forme propre pour ne prendre aucun risque de
+     * régression sur les deux écrans existants qui consomment liste()/index().
+     * Pas de distance/position réelle (aucune géolocalisation dans le
+     * projet) — `zone_couverture` (texte libre) sert d'indication approximative.
+     */
+    public function listePourFournisseur(): JsonResponse
+    {
+        $livreurs = Livreur::with('user')
+            ->whereHas('user', fn ($q) => $q->where('statut_compte', STATUT_COMPTE_ACTIF))
+            ->get()
+            ->map(fn (Livreur $livreur) => [
+                'user_id' => $livreur->user_id,
+                'nom' => $livreur->user->nom,
+                'prenom' => $livreur->user->prenom,
+                'photo' => $livreur->user->photo,
+                'telephone' => $livreur->user->telephone,
+                'zone_couverture' => $livreur->zone_couverture,
+                'disponible' => $livreur->disponible,
+            ])
+            ->sortBy(fn ($l) => $l['nom'].$l['prenom'])
+            ->values();
+
+        return $this->success($livreurs);
+    }
+
+    /**
+     * Feuille détail livreur (onglet "Livreurs", app Fournisseur — tap sur
+     * une carte) — mêmes statistiques que show() (Coordinateur), sans les
+     * `documents` d'identité (CNI/permis/carte grise : décision PDG réservée
+     * au Coordinateur/Admin pour l'accountabilité, pas exposée ici). Pas de
+     * bouton "Assigner une nouvelle mission" fonctionnel côté fournisseur —
+     * le choix d'un livreur précis reste un pouvoir Coordinateur (voir
+     * RechercheLivreurTest / EcranRechercheLivreur.tsx) : cette route ne
+     * fournit donc aucun endpoint d'assignation, contrairement à
+     * show()+livraisonsDisponibles() côté Coordinateur.
+     */
+    public function detailPourFournisseur(Livreur $livreur): JsonResponse
+    {
+        $livraisons = $livreur->livraisons();
+        $paiementsEncaisses = $livreur->paiementsEncaisses()->where('statut_paiement', STATUT_PAIEMENT_CONFIRME);
+
+        return $this->success([
+            'user_id' => $livreur->user_id,
+            'nom' => $livreur->user->nom,
+            'prenom' => $livreur->user->prenom,
+            'photo' => $livreur->user->photo,
+            'telephone' => $livreur->user->telephone,
+            'disponible' => $livreur->disponible,
+            'statistiques' => [
+                'commandes_total' => (clone $livraisons)->count(),
+                'commandes_livrees' => (clone $livraisons)->where('statut_livraison', STATUT_LIVRAISON_LIVREE)->count(),
+                'commandes_retournees' => (clone $livraisons)
+                    ->where(fn ($q) => $q->where('statut_livraison', STATUT_LIVRAISON_ECHOUEE)->orWhere('retour_necessaire', true))
+                    ->count(),
+                'gains_total_recu' => (clone $paiementsEncaisses)->sum('montant'),
+            ],
+        ]);
+    }
+
+    /**
      * Écran détail livreur — profil + statistiques calculées à la volée
      * (aucune colonne dédiée). "commandes_retournees" = livraisons échouées
      * OU signalées pour un retour physique au dépôt (retour_necessaire) ;
@@ -160,6 +222,38 @@ class LivreurController extends Controller
                 'commande.lignes.produit',
                 fn ($q2) => $q2->where('fournisseur_id', $fournisseurId)
             ))
+            ->with(['commande.lignes.produit.fournisseur', 'commande.lignes.produit.images', 'adresse.localite'])
+            ->latest('id')
+            ->get()
+            ->map(function (Livraison $livraison) {
+                $produit = $livraison->commande->lignes->first()?->produit;
+
+                return [
+                    'commande_id' => $livraison->commande_id,
+                    'nom_produit' => $produit?->nom_produit,
+                    'photo' => $produit?->images->first()?->url_image,
+                    'zone_depart' => $produit?->fournisseur?->zone_couverte,
+                    'zone_destination' => $livraison->adresse->localite->nom ?? null,
+                    'frais_livraison' => $livraison->commande->frais_livraison,
+                ];
+            });
+
+        return $this->success($livraisons);
+    }
+
+    /**
+     * Vivier des livraisons non affectées, scopé aux propres produits du
+     * fournisseur connecté ("Assigner une nouvelle mission", feuille détail
+     * livreur, app Fournisseur) — même concept que livraisonsDisponibles()
+     * (Coordinateur), mais sans filtre `fournisseur_id` explicite (toujours
+     * implicitement borné à l'utilisateur courant) et méthode séparée pour
+     * ne prendre aucun risque de régression sur l'écran Coordinateur.
+     */
+    public function livraisonsDisponiblesPourFournisseur(Request $request): JsonResponse
+    {
+        $livraisons = Livraison::where('statut_livraison', STATUT_LIVRAISON_EN_ATTENTE_LIVREUR)
+            ->whereNull('livreur_id')
+            ->whereHas('commande.lignes.produit', fn ($q) => $q->where('fournisseur_id', $request->user()->id))
             ->with(['commande.lignes.produit.fournisseur', 'commande.lignes.produit.images', 'adresse.localite'])
             ->latest('id')
             ->get()

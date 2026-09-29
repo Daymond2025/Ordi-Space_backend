@@ -126,11 +126,37 @@ class ProduitValidationTest extends TestCase
         $this->assertNotNull(\App\Models\Produit::find($produit->id));
     }
 
-    public function test_un_fournisseur_ne_peut_pas_supprimer_un_produit(): void
+    /**
+     * Menu ☰ "Supprimer" (app Fournisseur) — le fournisseur peut désormais
+     * supprimer SON propre produit (ProduitPolicy::delete()), même garde-fou
+     * "déjà commandé" que pour le Coordinateur.
+     */
+    public function test_un_fournisseur_peut_supprimer_son_propre_produit_sans_commande_associee(): void
     {
         $produit = $this->creerProduitPhysique();
         $proprietaire = \App\Models\User::findOrFail($produit->fournisseur_id);
 
-        $this->actingAs($proprietaire)->deleteJson("/api/v1/produits/{$produit->id}")->assertForbidden();
+        $this->actingAs($proprietaire)->deleteJson("/api/v1/produits/{$produit->id}")->assertOk();
+        $this->assertNull(\App\Models\Produit::find($produit->id));
+    }
+
+    public function test_un_fournisseur_ne_peut_pas_supprimer_le_produit_d_un_autre_fournisseur(): void
+    {
+        $produit = $this->creerProduitPhysique();
+        $autreFournisseur = $this->creerFournisseur();
+
+        $this->actingAs($autreFournisseur)->deleteJson("/api/v1/produits/{$produit->id}")->assertForbidden();
+        $this->assertNotNull(\App\Models\Produit::find($produit->id));
+    }
+
+    public function test_un_fournisseur_ne_peut_pas_supprimer_son_produit_deja_commande(): void
+    {
+        $produit = $this->creerProduitPhysique();
+        $proprietaire = \App\Models\User::findOrFail($produit->fournisseur_id);
+        $client = $this->creerClient();
+        $this->creerAchatLivre($client, $produit);
+
+        $this->actingAs($proprietaire)->deleteJson("/api/v1/produits/{$produit->id}")->assertUnprocessable();
+        $this->assertNotNull(\App\Models\Produit::find($produit->id));
     }
 }

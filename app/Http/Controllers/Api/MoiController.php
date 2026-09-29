@@ -41,6 +41,23 @@ class MoiController extends Controller
             $data['coordinateur'] = Coordinateur::fichePourLivreur($user);
         }
 
+        if ($user->type_utilisateur === ROLE_FOURNISSEUR) {
+            // Premier appel de l'app Fournisseur après connexion — fiche
+            // entreprise éditable via FournisseurController::modifierMonProfil()
+            // + taux_commission/solde_portefeuille en lecture seule ici (fixés
+            // par le staff, voir modifierCommission/payerTout).
+            $data['nom_entreprise'] = $user->fournisseur->nom_entreprise;
+            $data['adresse_entreprise'] = $user->fournisseur->adresse_entreprise;
+            $data['contact_pro'] = $user->fournisseur->contact_pro;
+            $data['nom_gerant'] = $user->fournisseur->nom_gerant;
+            $data['telephone_gerant'] = $user->fournisseur->telephone_gerant;
+            $data['horaires_ouverture'] = $user->fournisseur->horaires_ouverture;
+            $data['lien_maps'] = $user->fournisseur->lien_maps;
+            $data['zone_couverte'] = $user->fournisseur->zone_couverte;
+            $data['taux_commission'] = $user->fournisseur->taux_commission;
+            $data['solde_portefeuille'] = $user->fournisseur->solde_portefeuille;
+        }
+
         return $this->success($data);
     }
 

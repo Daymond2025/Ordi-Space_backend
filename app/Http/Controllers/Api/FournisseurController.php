@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Adresse;
+use App\Models\AchatExterne;
 use App\Models\Commande;
 use App\Models\ConsultationCommande;
 use App\Models\Fournisseur;
@@ -426,6 +427,190 @@ class FournisseurController extends Controller
     {
         $data = $request->validate([
             'taux_commission' => ['required', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        $fournisseur->update($data);
+
+        return $this->success($fournisseur->fresh());
+    }
+
+    /**
+     * Résout le Fournisseur du jeton courant — jamais un id pris dans l'URL,
+     * pour que les routes "moi/..." ci-dessous ne puissent par construction
+     * exposer que les données de l'appelant (pas d'IDOR possible).
+     */
+    private function monFournisseur(Request $request): Fournisseur
+    {
+        abort_unless($request->user()->type_utilisateur === ROLE_FOURNISSEUR, 403);
+
+        return Fournisseur::findOrFail($request->user()->id);
+    }
+
+    /**
+     * Espace fournisseur en libre-service (app Fournisseur) — mêmes vues que
+     * le Centre des opérations du Coordinateur (show/produits/commandes/
+     * portefeuille/statistiques ci-dessus), simplement rejouées sur le
+     * fournisseur du jeton courant plutôt que sur un {fournisseur} de l'URL.
+     */
+    public function moiDetail(Request $request): JsonResponse
+    {
+        return $this->show($this->monFournisseur($request));
+    }
+
+    public function moiProduits(Request $request): JsonResponse
+    {
+        return $this->produits($request, $this->monFournisseur($request));
+    }
+
+    public function moiCommandes(Request $request): JsonResponse
+    {
+        return $this->commandes($request, $this->monFournisseur($request));
+    }
+
+    public function moiPortefeuille(Request $request): JsonResponse
+    {
+        return $this->portefeuille($request, $this->monFournisseur($request));
+    }
+
+    public function moiStatistiques(Request $request): JsonResponse
+    {
+        return $this->statistiques($request, $this->monFournisseur($request));
+    }
+
+    /**
+     * Onglet "Paiement" (nav du bas) — vue globale, tous produits confondus,
+     * des deux flux financiers déjà gérés séparément par produit dans le
+     * Centre de paiement (ProduitController::centrePaiement()) : les achats
+     * externes déclarés (commission due PAR le fournisseur : "À Payer"/
+     * "Payé") et les crédits de portefeuille (versement Ordi'Space →
+     * fournisseur pour les commandes in-app : "À Recevoir"/"Payé"). Aucune
+     * nouvelle logique métier — une fusion triée par date des deux flux déjà
+     * existants. `solde` reprend `Fournisseur::solde_portefeuille` tel quel
+     * (même donnée que "Space"/`moiPortefeuille()`, pas un nouveau concept).
+     * Les 3 totaux ("à_payer"/"paye"/"a_recevoir") sont bornés par `periode`
+     * (même convention que `centrePaiement()`, `resoudre_periode()`) — "Payer
+     * tout" reste volontairement inerte, comme le "Payer" du Centre de
+     * paiement (aucun endpoint de règlement réel n'existe encore).
+     */
+    public function moiPaiements(Request $request): JsonResponse
+    {
+        return $this->success($this->paiementsPour($this->monFournisseur($request), $request));
+    }
+
+    /**
+     * Même vue que moiPaiements(), pour le Coordinateur/Admin consultant la
+     * fiche d'UN fournisseur ({fournisseur} de l'URL) — l'admin est l'œil
+     * central du système, il doit voir les mêmes deux flux (achats externes
+     * + crédits) que le fournisseur voit lui-même dans son onglet Paiement.
+     */
+    public function paiements(Request $request, Fournisseur $fournisseur): JsonResponse
+    {
+        return $this->success($this->paiementsPour($fournisseur, $request));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function paiementsPour(Fournisseur $fournisseur, Request $request): array
+    {
+        [$debut, $fin] = resoudre_periode($request);
+
+        $achatsQuery = fn () => AchatExterne::where('fournisseur_id', $fournisseur->user_id)
+            ->when($debut && $fin, fn ($q) => $q->whereBetween('created_at', [$debut, $fin]));
+
+        $transactionsQuery = fn () => $fournisseur->transactionsPortefeuille()
+            ->where('type', TYPE_TRANSACTION_PORTEFEUILLE_CREDIT)
+            ->when($debut && $fin, fn ($q) => $q->whereBetween('date_transaction', [$debut, $fin]));
+
+        // Totaux calculés par requête SUM indépendante (chaque appel de
+        // `$achatsQuery()`/`$transactionsQuery()` repart d'un query builder
+        // neuf) — jamais dérivés de la liste `items` ci-dessous, plafonnée à
+        // 100 lignes par flux (une longue période pourrait sinon
+        // sous-compter les totaux affichés).
+        $totalAPayer = (float) $achatsQuery()->where('statut', STATUT_ACHAT_EXTERNE_EN_ATTENTE)->sum('commission_due');
+        $totalPaye = (float) $achatsQuery()->where('statut', STATUT_ACHAT_EXTERNE_PAYE)->sum('commission_due')
+            + (float) $transactionsQuery()->where('statut', STATUT_TRANSACTION_PORTEFEUILLE_PAYE)->sum('montant');
+        $totalARecevoir = (float) $transactionsQuery()->where('statut', STATUT_TRANSACTION_PORTEFEUILLE_EN_ATTENTE)->sum('montant');
+
+        $achats = $achatsQuery()
+            ->with('produit.images')
+            ->latest('created_at')
+            ->limit(100)
+            ->get()
+            ->map(fn (AchatExterne $achat) => [
+                'type' => 'achat_externe',
+                'id' => $achat->id,
+                'produit_id' => $achat->produit_id,
+                'commande_id' => null,
+                'nom_produit' => $achat->produit?->nom_produit,
+                'photo' => $achat->produit?->images->first()?->url_image,
+                'montant' => (float) $achat->commission_due,
+                'statut' => $achat->statut,
+                'date_heure' => $achat->created_at,
+                // Champs supplémentaires nécessaires à FeuilleModifierMontant
+                // (identique au Centre de paiement, voir AchatExterneCentrePaiement).
+                'date_vente' => $achat->date_vente->toDateString(),
+                'montant_vente' => (float) $achat->montant_vente,
+                'commission_due' => (float) $achat->commission_due,
+                'note' => $achat->note,
+                'montant_modifie_propose' => $achat->montant_modifie_propose !== null ? (float) $achat->montant_modifie_propose : null,
+                'motif_modification' => $achat->motif_modification,
+                'statut_modification' => $achat->statut_modification,
+            ]);
+
+        $transactions = $transactionsQuery()
+            ->with('commande.lignes.produit.images')
+            ->latest('date_transaction')
+            ->limit(100)
+            ->get()
+            ->map(function (TransactionPortefeuilleFournisseur $transaction) {
+                $produit = $transaction->commande?->lignes->first()?->produit;
+
+                return [
+                    'type' => 'transaction',
+                    'id' => $transaction->id,
+                    'produit_id' => null,
+                    'commande_id' => $transaction->commande_id,
+                    'nom_produit' => $produit?->nom_produit,
+                    'photo' => $produit?->images->first()?->url_image,
+                    'montant' => (float) $transaction->montant,
+                    'statut' => $transaction->statut,
+                    'date_heure' => $transaction->date_transaction,
+                ];
+            });
+
+        $items = $achats->concat($transactions)
+            ->sortByDesc(fn ($item) => $item['date_heure']->timestamp)
+            ->values();
+
+        return [
+            'solde' => (float) $fournisseur->solde_portefeuille,
+            'total_a_payer' => $totalAPayer,
+            'total_paye' => $totalPaye,
+            'total_a_recevoir' => $totalARecevoir,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * Fiche entreprise du fournisseur — champs de coordonnées/localisation
+     * uniquement. `nom_entreprise` (identité contractuelle), `taux_commission`
+     * et `solde_portefeuille` sont volontairement exclus : ils ne se modifient
+     * jamais par le fournisseur lui-même (voir modifierCommission/
+     * enregistrerPaiement/payerTout ci-dessus, réservés au staff).
+     */
+    public function modifierMonProfil(Request $request): JsonResponse
+    {
+        $fournisseur = $this->monFournisseur($request);
+
+        $data = $request->validate([
+            'adresse_entreprise' => ['nullable', 'string', 'max:255'],
+            'contact_pro' => ['nullable', 'string', 'max:100'],
+            'nom_gerant' => ['nullable', 'string', 'max:100'],
+            'telephone_gerant' => ['nullable', 'string', 'max:30'],
+            'horaires_ouverture' => ['nullable', 'string', 'max:255'],
+            'lien_maps' => ['nullable', 'url', 'max:500'],
+            'zone_couverte' => ['nullable', 'string', 'max:255'],
         ]);
 
         $fournisseur->update($data);

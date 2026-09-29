@@ -57,9 +57,24 @@ class ProduitPolicy
         return $user->can(PERMISSION_PRODUITS_VALIDER);
     }
 
+    /**
+     * Coordinateur/Admin : n'importe quel produit. Fournisseur (a désormais
+     * aussi PERMISSION_PRODUITS_SUPPRIMER, menu ☰ app Fournisseur) : le sien
+     * uniquement — sinon n'importe quel fournisseur pourrait supprimer le
+     * produit d'un autre. destroy() bloque déjà la suppression d'un produit
+     * déjà commandé, quel que soit l'acteur.
+     */
     public function delete(User $user, Produit $produit): bool
     {
-        return $user->can(PERMISSION_PRODUITS_SUPPRIMER);
+        if (! $user->can(PERMISSION_PRODUITS_SUPPRIMER)) {
+            return false;
+        }
+
+        if ($user->type_utilisateur === ROLE_FOURNISSEUR) {
+            return $produit->fournisseur_id === $user->id;
+        }
+
+        return true;
     }
 
     /**

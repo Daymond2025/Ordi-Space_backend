@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Produit\StoreProduitRequest;
 use App\Http\Requests\Produit\ValiderProduitRequest;
+use App\Models\AchatExterne;
+use App\Models\Commande;
 use App\Models\FraisLivraisonProduit;
 use App\Models\ImageProduit;
 use App\Models\Localite;
 use App\Models\Produit;
+use App\Models\TransactionPortefeuilleFournisseur;
 use App\Models\ValidationProduit;
 use App\Services\FiltresCatalogue;
 use Illuminate\Http\Request;
@@ -95,6 +98,225 @@ class ProduitController extends Controller
     }
 
     /**
+     * "Centre de paiement des commissions" d'un produit (app Fournisseur) —
+     * atteint depuis l'icône "Paiement" de la discussion produit. Réservé au
+     * fournisseur propriétaire (pas encore de mockup pour une vue Coordinateur
+     * de cet écran).
+     *
+     * `total_a_payer` NE VIENT PLUS des ventes in-app : pour une commande
+     * normale du flux commande/livreur, la marge Ordi'Space est déjà retenue
+     * en amont (écart prix_vente/prix décidé par le Coordinateur à la
+     * publication) et le fournisseur est seulement crédité — jamais débité
+     * (voir Commande::crediterFournisseursSiEligible()). Le vrai "reste à
+     * payer" par le fournisseur ne peut donc venir que des ventes qu'il
+     * déclare lui-même avoir faites HORS de l'app ("Ajouter un achat
+     * Externe", voir declarerAchatExterne()) — un cas où il encaisse
+     * réellement le client et doit ensuite sa commission à Ordi'Space.
+     * Comme "Commission totale à payer" sur l'écran Space, ce reste-à-payer
+     * n'est jamais borné à une période (`?periode=` ne filtre que la liste
+     * `achats_externes`, pas ce total).
+     */
+    public function centrePaiement(Request $request, Produit $produit): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->type_utilisateur === ROLE_FOURNISSEUR && $produit->fournisseur_id === $user->id, 403);
+
+        [$debut, $fin] = resoudre_periode($request);
+
+        $creditsQuery = fn () => TransactionPortefeuilleFournisseur::where('fournisseur_id', $user->id)
+            ->where('type', TYPE_TRANSACTION_PORTEFEUILLE_CREDIT)
+            ->whereHas('commande.lignes', fn ($q) => $q->where('produit_id', $produit->id));
+
+        $chiffreAffaires = (float) $creditsQuery()
+            ->when($debut && $fin, fn ($q) => $q->whereBetween('date_transaction', [$debut, $fin]))
+            ->sum('montant');
+
+        $achatsExternesQuery = fn () => AchatExterne::where('produit_id', $produit->id)
+            ->where('fournisseur_id', $user->id);
+
+        $totalAPayer = (float) $achatsExternesQuery()
+            ->where('statut', STATUT_ACHAT_EXTERNE_EN_ATTENTE)
+            ->sum('commission_due');
+
+        $commandesQuery = fn () => Commande::whereHas('lignes', fn ($q) => $q->where('produit_id', $produit->id))
+            ->when($debut && $fin, fn ($q) => $q->whereBetween('date_commande', [$debut, $fin]));
+
+        $compteurs = [
+            'nouvelle' => (clone $commandesQuery())->where('statut_commande', STATUT_COMMANDE_EN_ATTENTE)->count(),
+            'terminees' => (clone $commandesQuery())->where('statut_commande', STATUT_COMMANDE_LIVREE)->count(),
+            'annulees' => (clone $commandesQuery())->where('statut_commande', STATUT_COMMANDE_ANNULEE)->count(),
+        ];
+
+        // Regroupées par jour civil + statut (pas par semaine pour les plus
+        // anciennes — simplification volontaire, à ajuster si un futur mockup
+        // le précise). `statut` ici décrit le versement Ordi'Space → fournisseur
+        // (pending/déjà versé), pas une commission due par le fournisseur —
+        // à ne pas confondre avec `achats_externes` ci-dessous.
+        $transactions = $creditsQuery()
+            ->when($debut && $fin, fn ($q) => $q->whereBetween('date_transaction', [$debut, $fin]))
+            ->selectRaw('DATE(date_transaction) as jour, statut, COUNT(DISTINCT commande_id) as nombre_commandes, SUM(montant) as montant')
+            ->groupBy('jour', 'statut')
+            ->orderByDesc('jour')
+            ->get()
+            ->map(fn ($ligne) => [
+                'date' => $ligne->jour,
+                'statut' => $ligne->statut,
+                'nombre_commandes' => (int) $ligne->nombre_commandes,
+                'montant' => (float) $ligne->montant,
+            ]);
+
+        $achatsExternes = $achatsExternesQuery()
+            ->when($debut && $fin, fn ($q) => $q->whereBetween('date_vente', [$debut, $fin]))
+            ->orderByDesc('date_vente')
+            ->get()
+            ->map(fn (AchatExterne $achat) => [
+                'id' => $achat->id,
+                'date_vente' => $achat->date_vente->toDateString(),
+                'montant_vente' => (float) $achat->montant_vente,
+                'commission_due' => (float) $achat->commission_due,
+                'statut' => $achat->statut,
+                'note' => $achat->note,
+                // "Modifier le montant" : `commission_due` ci-dessus reste
+                // TOUJOURS le montant dû tant que `statut_modification` n'est
+                // pas "approuvee" (pas encore possible, aucun endpoint
+                // Coordinateur construit) — ces 3 champs ne servent qu'à
+                // afficher qu'une demande de réduction est en attente.
+                'montant_modifie_propose' => $achat->montant_modifie_propose !== null ? (float) $achat->montant_modifie_propose : null,
+                'motif_modification' => $achat->motif_modification,
+                'statut_modification' => $achat->statut_modification,
+            ]);
+
+        return $this->success([
+            'chiffre_affaires' => $chiffreAffaires,
+            'total_a_payer' => $totalAPayer,
+            'compteurs' => $compteurs,
+            'transactions' => $transactions,
+            'achats_externes' => $achatsExternes,
+        ]);
+    }
+
+    /**
+     * Détail d'une ligne de `centrePaiement()::transactions` (une carte
+     * "Aujourd'hui — 03 COMMANDES") — le fournisseur tape dessus pour voir
+     * les commandes individuelles derrière l'agrégat du jour. `statut` ici
+     * décrit toujours le versement Ordi'Space → fournisseur (comme dans
+     * `transactions`), jamais une commission due par lui.
+     */
+    public function detailTransactionsJour(Request $request, Produit $produit): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->type_utilisateur === ROLE_FOURNISSEUR && $produit->fournisseur_id === $user->id, 403);
+
+        $data = $request->validate([
+            'date' => ['required', 'date'],
+            'statut' => ['required', Rule::in([STATUT_TRANSACTION_PORTEFEUILLE_EN_ATTENTE, STATUT_TRANSACTION_PORTEFEUILLE_PAYE])],
+        ]);
+
+        $lignes = TransactionPortefeuilleFournisseur::where('fournisseur_id', $user->id)
+            ->where('type', TYPE_TRANSACTION_PORTEFEUILLE_CREDIT)
+            ->where('statut', $data['statut'])
+            ->whereDate('date_transaction', $data['date'])
+            ->whereHas('commande.lignes', fn ($q) => $q->where('produit_id', $produit->id))
+            ->with(['commande.client.user', 'commande.livraison.adresse.localite', 'commande.lignes.produit.images'])
+            ->orderBy('date_transaction')
+            ->get()
+            ->map(function (TransactionPortefeuilleFournisseur $transaction) {
+                $commande = $transaction->commande;
+                $apercu = $commande->versApercu();
+
+                return [
+                    'commande_id' => $commande->id,
+                    'statut_commande' => $commande->statut_commande,
+                    'heure' => $transaction->date_transaction->format('H:i'),
+                    'zone_livraison' => $apercu['zone_livraison'],
+                    'telephone' => $apercu['telephone'],
+                    'photo' => $apercu['photo'],
+                    'montant' => (float) $transaction->montant,
+                    'statut' => $transaction->statut,
+                ];
+            });
+
+        return $this->success($lignes);
+    }
+
+    /**
+     * "Ajouter un achat Externe" (Centre de paiement des commissions) — le
+     * fournisseur déclare une vente de CE produit faite hors du flux
+     * commande in-app (il a encaissé le client lui-même). Le taux appliqué
+     * est celui de son compte au moment de la déclaration (figé ensuite,
+     * voir la migration) ; la commission n'est PAS créditée/déduite
+     * automatiquement d'un portefeuille — elle reste "en attente" jusqu'à ce
+     * qu'un Coordinateur/Admin confirme le règlement réel (fonctionnalité pas
+     * encore demandée côté back-office, comme payerCreditsEnAttente() pour
+     * le flux in-app).
+     */
+    public function declarerAchatExterne(Request $request, Produit $produit): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->type_utilisateur === ROLE_FOURNISSEUR && $produit->fournisseur_id === $user->id, 403);
+
+        $data = $request->validate([
+            'montant_vente' => ['required', 'numeric', 'min:0.01'],
+            'date_vente' => ['required', 'date', 'before_or_equal:today'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $taux = (float) $user->fournisseur->taux_commission;
+
+        $achat = AchatExterne::create([
+            'produit_id' => $produit->id,
+            'fournisseur_id' => $user->id,
+            'montant_vente' => $data['montant_vente'],
+            'taux_commission_applique' => $taux,
+            'commission_due' => round($data['montant_vente'] * $taux / 100, 2),
+            'statut' => STATUT_ACHAT_EXTERNE_EN_ATTENTE,
+            'date_vente' => $data['date_vente'],
+            'note' => $data['note'] ?? null,
+        ]);
+
+        return $this->success($achat, status: 201);
+    }
+
+    /**
+     * "Modifier le montant" (Centre de paiement des commissions) — le
+     * fournisseur propose un montant réduit pour la commission d'un achat
+     * externe, avec un motif. Ça ne touche JAMAIS `commission_due` (le
+     * montant original) : tant qu'un Coordinateur n'a pas approuvé
+     * (fonctionnalité pas encore construite, futur mockup), l'original reste
+     * le seul dû — voir la note sur STATUT_MODIFICATION_* dans
+     * app/Helpers/const.php. Une demande déjà en attente est écrasée par une
+     * nouvelle (le fournisseur peut changer d'avis avant validation).
+     */
+    public function demanderModificationAchatExterne(Request $request, Produit $produit, AchatExterne $achat): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->type_utilisateur === ROLE_FOURNISSEUR && $produit->fournisseur_id === $user->id, 403);
+        abort_unless($achat->produit_id === $produit->id && $achat->fournisseur_id === $user->id, 403);
+
+        $data = $request->validate([
+            'montant_propose' => ['required', 'numeric', 'min:0'],
+            'motif' => ['required', 'string', 'max:500'],
+        ]);
+
+        // Une "modification" est toujours une réduction (voir l'exemple du
+        // PDG : 10 000 → 5 000) — jamais une augmentation, qui n'aurait pas
+        // de sens ici (le fournisseur ne demanderait pas à devoir plus).
+        if ($data['montant_propose'] >= (float) $achat->commission_due) {
+            throw ValidationException::withMessages([
+                'montant_propose' => 'Le montant proposé doit être inférieur à la commission actuelle.',
+            ]);
+        }
+
+        $achat->update([
+            'montant_modifie_propose' => $data['montant_propose'],
+            'motif_modification' => $data['motif'],
+            'statut_modification' => STATUT_MODIFICATION_EN_ATTENTE,
+        ]);
+
+        return $this->success($achat->fresh());
+    }
+
+    /**
      * Vue catalogue du coordinateur : par défaut la file d'attente de
      * validation (inchangé) ; ?statut=tous lève la restriction (même
      * convention que CommandeController::filtrerPourCoordinateur()) ;
@@ -140,6 +362,14 @@ class ProduitController extends Controller
         // publique.
         if ($user && in_array($user->type_utilisateur, [ROLE_ADMINISTRATEUR, ROLE_COORDINATEUR], true)) {
             $produit->fournisseur?->load('user');
+        }
+
+        // "Mes produits" (app Fournisseur) : le motif du rejet du Coordinateur
+        // doit être visible par le fournisseur propriétaire pour qu'il sache
+        // quoi corriger — jamais exposé aux autres (mêmes règles que
+        // $peutVoirNonValide ci-dessus).
+        if ($produit->statut_produit === STATUT_PRODUIT_REJETE && $peutVoirNonValide) {
+            $produit->motif_rejet = $produit->validations()->latest('date_validation')->value('motif_rejet');
         }
 
         return $this->success($produit);
@@ -378,6 +608,8 @@ class ProduitController extends Controller
             'duree_garantie_mois' => ['nullable', 'integer', 'min:0'],
             'cadeaux' => ['nullable', 'array'],
             'cadeaux.*' => ['string', 'max:100'],
+            'contenu_pack' => ['nullable', 'array'],
+            'contenu_pack.*' => ['string', 'max:100'],
         ]);
 
         $produit->update($data);

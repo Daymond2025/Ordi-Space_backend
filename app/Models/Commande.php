@@ -130,6 +130,10 @@ class Commande extends Model
             ROLE_COMMERCIAL => $this->commercial_id === $user->id,
             ROLE_LIVREUR => $this->livraison?->livreur_id === $user->id,
             ROLE_COORDINATEUR, ROLE_ADMINISTRATEUR => true,
+            // Écran détail/suivi commande (app Fournisseur) — même périmètre
+            // qu'estAccessibleConversationPar() (au moins une ligne sur un de
+            // ses produits), utilisé jusqu'ici uniquement pour la discussion.
+            ROLE_FOURNISSEUR => $this->lignes()->whereHas('produit', fn ($q) => $q->where('fournisseur_id', $user->id))->exists(),
             default => false,
         };
     }

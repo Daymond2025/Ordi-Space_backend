@@ -24,7 +24,7 @@ class Produit extends Model
         'prix', 'quantite_stock', 'statut_produit', 'date_ajout',
         'type_livraison', 'duree_garantie_mois', 'est_booste',
         'processeur', 'memoire_ram', 'stockage', 'taille',
-        'systeme_exploitation', 'carte_graphique', 'couleur', 'cadeaux', 'etat_produit',
+        'systeme_exploitation', 'carte_graphique', 'couleur', 'cadeaux', 'contenu_pack', 'etat_produit',
         'prix_vente', 'commission_agent', 'commission_apporteur', 'commission_revente',
         'pourcentage_reduction', 'prix_barre', 'marque',
     ];
@@ -60,6 +60,7 @@ class Produit extends Model
             'date_ajout' => 'datetime',
             'est_booste' => 'boolean',
             'cadeaux' => 'array',
+            'contenu_pack' => 'array',
         ];
     }
 
@@ -117,6 +118,11 @@ class Produit extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(Message::class, 'produit_id');
+    }
+
+    public function achatsExternes(): HasMany
+    {
+        return $this->hasMany(AchatExterne::class, 'produit_id');
     }
 
     public function fraisLivraison(): HasMany

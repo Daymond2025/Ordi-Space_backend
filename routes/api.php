@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\PaiementController;
 use App\Http\Controllers\Api\PanierController;
 use App\Http\Controllers\Api\PrivilegeController;
 use App\Http\Controllers\Api\ProduitController;
+use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\QuestionFrequenteController;
 use App\Http\Controllers\Api\ReclamationController;
 use App\Http\Controllers\Api\RetourController;
@@ -120,6 +121,10 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware('auth:sanctum')->group(function () {
 
+        // Clé publique VAPID (Web Push) — n'importe quel compte connecté peut
+        // la lire, elle n'a rien de secret (c'est la clé PRIVÉE qui l'est).
+        Route::get('push/cle-publique', [PushSubscriptionController::class, 'clePublique']);
+
         Route::prefix('moi')->group(function () {
             Route::get('profil', [MoiController::class, 'profil']);
             Route::patch('profil', [MoiController::class, 'modifierProfil']);
@@ -139,6 +144,10 @@ Route::prefix('v1')->group(function () {
             Route::get('recapitulatif-jour', [MoiController::class, 'recapitulatifJour']);
             Route::patch('disponibilite', [MoiController::class, 'basculerDisponibilite']);
             Route::patch('vehicule', [MoiController::class, 'modifierVehicule']);
+
+            // Abonnements Web Push — voir App\Services\PushNotificationService.
+            Route::post('push-subscriptions', [PushSubscriptionController::class, 'store']);
+            Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy']);
 
             Route::get('panier', [PanierController::class, 'index']);
             Route::post('panier/lignes', [PanierController::class, 'ajouter']);
@@ -169,6 +178,25 @@ Route::prefix('v1')->group(function () {
             Route::get('liens/{lien}', [BoutiqueController::class, 'lien']);
         });
 
+        // Espace Fournisseur en libre-service (app Fournisseur) — mêmes vues
+        // que le Centre des opérations du Coordinateur (fournisseurs/{id}/...
+        // plus bas), rejouées sur le fournisseur du jeton courant. Voir
+        // FournisseurController::monFournisseur().
+        Route::prefix('fournisseur')->middleware('role:'.ROLE_FOURNISSEUR)->group(function () {
+            Route::get('moi', [FournisseurController::class, 'moiDetail']);
+            Route::get('moi/produits', [FournisseurController::class, 'moiProduits']);
+            Route::get('moi/commandes', [FournisseurController::class, 'moiCommandes']);
+            Route::get('moi/portefeuille', [FournisseurController::class, 'moiPortefeuille']);
+            Route::get('moi/statistiques', [FournisseurController::class, 'moiStatistiques']);
+            // Onglet "Paiement" (bottombar) — vue globale, voir FournisseurController::moiPaiements().
+            Route::get('moi/paiements', [FournisseurController::class, 'moiPaiements']);
+            Route::patch('moi/profil', [FournisseurController::class, 'modifierMonProfil']);
+            // Onglet "Livreurs" (bottombar) — voir LivreurController::listePourFournisseur().
+            Route::get('moi/livreurs', [LivreurController::class, 'listePourFournisseur']);
+            Route::get('moi/livreurs/{livreur}', [LivreurController::class, 'detailPourFournisseur']);
+            Route::get('moi/livraisons-disponibles', [LivreurController::class, 'livraisonsDisponiblesPourFournisseur']);
+        });
+
         Route::post('categories', [CategorieController::class, 'store']);
         Route::put('categories/{categorie}', [CategorieController::class, 'update']);
 
@@ -187,6 +215,13 @@ Route::prefix('v1')->group(function () {
         Route::patch('produits/{produit}/booster', [ProduitController::class, 'basculerBoost'])->middleware('permission:'.PERMISSION_PRODUITS_BOOSTER);
         Route::patch('produits/{produit}/stock', [ProduitController::class, 'modifierStock'])->middleware('permission:'.PERMISSION_PRODUITS_GERER_STOCK);
         Route::get('produits/{produit}/frais-livraison', [ProduitController::class, 'previsualiserFraisLivraison'])->middleware('permission:'.PERMISSION_COMMANDES_CREER);
+        // "Centre de paiement des commissions" (app Fournisseur, icône
+        // "Paiement" de la discussion produit) — réservé au fournisseur
+        // propriétaire, voir ProduitController::centrePaiement().
+        Route::get('produits/{produit}/centre-paiement', [ProduitController::class, 'centrePaiement'])->middleware('permission:'.PERMISSION_PRODUITS_CONSULTER);
+        Route::get('produits/{produit}/centre-paiement/jour', [ProduitController::class, 'detailTransactionsJour'])->middleware('permission:'.PERMISSION_PRODUITS_CONSULTER);
+        Route::post('produits/{produit}/achats-externes', [ProduitController::class, 'declarerAchatExterne'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
+        Route::post('produits/{produit}/achats-externes/{achat}/demander-modification', [ProduitController::class, 'demanderModificationAchatExterne'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
 
         // Discussion produit façon WhatsApp — Espace Coordinateur (Phase 2).
         Route::middleware('permission:'.PERMISSION_MESSAGES_PRODUIT_GERER)->group(function () {
@@ -207,6 +242,9 @@ Route::prefix('v1')->group(function () {
                 Route::get('{fournisseur}/commandes', [FournisseurController::class, 'commandes']);
                 Route::get('{fournisseur}/portefeuille', [FournisseurController::class, 'portefeuille']);
                 Route::get('{fournisseur}/statistiques', [FournisseurController::class, 'statistiques']);
+                // Même vue fusionnée (achats externes + crédits) que l'onglet
+                // "Paiement" du fournisseur, voir FournisseurController::paiements().
+                Route::get('{fournisseur}/paiements', [FournisseurController::class, 'paiements']);
             });
             Route::post('{fournisseur}/portefeuille/paiement', [FournisseurController::class, 'enregistrerPaiement'])
                 ->middleware('permission:'.PERMISSION_FOURNISSEURS_PORTEFEUILLE_GERER);
@@ -232,11 +270,23 @@ Route::prefix('v1')->group(function () {
 
         Route::get('commandes', [CommandeController::class, 'index'])->middleware('permission:'.PERMISSION_COMMANDES_CONSULTER);
         Route::post('commandes', [CommandeController::class, 'store'])->middleware('permission:'.PERMISSION_COMMANDES_CREER);
-        Route::get('commandes/{commande}', [CommandeController::class, 'show'])->middleware('permission:'.PERMISSION_COMMANDES_CONSULTER);
+        // Détail/suivi : accessible aussi au Fournisseur (permission.commande
+        // gérer, déjà accordée pour la discussion) — Commande::estAccessiblePar()
+        // fait ensuite le tri fin (seulement ses propres commandes).
+        Route::get('commandes/{commande}', [CommandeController::class, 'show'])->middleware('permission:'.PERMISSION_COMMANDES_CONSULTER.'|'.PERMISSION_MESSAGES_COMMANDE_GERER);
         Route::post('commandes/{commande}/valider', [CommandeController::class, 'valider'])->middleware('permission:'.PERMISSION_COMMANDES_VALIDER);
         Route::post('commandes/{commande}/traiter-probleme', [CommandeController::class, 'traiterProbleme'])->middleware('permission:'.PERMISSION_COMMANDES_TRAITER);
         Route::post('commandes/{commande}/preparee', [CommandeController::class, 'marquerPreparee'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
-        Route::get('commandes/{commande}/suivi', [CommandeController::class, 'suivi'])->middleware('permission:'.PERMISSION_COMMANDES_CONSULTER);
+        // Écran "Recherche d'un livreur" (app Fournisseur) — annuler la mise
+        // en recherche, ou relever le frais de livraison pour inciter les
+        // livreurs disponibles à accepter plus vite.
+        Route::post('commandes/{commande}/annuler-recherche', [CommandeController::class, 'annulerRecherche'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
+        Route::post('commandes/{commande}/frais-livraison/augmenter', [CommandeController::class, 'augmenterFraisLivraison'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
+        // "Assigner une nouvelle mission" (feuille détail livreur, app
+        // Fournisseur) — choix manuel d'un livreur, mais borné au vivier de
+        // SES propres commandes, voir CommandeController::assignerLivreurParFournisseur().
+        Route::post('commandes/{commande}/assigner-livreur-fournisseur', [CommandeController::class, 'assignerLivreurParFournisseur'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
+        Route::get('commandes/{commande}/suivi', [CommandeController::class, 'suivi'])->middleware('permission:'.PERMISSION_COMMANDES_CONSULTER.'|'.PERMISSION_MESSAGES_COMMANDE_GERER);
         Route::post('commandes/{commande}/assigner-livreur', [CommandeController::class, 'assignerLivreur'])->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
         Route::post('commandes/{commande}/statut', [CommandeController::class, 'changerStatut'])->middleware('permission:'.PERMISSION_COMMANDES_CHANGER_STATUT);
         Route::get('livreurs', [LivreurController::class, 'index'])->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
@@ -316,6 +366,7 @@ Route::prefix('v1')->group(function () {
             Route::get('demandes', [DemandeSavController::class, 'index']);
             Route::post('demandes', [DemandeSavController::class, 'store'])->middleware('permission:'.PERMISSION_SAV_CREER);
             Route::get('demandes/{demandeSav}', [DemandeSavController::class, 'show']);
+            Route::get('techniciens', [RendezVousController::class, 'techniciens']);
 
             Route::middleware('permission:'.PERMISSION_SAV_TRAITER)->group(function () {
                 Route::patch('demandes/{demandeSav}/statut', [DemandeSavController::class, 'changerStatut']);
@@ -363,6 +414,8 @@ Route::prefix('v1')->group(function () {
             Route::get('commerciaux', [CommercialController::class, 'liste'])
                 ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
             Route::get('commerciaux/{commercial}', [CommercialController::class, 'show'])
+                ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
+            Route::get('commerciaux/{commercial}/commandes', [CommercialController::class, 'commandes'])
                 ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
             Route::patch('commerciaux/{commercial}/statut', [CommercialController::class, 'changerStatut'])
                 ->middleware('permission:'.PERMISSION_COMMERCIAUX_GERER);

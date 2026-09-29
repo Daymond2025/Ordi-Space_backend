@@ -81,4 +81,13 @@ return [
         'url' => env('PAGE_COMMANDE_URL', 'http://localhost:3010'),
     ],
 
+    // Notifications push web (Web Push/VAPID) — voir App\Services\PushNotificationService.
+    // Clés générées une fois via Minishlink\WebPush\VAPID::createVapidKeys(),
+    // jamais régénérées ensuite (invaliderait tous les abonnements existants).
+    'vapid' => [
+        'subject' => env('VAPID_SUBJECT', 'mailto:contact@daymondboutique.com'),
+        'public_key' => env('VAPID_PUBLIC_KEY'),
+        'private_key' => env('VAPID_PRIVATE_KEY'),
+    ],
+
 ];

@@ -15,7 +15,7 @@ class DemandeSavController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        $query = DemandeSav::with(['client.user', 'garantie.ligneCommande.produit', 'rendezVous.technicien.user']);
+        $query = DemandeSav::with(['client.user', 'garantie.ligneCommande.produit.images', 'rendezVous.technicien.user']);
 
         if ($user->type_utilisateur === ROLE_CLIENT) {
             $query->where('client_id', $user->id);
@@ -35,7 +35,7 @@ class DemandeSavController extends Controller
 
         return $this->success($demandeSav->load([
             'client.user',
-            'garantie.ligneCommande.produit',
+            'garantie.ligneCommande.produit.images',
             'rendezVous.technicien.user',
             'rendezVous.intervention',
         ]));

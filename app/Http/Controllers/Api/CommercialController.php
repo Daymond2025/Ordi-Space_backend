@@ -100,6 +100,31 @@ class CommercialController extends Controller
     }
 
     /**
+     * Historique des commandes saisies par CE commercial — fiche Admin/
+     * Coordinateur ("aucun détail ne doit échapper à l'admin"), les stats de
+     * show() ne donnant que des compteurs, jamais la liste elle-même.
+     */
+    public function commandes(Request $request, Commercial $commercial): JsonResponse
+    {
+        abort_unless($request->user()->can(PERMISSION_COMMERCIAUX_CONSULTER), 403);
+
+        $commandes = $commercial->commandes()
+            ->with(['client.user', 'lignes.produit'])
+            ->latest('date_commande')
+            ->paginate(paginate_per_page($request))
+            ->through(fn (Commande $commande) => [
+                'commande_id' => $commande->id,
+                'nom_produit' => $commande->lignes->first()?->produit?->nom_produit,
+                'nom_client' => trim(($commande->client?->user?->prenom ?? '').' '.($commande->client?->user?->nom ?? '')),
+                'statut' => $commande->statut_commande,
+                'montant_total' => (float) $commande->montant_total,
+                'date_commande' => $commande->date_commande,
+            ]);
+
+        return $this->success($commandes);
+    }
+
+    /**
      * Active/suspend le compte du commercial — action de gestion d'équipe du
      * coordinateur, à la différence du toggle "En ligne" du livreur (lecture
      * seule, reflète un statut que seul le livreur contrôle).

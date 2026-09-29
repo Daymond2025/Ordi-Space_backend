@@ -5,11 +5,30 @@ namespace App\Http\Controllers\Api\Sav;
 use App\Http\Controllers\Controller;
 use App\Models\DemandeSav;
 use App\Models\RendezVous;
+use App\Models\TechnicienMaintenance;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class RendezVousController extends Controller
 {
+    /**
+     * Liste des techniciens à proposer dans le formulaire "Planifier un
+     * rendez-vous" (Coordinateur) — aucun mockup ne le précise, champ
+     * `technicien_id` volontairement nullable côté store()/update() : un
+     * rendez-vous peut être planifié sans technicien encore affecté.
+     */
+    public function techniciens(): JsonResponse
+    {
+        $techniciens = TechnicienMaintenance::with('user')->get()->map(fn (TechnicienMaintenance $t) => [
+            'user_id' => $t->user_id,
+            'nom' => $t->user->nom,
+            'prenom' => $t->user->prenom,
+            'specialite' => $t->specialite,
+        ]);
+
+        return $this->success($techniciens);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();

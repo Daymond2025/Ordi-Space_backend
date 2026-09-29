@@ -34,12 +34,19 @@ class BoutiqueController extends Controller
 
         $parStatutAffiche = VenteBoutique::statutsCommandeParStatutAffiche();
 
+        // Les stats respectent `source`/`livreur_id` (ex. consultées depuis la
+        // fiche d'UN livreur précis, filtrées sur lui) — jamais `statut`, dont
+        // le rôle est justement de ventiler les comptes par statut.
+        $baseFiltree = fn () => VenteBoutique::query()
+            ->when($data['source'] ?? null, fn ($q, $source) => $q->where('source', $source))
+            ->when($data['livreur_id'] ?? null, fn ($q, $livreurId) => $q->where('livreur_id', $livreurId));
+
         $comptes = [];
         foreach ($parStatutAffiche as $statut => $statutsCommande) {
-            $comptes[$statut] = VenteBoutique::whereHas('commande', fn ($q) => $q->whereIn('statut_commande', $statutsCommande))->count();
+            $comptes[$statut] = $baseFiltree()->whereHas('commande', fn ($q) => $q->whereIn('statut_commande', $statutsCommande))->count();
         }
 
-        $commissionSomme = fn (array $statutsCommande) => (float) VenteBoutique::whereHas(
+        $commissionSomme = fn (array $statutsCommande) => (float) $baseFiltree()->whereHas(
             'commande',
             fn ($q) => $q->whereIn('statut_commande', $statutsCommande)
         )->sum('commission');

@@ -263,6 +263,32 @@ class PortefeuilleCommissionsTest extends TestCase
         $this->actingAs($admin)->getJson('/api/v1/admin/boutique/commandes?statut=zzz')->assertUnprocessable();
     }
 
+    /**
+     * Les stats ("par_statut", "commission_a_valider", "commission_acquise")
+     * doivent porter sur le même périmètre que la liste filtrée — utilisé
+     * par la fiche Admin d'UN livreur (Ordi'Space_Admin_Web/FicheLivreur.tsx),
+     * qui affiche `commission_acquise` comme si elle n'appartenait qu'à lui.
+     */
+    public function test_les_stats_des_commandes_boutique_se_scopent_avec_le_filtre_livreur(): void
+    {
+        $livreurA = $this->livreurAvecVentes();
+        $livreurB = $this->livreurAvecVentes();
+        $admin = $this->creerAdmin();
+
+        $global = $this->actingAs($admin)->getJson('/api/v1/admin/boutique/commandes')->json('data.stats');
+        $this->assertSame(120000, $global['commission_acquise']);
+        $this->assertSame(30000, $global['commission_a_valider']);
+        $this->assertSame(['en_attente' => 2, 'en_cours' => 2, 'livree' => 6, 'annulee' => 2], $global['par_statut']);
+
+        $scopeA = $this->actingAs($admin)->getJson("/api/v1/admin/boutique/commandes?livreur_id={$livreurA->id}")->json('data.stats');
+        $this->assertSame(60000, $scopeA['commission_acquise']);
+        $this->assertSame(15000, $scopeA['commission_a_valider']);
+        $this->assertSame(['en_attente' => 1, 'en_cours' => 1, 'livree' => 3, 'annulee' => 1], $scopeA['par_statut']);
+
+        $scopeB = $this->actingAs($admin)->getJson("/api/v1/admin/boutique/commandes?livreur_id={$livreurB->id}")->json('data.stats');
+        $this->assertSame(60000, $scopeB['commission_acquise']);
+    }
+
     public function test_valider_une_commande_boutique_rend_la_commission_acquise_au_livreur(): void
     {
         $livreur = $this->livreurAvecVentes();
