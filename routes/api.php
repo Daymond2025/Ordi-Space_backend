@@ -1,4 +1,5 @@
 <?php
+use App\Http\Controllers\Api\Admin\AdministrateurController;
 use App\Http\Controllers\Api\Admin\AssistantIaController as AdminAssistantIaController;
 use App\Http\Controllers\Api\Admin\ClientController;
 use App\Http\Controllers\Api\Admin\CommandeController as AdminCommandeController;
@@ -197,44 +198,49 @@ Route::prefix('v1')->group(function () {
             Route::get('moi/livraisons-disponibles', [LivreurController::class, 'livraisonsDisponiblesPourFournisseur']);
         });
 
-        Route::post('categories', [CategorieController::class, 'store']);
-        Route::put('categories/{categorie}', [CategorieController::class, 'update']);
+        // Catalogue (Opérations) — écriture réservée fournisseur/coordinateur/
+        // admin selon permission ; espace:operations ne s'applique qu'aux
+        // acteurs de type administrateur (no-op pour les autres rôles).
+        Route::middleware('espace:operations')->group(function () {
+            Route::post('categories', [CategorieController::class, 'store']);
+            Route::put('categories/{categorie}', [CategorieController::class, 'update']);
 
-        // Catalogue PRODUIT : ordinateurs (fournisseur → coordinateur) ET
-        // accessoires/logiciels (Admin, publiés directement) — même endpoint.
-        // Lecture (index/show) publique, voir plus haut.
-        Route::post('produits', [ProduitController::class, 'store'])->middleware('permission:'.PERMISSION_PRODUITS_CREER);
-        Route::put('produits/{produit}', [ProduitController::class, 'update'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
-        Route::delete('produits/{produit}', [ProduitController::class, 'destroy'])->middleware('permission:'.PERMISSION_PRODUITS_SUPPRIMER);
-        Route::post('produits/{produit}/valider', [ProduitController::class, 'valider'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
-        Route::post('produits/{produit}/publier', [ProduitController::class, 'publier'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
-        Route::patch('produits/{produit}/prix', [ProduitController::class, 'modifierPrix'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
-        Route::patch('produits/{produit}/fiche', [ProduitController::class, 'modifierFiche'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
-        Route::post('produits/{produit}/images', [ProduitController::class, 'ajouterImages'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER.'|'.PERMISSION_PRODUITS_VALIDER);
-        Route::delete('produits/{produit}/images/{image}', [ProduitController::class, 'supprimerImage'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER.'|'.PERMISSION_PRODUITS_VALIDER);
-        Route::patch('produits/{produit}/booster', [ProduitController::class, 'basculerBoost'])->middleware('permission:'.PERMISSION_PRODUITS_BOOSTER);
-        Route::patch('produits/{produit}/stock', [ProduitController::class, 'modifierStock'])->middleware('permission:'.PERMISSION_PRODUITS_GERER_STOCK);
-        Route::get('produits/{produit}/frais-livraison', [ProduitController::class, 'previsualiserFraisLivraison'])->middleware('permission:'.PERMISSION_COMMANDES_CREER);
-        // "Centre de paiement des commissions" (app Fournisseur, icône
-        // "Paiement" de la discussion produit) — réservé au fournisseur
-        // propriétaire, voir ProduitController::centrePaiement().
-        Route::get('produits/{produit}/centre-paiement', [ProduitController::class, 'centrePaiement'])->middleware('permission:'.PERMISSION_PRODUITS_CONSULTER);
-        Route::get('produits/{produit}/centre-paiement/jour', [ProduitController::class, 'detailTransactionsJour'])->middleware('permission:'.PERMISSION_PRODUITS_CONSULTER);
-        Route::post('produits/{produit}/achats-externes', [ProduitController::class, 'declarerAchatExterne'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
-        Route::post('produits/{produit}/achats-externes/{achat}/demander-modification', [ProduitController::class, 'demanderModificationAchatExterne'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
+            // Catalogue PRODUIT : ordinateurs (fournisseur → coordinateur) ET
+            // accessoires/logiciels (Admin, publiés directement) — même endpoint.
+            // Lecture (index/show) publique, voir plus haut.
+            Route::post('produits', [ProduitController::class, 'store'])->middleware('permission:'.PERMISSION_PRODUITS_CREER);
+            Route::put('produits/{produit}', [ProduitController::class, 'update'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
+            Route::delete('produits/{produit}', [ProduitController::class, 'destroy'])->middleware('permission:'.PERMISSION_PRODUITS_SUPPRIMER);
+            Route::post('produits/{produit}/valider', [ProduitController::class, 'valider'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
+            Route::post('produits/{produit}/publier', [ProduitController::class, 'publier'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
+            Route::patch('produits/{produit}/prix', [ProduitController::class, 'modifierPrix'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
+            Route::patch('produits/{produit}/fiche', [ProduitController::class, 'modifierFiche'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
+            Route::post('produits/{produit}/images', [ProduitController::class, 'ajouterImages'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER.'|'.PERMISSION_PRODUITS_VALIDER);
+            Route::delete('produits/{produit}/images/{image}', [ProduitController::class, 'supprimerImage'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER.'|'.PERMISSION_PRODUITS_VALIDER);
+            Route::patch('produits/{produit}/booster', [ProduitController::class, 'basculerBoost'])->middleware('permission:'.PERMISSION_PRODUITS_BOOSTER);
+            Route::patch('produits/{produit}/stock', [ProduitController::class, 'modifierStock'])->middleware('permission:'.PERMISSION_PRODUITS_GERER_STOCK);
+            Route::get('produits/{produit}/frais-livraison', [ProduitController::class, 'previsualiserFraisLivraison'])->middleware('permission:'.PERMISSION_COMMANDES_CREER);
+            // "Centre de paiement des commissions" (app Fournisseur, icône
+            // "Paiement" de la discussion produit) — réservé au fournisseur
+            // propriétaire, voir ProduitController::centrePaiement().
+            Route::get('produits/{produit}/centre-paiement', [ProduitController::class, 'centrePaiement'])->middleware('permission:'.PERMISSION_PRODUITS_CONSULTER);
+            Route::get('produits/{produit}/centre-paiement/jour', [ProduitController::class, 'detailTransactionsJour'])->middleware('permission:'.PERMISSION_PRODUITS_CONSULTER);
+            Route::post('produits/{produit}/achats-externes', [ProduitController::class, 'declarerAchatExterne'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
+            Route::post('produits/{produit}/achats-externes/{achat}/demander-modification', [ProduitController::class, 'demanderModificationAchatExterne'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER);
 
-        // Discussion produit façon WhatsApp — Espace Coordinateur (Phase 2).
-        Route::middleware('permission:'.PERMISSION_MESSAGES_PRODUIT_GERER)->group(function () {
-            Route::get('produits/{produit}/messages', [MessageController::class, 'indexProduit']);
-            Route::post('produits/{produit}/messages', [MessageController::class, 'storeProduit']);
-            Route::get('produits/{produit}/conversation', [MessageController::class, 'conversationProduit']);
-            Route::post('produits/{produit}/negociation-prix', [MessageController::class, 'demarrerNegociationPrix']);
-            Route::get('produits/{produit}/negociation-prix', [MessageController::class, 'negociationPrix']);
-            Route::post('produits/{produit}/negociation-prix/messages', [MessageController::class, 'repondreNegociationPrix']);
+            // Discussion produit façon WhatsApp — Espace Coordinateur (Phase 2).
+            Route::middleware('permission:'.PERMISSION_MESSAGES_PRODUIT_GERER)->group(function () {
+                Route::get('produits/{produit}/messages', [MessageController::class, 'indexProduit']);
+                Route::post('produits/{produit}/messages', [MessageController::class, 'storeProduit']);
+                Route::get('produits/{produit}/conversation', [MessageController::class, 'conversationProduit']);
+                Route::post('produits/{produit}/negociation-prix', [MessageController::class, 'demarrerNegociationPrix']);
+                Route::get('produits/{produit}/negociation-prix', [MessageController::class, 'negociationPrix']);
+                Route::post('produits/{produit}/negociation-prix/messages', [MessageController::class, 'repondreNegociationPrix']);
+            });
         });
 
         // Fournisseurs — Espace Coordinateur (Centre des opérations).
-        Route::prefix('fournisseurs')->group(function () {
+        Route::prefix('fournisseurs')->middleware('espace:fournisseurs')->group(function () {
             Route::middleware('permission:'.PERMISSION_FOURNISSEURS_CONSULTER)->group(function () {
                 Route::get('/', [FournisseurController::class, 'index']);
                 Route::get('{fournisseur}', [FournisseurController::class, 'show']);
@@ -366,7 +372,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('tutoriels/{tutoriel}', [TutorielController::class, 'destroy']);
         });
 
-        Route::prefix('sav')->group(function () {
+        Route::prefix('sav')->middleware('espace:maintenance')->group(function () {
             Route::get('demandes', [DemandeSavController::class, 'index']);
             Route::post('demandes', [DemandeSavController::class, 'store'])->middleware('permission:'.PERMISSION_SAV_CREER);
             Route::get('demandes/{demandeSav}', [DemandeSavController::class, 'show']);
@@ -388,6 +394,8 @@ Route::prefix('v1')->group(function () {
             Route::get('/', [ReclamationController::class, 'index']);
             Route::post('/', [ReclamationController::class, 'store']);
             Route::get('{reclamation}', [ReclamationController::class, 'show']);
+            Route::patch('{reclamation}', [ReclamationController::class, 'modifier']);
+            Route::patch('{reclamation}/annuler', [ReclamationController::class, 'annuler']);
             Route::patch('{reclamation}/repondre', [ReclamationController::class, 'repondre'])
                 ->middleware('permission:'.PERMISSION_RECLAMATIONS_GERER);
             Route::post('{reclamation}/preuves', [ReclamationController::class, 'ajouterPreuve']);
@@ -402,32 +410,36 @@ Route::prefix('v1')->group(function () {
         Route::prefix('coordinateur')->middleware('role:'.ROLE_COORDINATEUR.'|'.ROLE_ADMINISTRATEUR)->group(function () {
             Route::get('espace/statistiques', [CoordinateurEspaceController::class, 'statistiques'])
                 ->middleware('permission:'.PERMISSION_STATISTIQUES_PERIMETRE);
-            Route::middleware('permission:'.PERMISSION_FOURNISSEURS_CONSULTER)->group(function () {
+            Route::middleware(['permission:'.PERMISSION_FOURNISSEURS_CONSULTER, 'espace:finance'])->group(function () {
                 Route::get('portefeuille', [CoordinateurPortefeuilleController::class, 'index']);
                 Route::get('portefeuille/transactions/{transaction}', [CoordinateurPortefeuilleController::class, 'show']);
                 Route::get('portefeuille/transactions/{transaction}/recu', [CoordinateurPortefeuilleController::class, 'recu']);
             });
-            Route::get('livreurs', [LivreurController::class, 'liste'])
-                ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
-            Route::get('livraisons-disponibles', [LivreurController::class, 'livraisonsDisponibles'])
-                ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
-            Route::get('livreurs/{livreur}/missions', [LivreurController::class, 'missions'])
-                ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
-            Route::get('livreurs/{livreur}', [LivreurController::class, 'show'])
-                ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
-            // Fiche "métier" (véhicule/zone) — réservée Admin, jamais Coordinateur
-            // (voir LivreurController::modifierProfil()) : CRUD complet côté
-            // admin, comme pour un client.
-            Route::patch('livreurs/{livreur}/profil', [LivreurController::class, 'modifierProfil'])
-                ->middleware('role:'.ROLE_ADMINISTRATEUR);
-            Route::get('commerciaux', [CommercialController::class, 'liste'])
-                ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
-            Route::get('commerciaux/{commercial}', [CommercialController::class, 'show'])
-                ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
-            Route::get('commerciaux/{commercial}/commandes', [CommercialController::class, 'commandes'])
-                ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
-            Route::patch('commerciaux/{commercial}/statut', [CommercialController::class, 'changerStatut'])
-                ->middleware('permission:'.PERMISSION_COMMERCIAUX_GERER);
+            Route::middleware('espace:livreurs')->group(function () {
+                Route::get('livreurs', [LivreurController::class, 'liste'])
+                    ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
+                Route::get('livraisons-disponibles', [LivreurController::class, 'livraisonsDisponibles'])
+                    ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
+                Route::get('livreurs/{livreur}/missions', [LivreurController::class, 'missions'])
+                    ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
+                Route::get('livreurs/{livreur}', [LivreurController::class, 'show'])
+                    ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
+                // Fiche "métier" (véhicule/zone) — réservée Admin, jamais Coordinateur
+                // (voir LivreurController::modifierProfil()) : CRUD complet côté
+                // admin, comme pour un client.
+                Route::patch('livreurs/{livreur}/profil', [LivreurController::class, 'modifierProfil'])
+                    ->middleware('role:'.ROLE_ADMINISTRATEUR);
+            });
+            Route::middleware('espace:commerciaux')->group(function () {
+                Route::get('commerciaux', [CommercialController::class, 'liste'])
+                    ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
+                Route::get('commerciaux/{commercial}', [CommercialController::class, 'show'])
+                    ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
+                Route::get('commerciaux/{commercial}/commandes', [CommercialController::class, 'commandes'])
+                    ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
+                Route::patch('commerciaux/{commercial}/statut', [CommercialController::class, 'changerStatut'])
+                    ->middleware('permission:'.PERMISSION_COMMERCIAUX_GERER);
+            });
         });
 
         // Assistance : FAQ + audio (contenu publié par l'Administrateur).
@@ -449,6 +461,19 @@ Route::prefix('v1')->group(function () {
         });
 
         Route::prefix('admin')->middleware('role:'.ROLE_ADMINISTRATEUR)->group(function () {
+            // CRUD des comptes admin eux-mêmes — réservé au super-admin (vérifié
+            // dans le contrôleur, pas par un espace : gérer les admins n'est
+            // pas un "espace" qu'on accorde à un admin restreint).
+            Route::get('administrateurs', [AdministrateurController::class, 'index']);
+            Route::get('administrateurs/{utilisateur}', [AdministrateurController::class, 'show']);
+            Route::post('administrateurs', [AdministrateurController::class, 'store']);
+            Route::patch('administrateurs/{utilisateur}', [AdministrateurController::class, 'update']);
+
+            // Toujours accessibles (pas d'espace dédié) : provisionnement des
+            // AUTRES rôles (coordinateur/fournisseur/livreur/client) — déjà
+            // réparti par espace ailleurs (ex. la fiche fournisseur elle-même
+            // vit sous l'espace "fournisseurs", mais créer le compte est un
+            // geste transverse) — et le dashboard général, toujours visible.
             Route::get('utilisateurs', [UtilisateurController::class, 'index']);
             Route::get('utilisateurs/{utilisateur}', [UtilisateurController::class, 'show']);
             Route::post('utilisateurs', [UtilisateurController::class, 'provisionner']);
@@ -456,27 +481,42 @@ Route::prefix('v1')->group(function () {
             Route::patch('utilisateurs/{utilisateur}/statut', [UtilisateurController::class, 'changerStatut']);
             Route::get('statistiques', [StatistiqueController::class, 'globales']);
             Route::get('statistiques/tableau-de-bord', [StatistiqueController::class, 'tableauDeBordGeneral']);
-            Route::get('clients', [ClientController::class, 'index']);
-            Route::get('clients/tableau-de-bord', [ClientController::class, 'tableauDeBord']);
-            Route::get('clients/{utilisateur}', [ClientController::class, 'show']);
-            Route::post('clients/{utilisateur}/notifier', [ClientController::class, 'notifier']);
-            Route::get('commandes', [AdminCommandeController::class, 'index']);
-            Route::get('confirmations', [AdminCommandeController::class, 'confirmations']);
-            Route::get('commandes/{commande}', [AdminCommandeController::class, 'show']);
-            Route::patch('commandes/{commande}/statut', [AdminCommandeController::class, 'changerStatut']);
-            Route::get('fidelite', [FideliteController::class, 'index']);
-            Route::get('livreurs/tableau-de-bord', [AdminLivreurController::class, 'tableauDeBord']);
             Route::put('parametres/support', [ParametreController::class, 'modifierSupport']);
-            Route::get('boutique/commandes', [AdminBoutiqueController::class, 'commandes']);
-            Route::get('retraits', [AdminRetraitController::class, 'index']);
-            Route::post('retraits/{retrait}/valider', [AdminRetraitController::class, 'valider']);
-            Route::post('retraits/{retrait}/refuser', [AdminRetraitController::class, 'refuser']);
-            Route::get('assistant-ia/clients', [AdminAssistantIaController::class, 'index']);
-            Route::get('assistant-ia/clients/{utilisateur}/messages', [AdminAssistantIaController::class, 'messages']);
-            Route::get('coordinateurs', [AdminCoordinateurController::class, 'index']);
-            Route::get('coordinateurs/{coordinateur}', [AdminCoordinateurController::class, 'show']);
-            Route::patch('coordinateurs/{coordinateur}/profil', [AdminCoordinateurController::class, 'modifierProfil']);
-            Route::get('coordinateurs/{coordinateur}/activites', [AdminCoordinateurController::class, 'activites']);
+
+            Route::middleware('espace:clients')->group(function () {
+                Route::get('clients', [ClientController::class, 'index']);
+                Route::get('clients/tableau-de-bord', [ClientController::class, 'tableauDeBord']);
+                Route::get('clients/{utilisateur}', [ClientController::class, 'show']);
+                Route::post('clients/{utilisateur}/notifier', [ClientController::class, 'notifier']);
+                Route::get('fidelite', [FideliteController::class, 'index']);
+                Route::get('assistant-ia/clients', [AdminAssistantIaController::class, 'index']);
+                Route::get('assistant-ia/clients/{utilisateur}/messages', [AdminAssistantIaController::class, 'messages']);
+            });
+
+            Route::middleware('espace:commandes')->group(function () {
+                Route::get('commandes', [AdminCommandeController::class, 'index']);
+                Route::get('confirmations', [AdminCommandeController::class, 'confirmations']);
+                Route::get('commandes/{commande}', [AdminCommandeController::class, 'show']);
+                Route::patch('commandes/{commande}/statut', [AdminCommandeController::class, 'changerStatut']);
+            });
+
+            Route::middleware('espace:livreurs')->group(function () {
+                Route::get('livreurs/tableau-de-bord', [AdminLivreurController::class, 'tableauDeBord']);
+                Route::get('boutique/commandes', [AdminBoutiqueController::class, 'commandes']);
+            });
+
+            Route::middleware('espace:finance')->group(function () {
+                Route::get('retraits', [AdminRetraitController::class, 'index']);
+                Route::post('retraits/{retrait}/valider', [AdminRetraitController::class, 'valider']);
+                Route::post('retraits/{retrait}/refuser', [AdminRetraitController::class, 'refuser']);
+            });
+
+            Route::middleware('espace:coordinateurs')->group(function () {
+                Route::get('coordinateurs', [AdminCoordinateurController::class, 'index']);
+                Route::get('coordinateurs/{coordinateur}', [AdminCoordinateurController::class, 'show']);
+                Route::patch('coordinateurs/{coordinateur}/profil', [AdminCoordinateurController::class, 'modifierProfil']);
+                Route::get('coordinateurs/{coordinateur}/activites', [AdminCoordinateurController::class, 'activites']);
+            });
         });
     });
 });

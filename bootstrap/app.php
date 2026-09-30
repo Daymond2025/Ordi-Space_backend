@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\LogApiActivity;
+use App\Http\Middleware\VerifieEspaceAdmin;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -30,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
+            'espace' => VerifieEspaceAdmin::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

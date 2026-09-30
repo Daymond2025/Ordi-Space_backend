@@ -146,6 +146,68 @@ class ReclamationController extends Controller
     }
 
     /**
+     * L'auteur ajuste le sujet/la description de sa propre réclamation —
+     * seulement tant qu'elle n'a pas encore été traitée (nouvelle/en_cours),
+     * pour ne jamais réécrire un dossier déjà résolu, rejeté ou annulé.
+     */
+    public function modifier(Request $request, Reclamation $reclamation): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($reclamation->user_id === $user->id, 403);
+        abort_unless(
+            in_array($reclamation->statut, [STATUT_RECLAMATION_NOUVELLE, STATUT_RECLAMATION_EN_COURS], true),
+            422,
+            'Cette réclamation ne peut plus être modifiée.'
+        );
+
+        $data = $request->validate([
+            'sujet' => ['required', 'string', 'max:150'],
+            'description' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $reclamation->update($data);
+
+        JournalAudit::enregistrer(
+            $user->id,
+            ACTION_RECLAMATION_MODIFIEE,
+            'reclamation',
+            "A modifié sa réclamation : « {$data['sujet']} »"
+        );
+
+        return $this->success($reclamation->fresh(['auteur', 'client.user', 'commande']));
+    }
+
+    /**
+     * L'auteur annule sa propre réclamation — distinct d'un rejet staff
+     * (repondre() avec statut rejetee) : ici c'est un retrait volontaire,
+     * possible tant que le dossier n'est pas déjà clos.
+     */
+    public function annuler(Request $request, Reclamation $reclamation): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($reclamation->user_id === $user->id, 403);
+        abort_unless(
+            in_array($reclamation->statut, [STATUT_RECLAMATION_NOUVELLE, STATUT_RECLAMATION_EN_COURS], true),
+            422,
+            'Cette réclamation ne peut plus être annulée.'
+        );
+
+        $reclamation->update([
+            'statut' => STATUT_RECLAMATION_ANNULEE,
+            'date_traitement' => now(),
+        ]);
+
+        JournalAudit::enregistrer(
+            $user->id,
+            ACTION_RECLAMATION_ANNULEE,
+            'reclamation',
+            "A annulé sa réclamation : « {$reclamation->sujet} »"
+        );
+
+        return $this->success($reclamation->fresh(['auteur', 'client.user', 'commande']));
+    }
+
+    /**
      * Répondre à une réclamation (changer son statut et ajouter un commentaire
      * de réponse).
      */

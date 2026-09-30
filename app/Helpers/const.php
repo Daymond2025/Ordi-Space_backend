@@ -197,6 +197,8 @@ defined('ACTION_TUTORIEL_VU') || define('ACTION_TUTORIEL_VU', 'tutoriel_vu');
 defined('ACTION_ACOMPTE_CONFIRMATION_PAYE') || define('ACTION_ACOMPTE_CONFIRMATION_PAYE', 'acompte_confirmation_paye');
 defined('ACTION_COMMANDE_STATUT_MODIFIE') || define('ACTION_COMMANDE_STATUT_MODIFIE', 'commande_statut_modifie');
 defined('ACTION_RECLAMATION_CREEE') || define('ACTION_RECLAMATION_CREEE', 'reclamation_creee');
+defined('ACTION_RECLAMATION_MODIFIEE') || define('ACTION_RECLAMATION_MODIFIEE', 'reclamation_modifiee');
+defined('ACTION_RECLAMATION_ANNULEE') || define('ACTION_RECLAMATION_ANNULEE', 'reclamation_annulee');
 
 // --- Suivi individuel des tutoriels/formations par client ----------------
 defined('STATUT_PROGRESSION_VU') || define('STATUT_PROGRESSION_VU', 'vu');
@@ -207,6 +209,10 @@ defined('STATUT_RECLAMATION_NOUVELLE') || define('STATUT_RECLAMATION_NOUVELLE', 
 defined('STATUT_RECLAMATION_EN_COURS') || define('STATUT_RECLAMATION_EN_COURS', 'en_cours');
 defined('STATUT_RECLAMATION_RESOLUE') || define('STATUT_RECLAMATION_RESOLUE', 'resolue');
 defined('STATUT_RECLAMATION_REJETEE') || define('STATUT_RECLAMATION_REJETEE', 'rejetee');
+// Distinct de "rejetee" : ici c'est l'auteur lui-même qui annule sa
+// réclamation (bouton "Annuler" de l'écran détail), pas le staff qui la
+// rejette après instruction.
+defined('STATUT_RECLAMATION_ANNULEE') || define('STATUT_RECLAMATION_ANNULEE', 'annulee');
 
 // --- Segmentation client sur le nombre de commandes (hors annulées) -----
 // Règle donnée par le PDG : Nouveau Client / Gros Acheteur / VIP, bornée sur
@@ -301,3 +307,12 @@ defined('MESSAGE_DOCUMENT_DOSSIER') || define('MESSAGE_DOCUMENT_DOSSIER', 'messa
 // l'autre — utilisée à la fois pour l'adresse client et le barème produit.
 defined('TYPE_LOCALITE_COMMUNE_ABIDJAN') || define('TYPE_LOCALITE_COMMUNE_ABIDJAN', 'commune_abidjan');
 defined('TYPE_LOCALITE_VILLE') || define('TYPE_LOCALITE_VILLE', 'ville');
+
+// --- Espaces de l'Admin Web (accès restreignable par admin non super-admin) ----
+// Cf. VerifieEspaceAdmin + Administrateur::peutAccederEspace(). Le Dashboard
+// général et l'onglet "Mon compte" des Settings restent toujours visibles ;
+// seuls ces 10 espaces peuvent être individuellement accordés/retirés.
+defined('ESPACES_ADMIN') || define('ESPACES_ADMIN', [
+    'operations', 'commandes', 'clients', 'commerciaux', 'fournisseurs',
+    'livreurs', 'maintenance', 'coordinateurs', 'finance', 'reports',
+]);

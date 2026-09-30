@@ -282,6 +282,96 @@ class ReclamationTest extends TestCase
         ])->assertCreated();
     }
 
+    public function test_lauteur_peut_modifier_sa_reclamation_tant_quelle_nest_pas_traitee(): void
+    {
+        $client = $this->creerClient();
+
+        $creation = $this->actingAs($client)->postJson('/api/v1/reclamations', [
+            'sujet' => 'Sujet initial', 'description' => 'Description initiale.',
+        ]);
+        $id = $creation->json('data.id');
+
+        $this->actingAs($client)->patchJson("/api/v1/reclamations/{$id}", [
+            'sujet' => 'Sujet corrigé', 'description' => 'Description corrigée.',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('reclamations', ['id' => $id, 'sujet' => 'Sujet corrigé', 'description' => 'Description corrigée.']);
+    }
+
+    public function test_un_autre_utilisateur_ne_peut_pas_modifier_la_reclamation_dautrui(): void
+    {
+        $client = $this->creerClient();
+        $autre = $this->creerClient();
+
+        $creation = $this->actingAs($client)->postJson('/api/v1/reclamations', [
+            'sujet' => 'Sujet', 'description' => 'Description',
+        ]);
+        $id = $creation->json('data.id');
+
+        $this->actingAs($autre)->patchJson("/api/v1/reclamations/{$id}", [
+            'sujet' => 'Piraté', 'description' => 'Piraté',
+        ])->assertForbidden();
+    }
+
+    public function test_on_ne_peut_plus_modifier_une_reclamation_deja_resolue(): void
+    {
+        $client = $this->creerClient();
+        $admin = $this->creerAdmin();
+
+        $creation = $this->actingAs($client)->postJson('/api/v1/reclamations', [
+            'sujet' => 'Sujet', 'description' => 'Description',
+        ]);
+        $id = $creation->json('data.id');
+
+        $this->actingAs($admin)->patchJson("/api/v1/reclamations/{$id}/repondre", [
+            'statut' => STATUT_RECLAMATION_RESOLUE, 'reponse_admin' => 'Réglé.',
+        ])->assertOk();
+
+        $this->actingAs($client)->patchJson("/api/v1/reclamations/{$id}", [
+            'sujet' => 'Trop tard', 'description' => 'Trop tard',
+        ])->assertStatus(422);
+    }
+
+    public function test_lauteur_peut_annuler_sa_reclamation(): void
+    {
+        $client = $this->creerClient();
+
+        $creation = $this->actingAs($client)->postJson('/api/v1/reclamations', [
+            'sujet' => 'Sujet', 'description' => 'Description',
+        ]);
+        $id = $creation->json('data.id');
+
+        $this->actingAs($client)->patchJson("/api/v1/reclamations/{$id}/annuler")->assertOk();
+
+        $this->assertDatabaseHas('reclamations', ['id' => $id, 'statut' => STATUT_RECLAMATION_ANNULEE]);
+    }
+
+    public function test_un_autre_utilisateur_ne_peut_pas_annuler_la_reclamation_dautrui(): void
+    {
+        $client = $this->creerClient();
+        $autre = $this->creerClient();
+
+        $creation = $this->actingAs($client)->postJson('/api/v1/reclamations', [
+            'sujet' => 'Sujet', 'description' => 'Description',
+        ]);
+        $id = $creation->json('data.id');
+
+        $this->actingAs($autre)->patchJson("/api/v1/reclamations/{$id}/annuler")->assertForbidden();
+    }
+
+    public function test_on_ne_peut_pas_annuler_une_reclamation_deja_annulee(): void
+    {
+        $client = $this->creerClient();
+
+        $creation = $this->actingAs($client)->postJson('/api/v1/reclamations', [
+            'sujet' => 'Sujet', 'description' => 'Description',
+        ]);
+        $id = $creation->json('data.id');
+
+        $this->actingAs($client)->patchJson("/api/v1/reclamations/{$id}/annuler")->assertOk();
+        $this->actingAs($client)->patchJson("/api/v1/reclamations/{$id}/annuler")->assertStatus(422);
+    }
+
     public function test_le_detail_inclut_le_produit_et_le_fournisseur_lies_a_la_commande(): void
     {
         $coordinateur = $this->creerCoordinateur();

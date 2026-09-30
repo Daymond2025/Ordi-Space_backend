@@ -118,6 +118,8 @@ class UtilisateurController extends Controller
 
     public function changerStatut(Request $request, User $utilisateur): JsonResponse
     {
+        abort_if($utilisateur->id === $request->user()->id, 422, 'Vous ne pouvez pas modifier votre propre statut.');
+
         $data = $request->validate([
             'statut_compte' => ['required', Rule::in([STATUT_COMPTE_ACTIF, STATUT_COMPTE_SUSPENDU, STATUT_COMPTE_DESACTIVE])],
         ]);

@@ -39,6 +39,15 @@ trait InteragitAvecApi
         return $user;
     }
 
+    protected function creerAdminRestreint(array $espaces = []): User
+    {
+        $user = User::factory()->create(['type_utilisateur' => ROLE_ADMINISTRATEUR]);
+        $user->assignRole(ROLE_ADMINISTRATEUR);
+        Administrateur::create(['user_id' => $user->id, 'est_super_admin' => false, 'espaces_autorises' => $espaces]);
+
+        return $user;
+    }
+
     protected function creerCommercial(array $attributs = []): User
     {
         $user = User::factory()->create(array_merge(['type_utilisateur' => ROLE_COMMERCIAL], $attributs));

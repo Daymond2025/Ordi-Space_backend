@@ -252,6 +252,16 @@ class AuthController extends Controller
             'type_utilisateur' => $user->type_utilisateur,
             'roles' => $user->getRoleNames(),
             'permissions' => $user->getAllPermissions()->pluck('name'),
+            // Palier super-admin/admin + espaces autorisés (cf.
+            // Administrateur::peutAccederEspace()) — utilisé par l'Admin Web
+            // pour n'afficher que les sections accordées à un admin restreint.
+            // null pour tout compte non-administrateur.
+            'est_super_admin' => $user->type_utilisateur === ROLE_ADMINISTRATEUR
+                ? ($user->administrateur?->est_super_admin ?? true)
+                : null,
+            'espaces_autorises' => $user->type_utilisateur === ROLE_ADMINISTRATEUR
+                ? $user->administrateur?->espaces_autorises
+                : null,
         ];
     }
 }
