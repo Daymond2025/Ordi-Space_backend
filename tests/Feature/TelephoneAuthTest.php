@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\Feature\Concerns\InteragitAvecApi;
 use Tests\TestCase;
 
@@ -42,6 +44,23 @@ class TelephoneAuthTest extends TestCase
             'telephone' => '+225700000002', 'nom' => 'Kouassi', 'type_utilisateur' => ROLE_CLIENT, 'email' => null,
         ]);
         $this->assertDatabaseHas('clients', ['user_id' => $reponse->json('data.user_id')]);
+    }
+
+    public function test_l_inscription_par_telephone_accepte_une_photo_de_profil_optionnelle(): void
+    {
+        Storage::fake(IMAGE_PRODUIT_DISQUE);
+
+        $reponse = $this->postJson('/api/v1/auth/telephone/inscription', [
+            'telephone' => '07 00 00 00 03',
+            'nom' => 'Traore',
+            'prenom' => 'Ibrahim',
+            'photo' => UploadedFile::fake()->create('photo.jpg', 100, 'image/jpeg'),
+        ]);
+
+        $reponse->assertCreated();
+        $user = User::where('telephone', '+225700000003')->first();
+        $this->assertNotNull($user->getRawOriginal('photo'));
+        Storage::disk(IMAGE_PRODUIT_DISQUE)->assertExists($user->getRawOriginal('photo'));
     }
 
     public function test_le_flux_complet_inscription_puis_verification_otp_connecte_le_client(): void

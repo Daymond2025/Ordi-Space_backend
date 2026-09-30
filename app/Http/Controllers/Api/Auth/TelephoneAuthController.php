@@ -55,7 +55,8 @@ class TelephoneAuthController extends Controller
             ]);
         }
 
-        $user = Client::creerCompteMinimal($request->string('nom'), $request->string('prenom') ?: null, $telephone);
+        $photoPath = $request->hasFile('photo') ? $request->file('photo')->store(PHOTO_PROFIL_DOSSIER, IMAGE_PRODUIT_DISQUE) : null;
+        $user = Client::creerCompteMinimal($request->string('nom'), $request->string('prenom') ?: null, $telephone, $photoPath);
 
         return $this->success($this->emettreEtEnvoyerOtp($user), status: 201);
     }

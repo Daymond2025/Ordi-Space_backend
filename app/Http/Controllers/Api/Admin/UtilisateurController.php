@@ -54,9 +54,14 @@ class UtilisateurController extends Controller
             'nom_entreprise' => ['required_if:type_utilisateur,'.ROLE_FOURNISSEUR, 'nullable', 'string', 'max:150'],
             'type_vehicule' => ['nullable', 'string', Rule::in(TYPES_VEHICULE_LIVREUR)],
             'zone_couverture' => ['nullable', 'string', 'max:255'],
+            // Optionnelle, quel que soit le rôle créé — même champ que pour
+            // l'auto-inscription (RegisterRequest/InscrireTelephoneRequest).
+            'photo' => ['nullable', 'file', 'image', 'mimes:'.IMAGE_MIMES_AUTORISES, 'max:'.IMAGE_MAX_POIDS_KO],
         ]);
 
-        $user = DB::transaction(function () use ($data) {
+        $photoPath = $request->hasFile('photo') ? $request->file('photo')->store(PHOTO_PROFIL_DOSSIER, IMAGE_PRODUIT_DISQUE) : null;
+
+        $user = DB::transaction(function () use ($data, $photoPath) {
             $user = User::create([
                 'nom' => $data['nom'],
                 'prenom' => $data['prenom'] ?? null,
@@ -65,6 +70,7 @@ class UtilisateurController extends Controller
                 'password' => Hash::make($data['password']),
                 'type_utilisateur' => $data['type_utilisateur'],
                 'statut_compte' => STATUT_COMPTE_ACTIF,
+                'photo' => $photoPath,
             ]);
 
             match ($data['type_utilisateur']) {

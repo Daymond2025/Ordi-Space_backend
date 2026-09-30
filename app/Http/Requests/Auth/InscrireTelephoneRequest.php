@@ -17,6 +17,9 @@ class InscrireTelephoneRequest extends FormRequest
             'telephone' => ['required', 'string', 'max:30'],
             'nom' => ['required', 'string', 'max:100'],
             'prenom' => ['nullable', 'string', 'max:100'],
+            // Optionnelle — alignée sur RegisterRequest (Fournisseur/Commercial),
+            // seul le Livreur l'exige.
+            'photo' => ['nullable', 'file', 'image', 'mimes:'.IMAGE_MIMES_AUTORISES, 'max:'.IMAGE_MAX_POIDS_KO],
         ];
     }
 }

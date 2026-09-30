@@ -96,9 +96,9 @@ class Client extends Model
      * Le téléphone doit déjà être normalisé (E.164) et son unicité vérifiée
      * par l'appelant.
      */
-    public static function creerCompteMinimal(string $nom, ?string $prenom, string $telephoneE164): User
+    public static function creerCompteMinimal(string $nom, ?string $prenom, string $telephoneE164, ?string $photoPath = null): User
     {
-        return DB::transaction(function () use ($nom, $prenom, $telephoneE164) {
+        return DB::transaction(function () use ($nom, $prenom, $telephoneE164, $photoPath) {
             $user = User::create([
                 'nom' => $nom,
                 'prenom' => $prenom,
@@ -107,6 +107,7 @@ class Client extends Model
                 'password' => Hash::make(Str::random(40)),
                 'type_utilisateur' => ROLE_CLIENT,
                 'statut_compte' => STATUT_COMPTE_ACTIF,
+                'photo' => $photoPath,
             ]);
 
             static::create([

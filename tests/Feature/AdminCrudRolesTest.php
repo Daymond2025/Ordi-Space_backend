@@ -8,6 +8,8 @@ use App\Models\Livreur;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\Feature\Concerns\InteragitAvecApi;
 use Tests\TestCase;
 
@@ -80,6 +82,23 @@ class AdminCrudRolesTest extends TestCase
 
         $reponse->assertCreated();
         $this->assertDatabaseHas('coordinateurs', ['user_id' => $reponse->json('data.id')]);
+    }
+
+    public function test_ladmin_peut_joindre_une_photo_de_profil_en_creant_un_coordinateur(): void
+    {
+        Storage::fake(IMAGE_PRODUIT_DISQUE);
+        $admin = $this->creerAdmin();
+
+        $reponse = $this->actingAs($admin)->postJson('/api/v1/admin/utilisateurs', [
+            'nom' => 'Kone', 'email' => 'coordinateur.photo@example.com',
+            'password' => 'Motdepasse1', 'type_utilisateur' => ROLE_COORDINATEUR,
+            'photo' => UploadedFile::fake()->create('photo.jpg', 100, 'image/jpeg'),
+        ]);
+
+        $reponse->assertCreated();
+        $user = User::find($reponse->json('data.id'));
+        $this->assertNotNull($user->getRawOriginal('photo'));
+        Storage::disk(IMAGE_PRODUIT_DISQUE)->assertExists($user->getRawOriginal('photo'));
     }
 
     public function test_seul_ladmin_peut_provisionner(): void
