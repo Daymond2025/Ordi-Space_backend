@@ -8,6 +8,7 @@ use App\Models\Livreur;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Liste des livreurs disponibles pour le sélecteur "Envoyer à un livreur"
@@ -133,8 +134,11 @@ class LivreurController extends Controller
             'user_id' => $livreur->user_id,
             'nom' => $livreur->user->nom,
             'prenom' => $livreur->user->prenom,
+            'email' => $livreur->user->email,
             'telephone' => $livreur->user->telephone,
             'disponible' => $livreur->disponible,
+            'type_vehicule' => $livreur->type_vehicule,
+            'zone_couverture' => $livreur->zone_couverture,
             // Pièces exigées à l'inscription (voir AuthController::register())
             // — consultables ici pour identifier formellement le livreur en
             // cas de vol/litige (décision PDG, il manipule l'argent du client).
@@ -271,5 +275,24 @@ class LivreurController extends Controller
             });
 
         return $this->success($livraisons);
+    }
+
+    /**
+     * Fiche "métier" du livreur éditée par l'Admin — `type_vehicule` (déjà
+     * modifiable en self-service, voir MoiController::modifierVehicule()) et
+     * `zone_couverture` (jamais modifiable nulle part avant). `disponible`
+     * reste hors de portée : statut temps réel contrôlé par le livreur lui-même
+     * (InterrupteurDisponibilite), pas à l'Admin de le forcer.
+     */
+    public function modifierProfil(Request $request, Livreur $livreur): JsonResponse
+    {
+        $data = $request->validate([
+            'type_vehicule' => ['nullable', 'string', Rule::in(TYPES_VEHICULE_LIVREUR)],
+            'zone_couverture' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $livreur->update($data);
+
+        return $this->success($livreur->fresh());
     }
 }

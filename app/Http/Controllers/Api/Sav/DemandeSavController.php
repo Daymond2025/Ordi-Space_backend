@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DemandeSav;
 use App\Models\Garantie;
 use App\Models\JournalAudit;
+use App\Services\NotificationAdminService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -88,6 +89,12 @@ class DemandeSavController extends Controller
             ACTION_PANNE_DECLAREE,
             'demande_sav',
             "A déclaré une panne : « ".substr($data['description_probleme'], 0, 120)." »"
+        );
+
+        NotificationAdminService::notifierTousLesAdmins(
+            'panne_declaree',
+            'Nouvelle déclaration de panne',
+            "{$request->user()->nom} a déclaré une panne : « ".substr($data['description_probleme'], 0, 120)." »"
         );
 
         return $this->success($demande, status: 201);

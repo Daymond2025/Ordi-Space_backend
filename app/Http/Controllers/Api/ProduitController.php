@@ -14,6 +14,7 @@ use App\Models\Produit;
 use App\Models\TransactionPortefeuilleFournisseur;
 use App\Models\ValidationProduit;
 use App\Services\FiltresCatalogue;
+use App\Services\NotificationAdminService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\UploadedFile;
@@ -395,6 +396,14 @@ class ProduitController extends Controller
 
             return $produit;
         });
+
+        if (! $estAutoPublie) {
+            NotificationAdminService::notifierTousLesAdmins(
+                'produit_a_valider',
+                'Nouveau produit à valider',
+                "{$request->user()->nom} a soumis « {$produit->nom_produit} » — en attente de validation."
+            );
+        }
 
         return $this->success($produit->load('images'), status: 201);
     }

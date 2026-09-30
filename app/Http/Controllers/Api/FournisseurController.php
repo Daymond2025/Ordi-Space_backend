@@ -593,11 +593,37 @@ class FournisseurController extends Controller
     }
 
     /**
+     * Fiche entreprise éditée par l'Admin — mêmes champs que modifierMonProfil()
+     * plus `nom_entreprise`, volontairement exclue du self-service fournisseur
+     * (identité contractuelle, réservée au staff). Route distincte
+     * ({fournisseur} de l'URL, jamais le jeton courant), réservée admin (voir
+     * routes/api.php) — CRUD complet côté admin, comme pour un client.
+     */
+    public function modifierProfilAdmin(Request $request, Fournisseur $fournisseur): JsonResponse
+    {
+        $data = $request->validate([
+            'nom_entreprise' => ['sometimes', 'string', 'max:150'],
+            'adresse_entreprise' => ['nullable', 'string', 'max:255'],
+            'contact_pro' => ['nullable', 'string', 'max:100'],
+            'nom_gerant' => ['nullable', 'string', 'max:100'],
+            'telephone_gerant' => ['nullable', 'string', 'max:30'],
+            'horaires_ouverture' => ['nullable', 'string', 'max:255'],
+            'lien_maps' => ['nullable', 'url', 'max:500'],
+            'zone_couverte' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $fournisseur->update($data);
+
+        return $this->success($fournisseur->fresh());
+    }
+
+    /**
      * Fiche entreprise du fournisseur — champs de coordonnées/localisation
      * uniquement. `nom_entreprise` (identité contractuelle), `taux_commission`
      * et `solde_portefeuille` sont volontairement exclus : ils ne se modifient
      * jamais par le fournisseur lui-même (voir modifierCommission/
-     * enregistrerPaiement/payerTout ci-dessus, réservés au staff).
+     * enregistrerPaiement/payerTout ci-dessus, ou modifierProfilAdmin()
+     * ci-dessus pour l'Admin, réservés au staff).
      */
     public function modifierMonProfil(Request $request): JsonResponse
     {

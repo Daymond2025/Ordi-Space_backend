@@ -14,6 +14,7 @@ use App\Models\FraisLivraisonProduit;
 use App\Models\Fournisseur;
 use App\Models\Garantie;
 use App\Models\LigneCommande;
+use App\Models\Livreur;
 use App\Models\Localite;
 use App\Models\Produit;
 use App\Models\User;
@@ -89,6 +90,15 @@ trait InteragitAvecApi
         $user = User::factory()->create(array_merge(['type_utilisateur' => ROLE_FOURNISSEUR], $attributs));
         $user->assignRole(ROLE_FOURNISSEUR);
         Fournisseur::create(['user_id' => $user->id, 'nom_entreprise' => 'Fournisseur Test']);
+
+        return $user;
+    }
+
+    protected function creerLivreur(array $attributs = []): User
+    {
+        $user = User::factory()->create(array_merge(['type_utilisateur' => ROLE_LIVREUR], $attributs));
+        $user->assignRole(ROLE_LIVREUR);
+        Livreur::create(['user_id' => $user->id]);
 
         return $user;
     }

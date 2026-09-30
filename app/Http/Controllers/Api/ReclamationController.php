@@ -7,6 +7,7 @@ use App\Models\Commande;
 use App\Models\JournalAudit;
 use App\Models\PreuveReclamation;
 use App\Models\Reclamation;
+use App\Services\NotificationAdminService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -133,6 +134,12 @@ class ReclamationController extends Controller
             ACTION_RECLAMATION_CREEE,
             'reclamation',
             "A déposé une réclamation : « {$data['sujet']} »"
+        );
+
+        NotificationAdminService::notifierTousLesAdmins(
+            'reclamation',
+            'Nouvelle réclamation',
+            "{$user->nom} a déposé une réclamation : « {$data['sujet']} »."
         );
 
         return $this->success($reclamation, status: 201);

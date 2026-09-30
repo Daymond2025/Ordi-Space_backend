@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DemandeRetrait;
 use App\Models\Livreur;
 use App\Models\VenteBoutique;
+use App\Services\NotificationAdminService;
 use App\Services\PortefeuilleCommissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -122,6 +123,12 @@ class PortefeuilleController extends Controller
                 'statut' => STATUT_RETRAIT_EN_ATTENTE,
             ]);
         });
+
+        NotificationAdminService::notifierTousLesAdmins(
+            'retrait_demande',
+            'Nouvelle demande de retrait',
+            "{$user->nom} demande un retrait de ".number_format($data['montant'], 0, ',', ' ')." FCFA."
+        );
 
         return $this->success($this->formaterRetrait($retrait), status: 201);
     }

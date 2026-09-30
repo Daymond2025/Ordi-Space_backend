@@ -252,6 +252,10 @@ Route::prefix('v1')->group(function () {
                 ->middleware('permission:'.PERMISSION_FOURNISSEURS_PORTEFEUILLE_GERER);
             Route::patch('{fournisseur}/commission', [FournisseurController::class, 'modifierCommission'])
                 ->middleware('permission:'.PERMISSION_FOURNISSEURS_COMMISSION_GERER);
+            // Fiche entreprise (dont nom_entreprise) — réservée Admin, comme la
+            // commission ci-dessus : CRUD complet côté admin, comme pour un client.
+            Route::patch('{fournisseur}/profil', [FournisseurController::class, 'modifierProfilAdmin'])
+                ->middleware('permission:'.PERMISSION_FOURNISSEURS_COMMISSION_GERER);
         });
 
         // Enregistrement d'une vente pour un client sans compte préalable
@@ -411,6 +415,11 @@ Route::prefix('v1')->group(function () {
                 ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
             Route::get('livreurs/{livreur}', [LivreurController::class, 'show'])
                 ->middleware('permission:'.PERMISSION_LIVRAISONS_ASSIGNER);
+            // Fiche "métier" (véhicule/zone) — réservée Admin, jamais Coordinateur
+            // (voir LivreurController::modifierProfil()) : CRUD complet côté
+            // admin, comme pour un client.
+            Route::patch('livreurs/{livreur}/profil', [LivreurController::class, 'modifierProfil'])
+                ->middleware('role:'.ROLE_ADMINISTRATEUR);
             Route::get('commerciaux', [CommercialController::class, 'liste'])
                 ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
             Route::get('commerciaux/{commercial}', [CommercialController::class, 'show'])
@@ -441,7 +450,9 @@ Route::prefix('v1')->group(function () {
 
         Route::prefix('admin')->middleware('role:'.ROLE_ADMINISTRATEUR)->group(function () {
             Route::get('utilisateurs', [UtilisateurController::class, 'index']);
+            Route::get('utilisateurs/{utilisateur}', [UtilisateurController::class, 'show']);
             Route::post('utilisateurs', [UtilisateurController::class, 'provisionner']);
+            Route::patch('utilisateurs/{utilisateur}', [UtilisateurController::class, 'modifier']);
             Route::patch('utilisateurs/{utilisateur}/statut', [UtilisateurController::class, 'changerStatut']);
             Route::get('statistiques', [StatistiqueController::class, 'globales']);
             Route::get('clients', [ClientController::class, 'index']);
@@ -461,6 +472,9 @@ Route::prefix('v1')->group(function () {
             Route::post('retraits/{retrait}/refuser', [AdminRetraitController::class, 'refuser']);
             Route::get('assistant-ia/clients', [AdminAssistantIaController::class, 'index']);
             Route::get('assistant-ia/clients/{utilisateur}/messages', [AdminAssistantIaController::class, 'messages']);
+            Route::get('coordinateurs', [AdminCoordinateurController::class, 'index']);
+            Route::get('coordinateurs/{coordinateur}', [AdminCoordinateurController::class, 'show']);
+            Route::patch('coordinateurs/{coordinateur}/profil', [AdminCoordinateurController::class, 'modifierProfil']);
             Route::get('coordinateurs/{coordinateur}/activites', [AdminCoordinateurController::class, 'activites']);
         });
     });
