@@ -455,6 +455,7 @@ Route::prefix('v1')->group(function () {
             Route::patch('utilisateurs/{utilisateur}', [UtilisateurController::class, 'modifier']);
             Route::patch('utilisateurs/{utilisateur}/statut', [UtilisateurController::class, 'changerStatut']);
             Route::get('statistiques', [StatistiqueController::class, 'globales']);
+            Route::get('statistiques/tableau-de-bord', [StatistiqueController::class, 'tableauDeBordGeneral']);
             Route::get('clients', [ClientController::class, 'index']);
             Route::get('clients/tableau-de-bord', [ClientController::class, 'tableauDeBord']);
             Route::get('clients/{utilisateur}', [ClientController::class, 'show']);
