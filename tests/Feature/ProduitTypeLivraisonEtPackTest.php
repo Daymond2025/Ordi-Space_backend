@@ -87,6 +87,44 @@ class ProduitTypeLivraisonEtPackTest extends TestCase
     }
 
     /**
+     * "Permettre au fournisseur d'ajouter les images de cadeaux" (retour de
+     * test réel) — une photo par cadeau sélectionné, stockée à part (jamais
+     * confondue avec la galerie `images`/`ImageProduit`), résolue en URL
+     * complète à la lecture (Produit::imagesCadeaux()).
+     */
+    public function test_un_fournisseur_peut_ajouter_une_image_par_cadeau(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake(IMAGE_PRODUIT_DISQUE);
+
+        $fournisseur = $this->creerFournisseur();
+        $categorie = \App\Models\Categorie::firstOrCreate(['nom_categorie' => 'Ordinateurs portables']);
+
+        $reponse = $this->actingAs($fournisseur)->post('/api/v1/produits', [
+            'categorie_id' => $categorie->id,
+            'nom_produit' => 'HP EliteBook 840',
+            'prix' => 350000,
+            'quantite_stock' => 5,
+            'cadeaux' => ['Souris', 'Sac'],
+            'images_cadeaux' => [
+                'Souris' => \Illuminate\Http\UploadedFile::fake()->create('souris.jpg', 100, 'image/jpeg'),
+            ],
+        ]);
+
+        $reponse->assertCreated();
+        $produit = Produit::findOrFail($reponse->json('data.id'));
+
+        // En base : chemin relatif brut (jamais d'URL absolue).
+        $cheminBrut = json_decode($produit->getRawOriginal('images_cadeaux'), true);
+        $this->assertArrayHasKey('Souris', $cheminBrut);
+        \Illuminate\Support\Facades\Storage::disk(IMAGE_PRODUIT_DISQUE)->assertExists($cheminBrut['Souris']);
+
+        // À la lecture : résolu en URL (même convention que ImageProduit::urlImage() — relative en local, absolue en prod selon APP_URL/le disque).
+        $this->assertNotNull($produit->images_cadeaux['Souris']);
+        $this->assertStringContainsString('produits/cadeaux/', $produit->images_cadeaux['Souris']);
+        $this->assertArrayNotHasKey('Sac', array_filter($produit->images_cadeaux));
+    }
+
+    /**
      * Marge Ordi'Space = prix_vente − prix, exposée en lecture seule via
      * l'accesseur `commission_ordispace` (Produit::commissionOrdispace()) —
      * jamais fixable par le fournisseur, seulement affichable une fois le

@@ -43,6 +43,12 @@ class StoreProduitRequest extends FormRequest
             'couleur' => ['nullable', 'string', 'max:100'],
             'cadeaux' => ['nullable', 'array'],
             'cadeaux.*' => ['string', 'max:100'],
+            // Photo facultative par cadeau sélectionné — clé = un des noms
+            // envoyés dans `cadeaux[]` (ex. "images_cadeaux[Souris]"), stockée
+            // par ProduitController::stockerImagesCadeaux(). Exclue du mass-
+            // assignment direct comme `images` (voir store()/update()).
+            'images_cadeaux' => ['nullable', 'array'],
+            'images_cadeaux.*' => ['file', 'image', 'mimes:'.IMAGE_MIMES_AUTORISES, 'max:'.IMAGE_MAX_POIDS_KO],
             // "Pack complet" (fiche produit) — texte libre (ce qui est
             // matériellement inclus), distinct de `cadeaux` (liste prédéfinie
             // marketing) — voir la migration contenu_pack.

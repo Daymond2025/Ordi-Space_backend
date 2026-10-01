@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 class Produit extends Model
 {
@@ -24,7 +25,7 @@ class Produit extends Model
         'prix', 'quantite_stock', 'statut_produit', 'date_ajout',
         'type_livraison', 'duree_garantie_mois', 'est_booste',
         'processeur', 'memoire_ram', 'stockage', 'taille',
-        'systeme_exploitation', 'carte_graphique', 'couleur', 'cadeaux', 'contenu_pack', 'etat_produit',
+        'systeme_exploitation', 'carte_graphique', 'couleur', 'cadeaux', 'contenu_pack', 'images_cadeaux', 'etat_produit',
         'prix_vente', 'commission_agent', 'commission_apporteur', 'commission_revente',
         'pourcentage_reduction', 'prix_barre', 'marque',
     ];
@@ -73,6 +74,28 @@ class Produit extends Model
     {
         return Attribute::make(
             get: fn () => $this->prix_vente !== null ? round($this->prix_vente - $this->prix, 2) : null,
+        );
+    }
+
+    /**
+     * `images_cadeaux` stocke en base une carte {nom du cadeau => chemin
+     * relatif sur le disque "public"} (jamais d'URL absolue, même logique que
+     * ImageProduit::urlImage()) — résolue en URL complète uniquement à la
+     * lecture, ici. Pas de cast "array" classique : on a besoin de ce
+     * traitement supplémentaire à la lecture (et, symétriquement, d'encoder
+     * nous-mêmes en JSON à l'écriture, cf. ProduitController::stockerImagesCadeaux()).
+     */
+    protected function imagesCadeaux(): Attribute
+    {
+        return Attribute::make(
+            get: function (?string $value) {
+                $carte = $value ? json_decode($value, true) : [];
+
+                return collect($carte)
+                    ->map(fn (?string $chemin) => $chemin ? Storage::disk(IMAGE_PRODUIT_DISQUE)->url($chemin) : null)
+                    ->all();
+            },
+            set: fn (?array $value) => json_encode($value ?? []),
         );
     }
 

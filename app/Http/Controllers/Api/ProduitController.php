@@ -385,13 +385,14 @@ class ProduitController extends Controller
 
         $produit = DB::transaction(function () use ($request, $estAutoPublie) {
             $produit = Produit::create([
-                ...$request->safe()->except(['images', 'frais_livraison']),
+                ...$request->safe()->except(['images', 'frais_livraison', 'images_cadeaux']),
                 'fournisseur_id' => $estAutoPublie ? null : $request->user()->id,
                 'statut_produit' => $estAutoPublie ? STATUT_PRODUIT_VALIDE : STATUT_PRODUIT_EN_ATTENTE,
                 'date_ajout' => now(),
             ]);
 
             $this->stockerImages($produit, $request->file('images', []));
+            $this->stockerImagesCadeaux($produit, $request->file('images_cadeaux', []));
             $this->stockerFraisLivraison($produit, $request->input('frais_livraison', []), estMiseAJour: false);
 
             return $produit;
@@ -413,12 +414,13 @@ class ProduitController extends Controller
         $this->authorize('update', $produit);
 
         $produit->update([
-            ...$request->safe()->except(['images', 'frais_livraison']),
+            ...$request->safe()->except(['images', 'frais_livraison', 'images_cadeaux']),
             // Un produit corrigé après rejet repasse en file d'attente du coordinateur.
             'statut_produit' => $produit->statut_produit === STATUT_PRODUIT_REJETE ? STATUT_PRODUIT_CORRIGE : $produit->statut_produit,
         ]);
 
         $this->stockerImages($produit, $request->file('images', []));
+        $this->stockerImagesCadeaux($produit, $request->file('images_cadeaux', []));
 
         // Remplacement complet, pas fusion : un barème est soumis comme un
         // tout (comme prix/quantite_stock) — s'il est omis, rien ne change.
@@ -688,6 +690,39 @@ class ProduitController extends Controller
                 'ordre_affichage' => $dejaPresentes + $index,
             ]);
         }
+    }
+
+    /**
+     * Enregistre une photo par cadeau fourni (clé = nom du cadeau, ex.
+     * "images_cadeaux[Souris]") et fusionne avec la carte déjà en base —
+     * contrairement à stockerImages() (galerie qui ne fait qu'ajouter), ici
+     * une photo déjà présente pour le même cadeau est remplacée (et
+     * l'ancien fichier supprimé) plutôt que dupliquée.
+     *
+     * @param  array<string, UploadedFile>  $fichiers
+     */
+    private function stockerImagesCadeaux(Produit $produit, array $fichiers): void
+    {
+        if ($fichiers === []) {
+            return;
+        }
+
+        $brut = $produit->getRawOriginal('images_cadeaux');
+        $carte = $brut ? json_decode($brut, true) : [];
+
+        foreach ($fichiers as $nomCadeau => $fichier) {
+            if (! $fichier instanceof \Illuminate\Http\UploadedFile) {
+                continue;
+            }
+
+            if (! empty($carte[$nomCadeau])) {
+                Storage::disk(IMAGE_PRODUIT_DISQUE)->delete($carte[$nomCadeau]);
+            }
+
+            $carte[$nomCadeau] = $fichier->store(IMAGE_PRODUIT_DOSSIER.'/cadeaux', IMAGE_PRODUIT_DISQUE);
+        }
+
+        $produit->update(['images_cadeaux' => $carte]);
     }
 
     /**
