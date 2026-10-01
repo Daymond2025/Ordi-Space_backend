@@ -373,6 +373,16 @@ class ProduitController extends Controller
             $produit->motif_rejet = $produit->validations()->latest('date_validation')->value('motif_rejet');
         }
 
+        // Badge "Négociation de prix" (app Fournisseur, retour de test réel) :
+        // true si le Coordinateur/Admin a posté un message de négociation que
+        // CE fournisseur n'a pas encore consulté (fil distinct de la
+        // discussion générale, voir ConsultationNegociationPrix). Calculé
+        // uniquement pour le fournisseur propriétaire — sans objet pour les
+        // autres rôles qui consultent cette même route publique.
+        if ($user && $produit->fournisseur_id === $user->id) {
+            $produit->negociation_a_lire = $produit->negociationALirePar($user);
+        }
+
         return $this->success($produit);
     }
 

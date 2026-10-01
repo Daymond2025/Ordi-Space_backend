@@ -236,6 +236,10 @@ Route::prefix('v1')->group(function () {
                 Route::post('produits/{produit}/negociation-prix', [MessageController::class, 'demarrerNegociationPrix']);
                 Route::get('produits/{produit}/negociation-prix', [MessageController::class, 'negociationPrix']);
                 Route::post('produits/{produit}/negociation-prix/messages', [MessageController::class, 'repondreNegociationPrix']);
+                // "Épingler"/"retirer" une carte du fil "activité récente" de l'accueil (app Fournisseur) — voir MessageController::produitsActifs().
+                Route::post('produits/{produit}/epingler-accueil', [MessageController::class, 'epinglerProduitActif']);
+                Route::delete('produits/{produit}/epingler-accueil', [MessageController::class, 'desepinglerProduitActif']);
+                Route::post('produits/{produit}/retirer-accueil', [MessageController::class, 'retirerProduitActif']);
             });
         });
 

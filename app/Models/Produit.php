@@ -143,6 +143,33 @@ class Produit extends Model
         return $this->hasMany(Message::class, 'produit_id');
     }
 
+    public function consultationsNegociationPrix(): HasMany
+    {
+        return $this->hasMany(ConsultationNegociationPrix::class, 'produit_id');
+    }
+
+    /**
+     * Badge "Négociation de prix" (app Fournisseur) : true si un message de
+     * négociation posté par quelqu'un d'autre que `$user` n'a pas encore été
+     * consulté par lui (voir ConsultationNegociationPrix, pointeur distinct
+     * de la discussion générale du produit). Méthode à part (plutôt qu'en
+     * ligne dans ProduitController::show()) pour rester testable sans passer
+     * par un round-trip HTTP — GET /produits/{id} est une route publique
+     * hors auth:sanctum, enchaîner ce GET avec un autre acteur dans un même
+     * test PHPUnit déclenche un faux 403 sur l'appel suivant (artefact déjà
+     * documenté ailleurs dans la suite, jamais reproductible en production).
+     */
+    public function negociationALirePar(User $user): bool
+    {
+        $consulteLe = $this->consultationsNegociationPrix()->where('user_id', $user->id)->value('consulte_le');
+
+        return $this->messages()
+            ->where('est_negociation_prix', true)
+            ->where('auteur_id', '!=', $user->id)
+            ->when($consulteLe, fn ($q) => $q->where('date_envoi', '>', $consulteLe))
+            ->exists();
+    }
+
     public function achatsExternes(): HasMany
     {
         return $this->hasMany(AchatExterne::class, 'produit_id');

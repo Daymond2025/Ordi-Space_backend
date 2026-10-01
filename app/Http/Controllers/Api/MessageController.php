@@ -7,16 +7,19 @@ use App\Http\Requests\Message\StoreMessageRequest;
 use App\Models\Adresse;
 use App\Models\Commande;
 use App\Models\ConsultationCommande;
+use App\Models\ConsultationNegociationPrix;
 use App\Models\ConsultationProduit;
 use App\Models\JournalAudit;
 use App\Models\LigneCommande;
 use App\Models\Message;
+use App\Models\PreferenceAccueilProduit;
 use App\Models\Produit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -72,6 +75,8 @@ class MessageController extends Controller
     public function negociationPrix(Request $request, Produit $produit): JsonResponse
     {
         abort_unless($produit->estAccessibleConversationPar($request->user()), 403);
+
+        $this->marquerConsulteNegociation($request, $produit);
 
         return $this->success(
             $this->messagesPagines($produit->messages()->where('est_negociation_prix', true), $request)
@@ -301,13 +306,24 @@ class MessageController extends Controller
         );
     }
 
+    /** Pointeur de lecture distinct de marquerConsulte() — voir ConsultationNegociationPrix. */
+    private function marquerConsulteNegociation(Request $request, Produit $produit): void
+    {
+        ConsultationNegociationPrix::updateOrCreate(
+            ['user_id' => $request->user()->id, 'produit_id' => $produit->id],
+            ['consulte_le' => now()]
+        );
+    }
+
     /**
-     * Fil "produits à activité récente" (Space — Accueil) : produits ayant au
-     * moins un message ou une commande, triés par activité la plus récente
-     * (dernier message OU dernière commande, le plus récent des deux),
-     * plafonné à 100 (dashboard — pas de vraie pagination en V1). Le tri se
-     * fait en PHP plutôt qu'en SQL (GREATEST()/MAX(a,b) ne sont pas
-     * portables SQLite/MySQL) — volume attendu compatible avec cette approche.
+     * Fil "produits à activité récente" (Space — Accueil) : UNIQUEMENT les
+     * produits ayant au moins une vraie commande (retour de test réel — un
+     * produit sans commande, même avec des messages, n'apparaît plus),
+     * épinglés en tête puis triés par activité la plus récente (dernier
+     * message OU dernière commande, le plus récent des deux), plafonné à 100
+     * (dashboard — pas de vraie pagination en V1). Le tri se fait en PHP
+     * plutôt qu'en SQL (GREATEST()/MAX(a,b) ne sont pas portables
+     * SQLite/MySQL) — volume attendu compatible avec cette approche.
      */
     public function produitsActifs(Request $request): JsonResponse
     {
@@ -316,7 +332,7 @@ class MessageController extends Controller
         $produits = Produit::query()
             ->when($user->type_utilisateur === ROLE_FOURNISSEUR, fn ($q) => $q->where('fournisseur_id', $user->id))
             ->when($user->type_utilisateur !== ROLE_FOURNISSEUR && $request->filled('fournisseur_id'), fn ($q) => $q->where('fournisseur_id', $request->integer('fournisseur_id')))
-            ->where(fn ($q) => $q->whereHas('messages')->orWhereHas('lignesCommande'))
+            ->whereHas('lignesCommande')
             ->with('images')
             ->withMax('messages', 'date_envoi')
             ->get();
@@ -337,27 +353,86 @@ class MessageController extends Controller
             ->whereIn('produit_id', $produitIds)
             ->pluck('consulte_le', 'produit_id');
 
-        $resultats = $produits->map(function (Produit $produit) use ($dernieresCommandes, $consultations, $user) {
-            $consulteLe = $consultations->get($produit->id);
+        $preferences = PreferenceAccueilProduit::where('user_id', $user->id)
+            ->whereIn('produit_id', $produitIds)
+            ->get()
+            ->keyBy('produit_id');
 
-            $derniereActivite = collect([$produit->messages_max_date_envoi, $dernieresCommandes->get($produit->id)])
-                ->filter()
-                ->max();
+        $resultats = $produits
+            ->map(function (Produit $produit) use ($dernieresCommandes, $consultations, $preferences, $user) {
+                $consulteLe = $consultations->get($produit->id);
+                $preference = $preferences->get($produit->id);
 
-            return [
-                'produit_id' => $produit->id,
-                'nom_produit' => $produit->nom_produit,
-                'photo' => $produit->images->first()?->url_image,
-                'statistiques' => $produit->statistiquesCommandes(),
-                'derniere_activite' => $derniereActivite,
-                'nouvelles_activites' => Message::where('produit_id', $produit->id)
-                    ->where('auteur_id', '!=', $user->id)
-                    ->when($consulteLe, fn ($q) => $q->where('date_envoi', '>', $consulteLe))
-                    ->count(),
-            ];
-        })->sortByDesc('derniere_activite')->take(100)->values();
+                $derniereActivite = collect([$produit->messages_max_date_envoi, $dernieresCommandes->get($produit->id)])
+                    ->filter()
+                    ->max();
+
+                return [
+                    'produit_id' => $produit->id,
+                    'nom_produit' => $produit->nom_produit,
+                    'photo' => $produit->images->first()?->url_image,
+                    'statistiques' => $produit->statistiquesCommandes(),
+                    'derniere_activite' => $derniereActivite,
+                    'nouvelles_activites' => Message::where('produit_id', $produit->id)
+                        ->where('auteur_id', '!=', $user->id)
+                        ->when($consulteLe, fn ($q) => $q->where('date_envoi', '>', $consulteLe))
+                        ->count(),
+                    'epingle' => (bool) $preference?->epingle,
+                    'masque_depuis' => $preference?->masque_depuis,
+                ];
+            })
+            // Masqué ("retiré") tant qu'aucune activité plus récente que le masquage n'est survenue — réapparaît comme une archive, jamais supprimé.
+            ->filter(fn (array $item) => ! $item['masque_depuis'] || ($item['derniere_activite'] && $item['derniere_activite'] > $item['masque_depuis']))
+            ->map(fn (array $item) => Arr::except($item, ['masque_depuis']))
+            ->sort(function (array $a, array $b) {
+                if ($a['epingle'] !== $b['epingle']) {
+                    return $a['epingle'] ? -1 : 1;
+                }
+
+                return strcmp((string) $b['derniere_activite'], (string) $a['derniere_activite']);
+            })
+            ->take(100)
+            ->values();
 
         return $this->success($resultats);
+    }
+
+    /** "Épingler" une carte du fil d'activité récente — reste toujours en tête, voir produitsActifs(). */
+    public function epinglerProduitActif(Request $request, Produit $produit): JsonResponse
+    {
+        abort_unless($produit->estAccessibleConversationPar($request->user()), 403);
+
+        PreferenceAccueilProduit::updateOrCreate(
+            ['user_id' => $request->user()->id, 'produit_id' => $produit->id],
+            ['epingle' => true]
+        );
+
+        return $this->success(['message' => 'Carte épinglée.']);
+    }
+
+    public function desepinglerProduitActif(Request $request, Produit $produit): JsonResponse
+    {
+        abort_unless($produit->estAccessibleConversationPar($request->user()), 403);
+
+        PreferenceAccueilProduit::updateOrCreate(
+            ['user_id' => $request->user()->id, 'produit_id' => $produit->id],
+            ['epingle' => false]
+        );
+
+        return $this->success(['message' => 'Carte désépinglée.']);
+    }
+
+    /** "Retirer" une carte de l'accueil — masquée jusqu'à la prochaine activité (jamais supprimée), voir produitsActifs(). */
+    public function retirerProduitActif(Request $request, Produit $produit): JsonResponse
+    {
+        abort_unless($produit->estAccessibleConversationPar($request->user()), 403);
+
+        PreferenceAccueilProduit::updateOrCreate(
+            ['user_id' => $request->user()->id, 'produit_id' => $produit->id],
+            ['masque_depuis' => now()]
+        );
+
+        return $this->success(['message' => 'Carte retirée.']);
     }
 
     private function messagesPagines(HasMany $relation, Request $request)
