@@ -623,6 +623,14 @@ class ProduitController extends Controller
      * Plus de `commission_revente` dédiée : le livreur a rejoint le
      * maintenancier comme "apporteur d'affaire" (retour du PDG), sa
      * commission de revente est désormais `commission_apporteur`.
+     * `frais_livraison` ajouté (retour de test réel) : un produit déjà
+     * publié sans barème bloquait toute commande vers une localité non
+     * couverte avec un message invisible pour le Coordinateur (enveloppe
+     * générique, voir CommandeController::store()) — ce champ répare le
+     * vrai trou, pas seulement le message d'erreur côté front. Remplace
+     * entièrement le barème existant quand il est envoyé, même sémantique
+     * que update() (voir stockerFraisLivraison()) ; absent de la requête,
+     * le barème actuel n'est pas touché.
      */
     public function modifierBoutique(Request $request, Produit $produit): JsonResponse
     {
@@ -630,16 +638,29 @@ class ProduitController extends Controller
 
         $data = $request->validate([
             'prix_vente' => ['sometimes', 'numeric', 'min:0'],
-            'commission_agent' => ['sometimes', 'numeric', 'min:0'],
-            'commission_apporteur' => ['sometimes', 'numeric', 'min:0'],
+            // nullable ajouté (retour de test réel) : FeuilleBoutiqueProduit.tsx
+            // envoie explicitement `null` quand ces champs sont vidés (même
+            // convention que prix_barre/pourcentage_reduction ci-dessous, et
+            // que publier() pour ces deux mêmes champs) — sans ça, enregistrer
+            // n'importe quel autre changement (ex. le barème de livraison)
+            // échouait dès que l'un des deux était resté vide.
+            'commission_agent' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'commission_apporteur' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'prix_barre' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'pourcentage_reduction' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:100'],
             'etat_produit' => ['sometimes', 'nullable', Rule::in(ETATS_PRODUIT)],
+            'frais_livraison' => ['sometimes', 'array'],
+            'frais_livraison.*.localite_id' => ['required', 'distinct', 'exists:localites,id'],
+            'frais_livraison.*.montant' => ['required', 'numeric', 'min:0'],
         ]);
 
-        $produit->update($data);
+        $produit->update(Arr::except($data, ['frais_livraison']));
 
-        return $this->success($produit->fresh(['images', 'categorie']));
+        if ($request->has('frais_livraison')) {
+            $this->stockerFraisLivraison($produit, $data['frais_livraison'] ?? [], estMiseAJour: true);
+        }
+
+        return $this->success($produit->fresh(['images', 'categorie', 'fraisLivraison.localite']));
     }
 
     /**
