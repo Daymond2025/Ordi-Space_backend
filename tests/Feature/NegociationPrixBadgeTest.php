@@ -101,15 +101,57 @@ class NegociationPrixBadgeTest extends TestCase
     {
         $fournisseur = $this->creerFournisseur();
         $coordinateur = $this->creerCoordinateur();
+        $client = $this->creerClient();
         $produit = $this->creerProduitPhysique(['fournisseur_id' => $fournisseur->id, 'prix' => 100000]);
 
         $this->actingAs($coordinateur)->postJson("/api/v1/produits/{$produit->id}/negociation-prix", [
             'prix_propose' => 90000,
         ])->assertCreated();
 
-        // Le Coordinateur lui-même n'est pas concerné par ce badge (réservé au fournisseur propriétaire).
-        $reponse = $this->actingAs($coordinateur)->getJson("/api/v1/produits/{$produit->id}");
+        // Un client qui consulte la même route publique n'est concerné par aucun badge.
+        $reponse = $this->actingAs($client)->getJson("/api/v1/produits/{$produit->id}");
         $reponse->assertOk();
         $this->assertNull($reponse->json('data.negociation_a_lire'));
+    }
+
+    /**
+     * Retour de test réel : "sur la page produit, négocier prix n'est pas
+     * comme pour le fournisseur, alors que c'est le coordinateur qui commence
+     * une négociation" — avant ce correctif, le badge n'était calculé QUE
+     * pour le fournisseur propriétaire (voir le test ci-dessus avant sa
+     * réécriture), alors que c'est le Coordinateur/Admin qui démarre le fil :
+     * lui aussi doit être alerté des réponses du fournisseur.
+     */
+    public function test_le_badge_sallume_aussi_pour_le_coordinateur_a_la_reponse_du_fournisseur(): void
+    {
+        $fournisseur = $this->creerFournisseur();
+        $coordinateur = $this->creerCoordinateur();
+        $produit = $this->creerProduitPhysique(['fournisseur_id' => $fournisseur->id, 'prix' => 100000]);
+
+        $this->actingAs($coordinateur)->postJson("/api/v1/produits/{$produit->id}/negociation-prix", [
+            'prix_propose' => 90000,
+        ])->assertCreated();
+
+        // Sa propre proposition n'allume pas son propre badge.
+        $reponse = $this->actingAs($coordinateur)->getJson("/api/v1/produits/{$produit->id}");
+        $reponse->assertOk();
+        $this->assertFalse($reponse->json('data.negociation_a_lire'));
+
+        $this->travel(1)->second();
+        $this->actingAs($fournisseur)->postJson("/api/v1/produits/{$produit->id}/negociation-prix/messages", [
+            'contenu' => "D'accord pour 92000.",
+        ])->assertCreated();
+
+        $reponse = $this->actingAs($coordinateur)->getJson("/api/v1/produits/{$produit->id}");
+        $reponse->assertOk();
+        $this->assertTrue($reponse->json('data.negociation_a_lire'));
+
+        // Ouvrir le fil éteint le badge, comme côté fournisseur.
+        $this->travel(1)->second();
+        $this->actingAs($coordinateur)->getJson("/api/v1/produits/{$produit->id}/negociation-prix")->assertOk();
+
+        $reponse = $this->actingAs($coordinateur)->getJson("/api/v1/produits/{$produit->id}");
+        $reponse->assertOk();
+        $this->assertFalse($reponse->json('data.negociation_a_lire'));
     }
 }

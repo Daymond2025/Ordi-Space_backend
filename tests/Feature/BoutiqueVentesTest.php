@@ -40,7 +40,7 @@ class BoutiqueVentesTest extends TestCase
     {
         $this->creerCoordinateur();
         $livreur = $this->creerLivreur();
-        $produit = $this->creerProduitPhysique(['quantite_stock' => 10, 'commission_revente' => 15000]);
+        $produit = $this->creerProduitPhysique(['quantite_stock' => 10, 'commission_apporteur' => 15000]);
 
         $code = Artisan::call('boutique:ventes-demo', ['email' => $livreur->email, '--produit' => $produit->id]);
         $this->assertSame(0, $code, Artisan::output());
@@ -107,7 +107,7 @@ class BoutiqueVentesTest extends TestCase
     {
         [$livreur, $produit] = $this->livreurAvecVentes();
 
-        $produit->update(['commission_revente' => 99999]);
+        $produit->update(['commission_apporteur' => 99999]);
 
         $reponse = $this->actingAs($livreur)->getJson('/api/v1/boutique/ventes');
         $this->assertSame(15000, $reponse->json('data.ventes.data.0.commission'));

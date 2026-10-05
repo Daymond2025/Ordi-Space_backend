@@ -192,12 +192,12 @@ class BoutiquePubliqueController extends Controller
         ];
     }
 
-    /** Produits proposables à la vente par vitrine : publiés, en stock et ouverts à la revente (commission renseignée). */
+    /** Produits proposables à la vente par vitrine : publiés, en stock et ouverts à la revente (commission_apporteur renseignée — voir VenteBoutique::enregistrer()). */
     private function selectionVitrine()
     {
         return Produit::where('statut_produit', STATUT_PRODUIT_VALIDE)
             ->where('quantite_stock', '>', 0)
-            ->whereNotNull('commission_revente')
+            ->whereNotNull('commission_apporteur')
             ->where('type_livraison', TYPE_LIVRAISON_PHYSIQUE);
     }
 

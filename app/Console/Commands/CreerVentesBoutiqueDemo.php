@@ -65,9 +65,9 @@ class CreerVentesBoutiqueDemo extends Command
 
         $produit = $this->option('produit')
             ? Produit::find($this->option('produit'))
-            : Produit::whereNotNull('commission_revente')->where('quantite_stock', '>', 0)->first();
-        if (! $produit || ! $produit->estVisibleALaVente() || $produit->commission_revente === null) {
-            $this->error('Produit introuvable, non publié, ou sans commission de revente.');
+            : Produit::whereNotNull('commission_apporteur')->where('quantite_stock', '>', 0)->first();
+        if (! $produit || ! $produit->estVisibleALaVente() || $produit->commission_apporteur === null) {
+            $this->error('Produit introuvable, non publié, ou sans commission apporteur.');
 
             return self::FAILURE;
         }

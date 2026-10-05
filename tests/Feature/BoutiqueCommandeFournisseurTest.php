@@ -42,7 +42,7 @@ class BoutiqueCommandeFournisseurTest extends TestCase
 
     private function produitARevendre(array $attributs = []): Produit
     {
-        return $this->creerProduitPhysique(array_merge(['quantite_stock' => 5, 'prix' => 100000, 'commission_revente' => 15000], $attributs));
+        return $this->creerProduitPhysique(array_merge(['quantite_stock' => 5, 'prix' => 100000, 'commission_apporteur' => 15000], $attributs));
     }
 
     private function corps(Produit $produit, array $surcharge = []): array

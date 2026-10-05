@@ -58,6 +58,18 @@ class ProduitPolicy
     }
 
     /**
+     * "Paramètres boutique" (ProduitController::modifierBoutique) — même
+     * acteurs que valider(), mais UNIQUEMENT une fois le produit publié :
+     * avant ça, c'est publier() qui fixe ces mêmes champs en un seul geste
+     * (la première validation), pas de raison d'avoir les deux routes
+     * actives en même temps sur un produit encore en attente.
+     */
+    public function modifierBoutique(User $user, Produit $produit): bool
+    {
+        return $user->can(PERMISSION_PRODUITS_VALIDER) && $produit->statut_produit === STATUT_PRODUIT_VALIDE;
+    }
+
+    /**
      * Coordinateur/Admin : n'importe quel produit. Fournisseur (a désormais
      * aussi PERMISSION_PRODUITS_SUPPRIMER, menu ☰ app Fournisseur) : le sien
      * uniquement — sinon n'importe quel fournisseur pourrait supprimer le

@@ -54,15 +54,14 @@ class StoreProduitRequest extends FormRequest
             // marketing) — voir la migration contenu_pack.
             'contenu_pack' => ['nullable', 'array'],
             'contenu_pack.*' => ['string', 'max:100'],
-            // "Boutique" — commission qu'un revendeur (Livreur) touche en
-            // vendant ce produit via son lien affilié. Renseignée par qui
-            // crée le produit (Fournisseur/Coordinateur/Admin), sans rapport
-            // avec commission_agent/commission_apporteur (voir Produit::$fillable).
-            'commission_revente' => ['nullable', 'numeric', 'min:0'],
-            // "Boutique" — état déclaratif, réduction marketing et prix de
-            // référence barré. `prix_barre` reste indépendant de `prix`
-            // (coût fournisseur, jamais montré au revendeur) et `prix_vente`
-            // (prix public réel).
+            // "Boutique" — commission de l'apporteur d'affaire (maintenancier
+            // OU livreur revendant via son lien affilié, même commission
+            // depuis qu'ils sont tous deux "apporteurs d'affaire" — retour du
+            // PDG, voir VenteBoutique::enregistrer()), état déclaratif,
+            // réduction marketing et prix de référence barré. `prix_barre`
+            // reste indépendant de `prix` (coût fournisseur, jamais montré au
+            // revendeur) et `prix_vente` (prix public réel).
+            'commission_apporteur' => ['nullable', 'numeric', 'min:0'],
             'etat_produit' => ['nullable', Rule::in(ETATS_PRODUIT)],
             'pourcentage_reduction' => ['nullable', 'integer', 'min:0', 'max:100'],
             'prix_barre' => ['nullable', 'numeric', 'min:0'],

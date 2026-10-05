@@ -26,7 +26,7 @@ class Produit extends Model
         'type_livraison', 'duree_garantie_mois', 'est_booste',
         'processeur', 'memoire_ram', 'stockage', 'taille',
         'systeme_exploitation', 'carte_graphique', 'couleur', 'cadeaux', 'contenu_pack', 'images_cadeaux', 'etat_produit',
-        'prix_vente', 'commission_agent', 'commission_apporteur', 'commission_revente',
+        'prix_vente', 'commission_agent', 'commission_apporteur',
         'pourcentage_reduction', 'prix_barre', 'marque',
     ];
 
@@ -55,7 +55,6 @@ class Produit extends Model
             'prix_vente' => 'decimal:2',
             'commission_agent' => 'decimal:2',
             'commission_apporteur' => 'decimal:2',
-            'commission_revente' => 'decimal:2',
             'prix_barre' => 'decimal:2',
             'pourcentage_reduction' => 'integer',
             'date_ajout' => 'datetime',

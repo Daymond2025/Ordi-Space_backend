@@ -39,15 +39,18 @@ class VenteBoutique extends Model
 
     /**
      * Enregistre la vente d'une commande déjà créée et fige la commission :
-     * somme des `commission_revente` des produits vendus × quantités (un
-     * produit sans commission n'en rapporte pas).
+     * somme des `commission_apporteur` des produits vendus × quantités (un
+     * produit sans commission n'en rapporte pas). Le livreur a rejoint le
+     * maintenancier comme "apporteur d'affaire" (retour du PDG) : plus de
+     * champ dédié à la revente par le livreur, c'est désormais la même
+     * commission que tout autre apporteur — voir ProduitController::publier().
      */
     public static function enregistrer(User $livreur, Commande $commande, string $source, ?LienAffilie $lien = null): self
     {
         $commande->loadMissing('lignes.produit');
 
         $commission = $commande->lignes->sum(
-            fn (LigneCommande $ligne) => (float) ($ligne->produit?->commission_revente ?? 0) * $ligne->quantite
+            fn (LigneCommande $ligne) => (float) ($ligne->produit?->commission_apporteur ?? 0) * $ligne->quantite
         );
 
         $vente = self::create([

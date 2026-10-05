@@ -43,7 +43,7 @@ class AdminCommandesCentraleTest extends TestCase
     {
         $this->creerCoordinateur();
         $livreur = $this->creerLivreur();
-        $produit = $this->creerProduitPhysique(['quantite_stock' => 10, 'commission_revente' => 15000, 'nom_produit' => 'Laptop Boutique']);
+        $produit = $this->creerProduitPhysique(['quantite_stock' => 10, 'commission_apporteur' => 15000, 'nom_produit' => 'Laptop Boutique']);
         $this->assertSame(0, Artisan::call('boutique:ventes-demo', ['email' => $livreur->email, '--produit' => $produit->id]), Artisan::output());
 
         $client = $this->creerClient(['prenom' => 'Direct', 'nom' => 'Acheteur', 'telephone' => '+2250100000000']);
@@ -105,7 +105,7 @@ class AdminCommandesCentraleTest extends TestCase
     {
         $livreur = $this->creerLivreur();
         $vitrine = Vitrine::pour($livreur);
-        $produit = $this->creerProduitPhysique(['quantite_stock' => 5, 'commission_revente' => 15000, 'nom_produit' => 'Laptop Page Acheteur']);
+        $produit = $this->creerProduitPhysique(['quantite_stock' => 5, 'commission_apporteur' => 15000, 'nom_produit' => 'Laptop Page Acheteur']);
 
         $this->configurerWavePublic();
         $this->fauxWave();

@@ -214,6 +214,8 @@ Route::prefix('v1')->group(function () {
             Route::post('produits/{produit}/valider', [ProduitController::class, 'valider'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
             Route::post('produits/{produit}/publier', [ProduitController::class, 'publier'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
             Route::patch('produits/{produit}/prix', [ProduitController::class, 'modifierPrix'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
+            // "Paramètres boutique" d'un produit déjà publié (prix de vente, commissions, prix barré, réduction, état) — voir ProduitController::modifierBoutique().
+            Route::patch('produits/{produit}/boutique', [ProduitController::class, 'modifierBoutique'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
             Route::patch('produits/{produit}/fiche', [ProduitController::class, 'modifierFiche'])->middleware('permission:'.PERMISSION_PRODUITS_VALIDER);
             Route::post('produits/{produit}/images', [ProduitController::class, 'ajouterImages'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER.'|'.PERMISSION_PRODUITS_VALIDER);
             Route::delete('produits/{produit}/images/{image}', [ProduitController::class, 'supprimerImage'])->middleware('permission:'.PERMISSION_PRODUITS_MODIFIER.'|'.PERMISSION_PRODUITS_VALIDER);

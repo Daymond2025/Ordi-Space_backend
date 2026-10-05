@@ -54,7 +54,7 @@ class ConfirmationCommandeTest extends TestCase
 
     private function corps(?Produit $produit = null, array $surcharge = []): array
     {
-        $produit ??= $this->creerProduitPhysique(['quantite_stock' => 5, 'prix' => 100000, 'commission_revente' => 15000]);
+        $produit ??= $this->creerProduitPhysique(['quantite_stock' => 5, 'prix' => 100000, 'commission_apporteur' => 15000]);
         $lien = LienAffilie::create(['produit_id' => $produit->id, 'livreur_id' => $this->vendeur()->id, 'code' => 'lien'.$produit->id]);
 
         return array_merge([
@@ -94,7 +94,7 @@ class ConfirmationCommandeTest extends TestCase
 
     public function test_un_webhook_rejoue_ne_cree_qu_une_commande_et_ne_retient_le_stock_qu_une_fois(): void
     {
-        $produit = $this->creerProduitPhysique(['quantite_stock' => 5, 'prix' => 100000, 'commission_revente' => 15000]);
+        $produit = $this->creerProduitPhysique(['quantite_stock' => 5, 'prix' => 100000, 'commission_apporteur' => 15000]);
         $this->ouvrirConfirmation($this->corps($produit))->assertCreated();
 
         $this->webhookWave('cos_1')->assertOk();
@@ -142,7 +142,7 @@ class ConfirmationCommandeTest extends TestCase
 
     public function test_stock_epuise_entre_l_ouverture_et_le_paiement_devient_une_anomalie_pour_l_admin(): void
     {
-        $produit = $this->creerProduitPhysique(['quantite_stock' => 1, 'prix' => 100000, 'commission_revente' => 15000]);
+        $produit = $this->creerProduitPhysique(['quantite_stock' => 1, 'prix' => 100000, 'commission_apporteur' => 15000]);
         $this->ouvrirConfirmation($this->corps($produit))->assertCreated();
         $produit->update(['quantite_stock' => 0]); // vendu à quelqu'un d'autre pendant le paiement
 

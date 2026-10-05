@@ -26,7 +26,7 @@ class FiltresCatalogueTest extends TestCase
 
     private function produit(string $nom, array $attributs = []): Produit
     {
-        return $this->creerProduitPhysique(array_merge(['nom_produit' => $nom, 'commission_revente' => 10000], $attributs));
+        return $this->creerProduitPhysique(array_merge(['nom_produit' => $nom, 'commission_apporteur' => 10000], $attributs));
     }
 
     /** @return array<int, string> noms des produits renvoyés, triés */
@@ -119,7 +119,7 @@ class FiltresCatalogueTest extends TestCase
         $word = Categorie::where('nom_categorie', 'Word')->first();
 
         $this->produit('Laptop revendable');
-        $this->produit('Laptop non revendable', ['commission_revente' => null]);
+        $this->produit('Laptop non revendable', ['commission_apporteur' => null]);
         $this->produit('Souris MX', ['categorie_id' => $souris->id]);
         $this->produit('Licence Word', ['categorie_id' => $word->id]);
 
@@ -173,16 +173,23 @@ class FiltresCatalogueTest extends TestCase
         $this->actingAs($this->creerCoordinateur())->putJson("/api/v1/categories/{$categorie->id}", ['libelle' => 'X'])->assertForbidden();
     }
 
+    /**
+     * Le livreur a rejoint le maintenancier comme "apporteur d'affaire"
+     * (retour du PDG) : plus de commission de revente dédiée, ce sont les
+     * mêmes champs "boutique" (prix barré, réduction, état) + la
+     * commission_apporteur déjà existante qui ouvrent le produit à la
+     * revente — voir VenteBoutique::enregistrer().
+     */
     public function test_la_publication_accepte_les_champs_de_revente_de_la_boutique(): void
     {
-        $produit = $this->produit('HP 250 G8', ['statut_produit' => STATUT_PRODUIT_EN_ATTENTE, 'commission_revente' => null, 'prix' => 100000]);
+        $produit = $this->produit('HP 250 G8', ['statut_produit' => STATUT_PRODUIT_EN_ATTENTE, 'commission_apporteur' => null, 'prix' => 100000]);
 
         $this->actingAs($this->creerCoordinateur())->postJson("/api/v1/produits/{$produit->id}/publier", [
-            'prix_vente' => 140000, 'commission_revente' => 9000, 'prix_barre' => 160000, 'pourcentage_reduction' => 13, 'etat_produit' => 'reconditionne',
+            'prix_vente' => 140000, 'commission_apporteur' => 9000, 'prix_barre' => 160000, 'pourcentage_reduction' => 13, 'etat_produit' => 'reconditionne',
         ])->assertOk();
 
         $produit->refresh();
-        $this->assertEquals(9000, $produit->commission_revente);
+        $this->assertEquals(9000, $produit->commission_apporteur);
         $this->assertEquals(160000, $produit->prix_barre);
         $this->assertSame(13, $produit->pourcentage_reduction);
         $this->assertSame('reconditionne', $produit->etat_produit);
@@ -191,7 +198,7 @@ class FiltresCatalogueTest extends TestCase
     public function test_l_admin_fixe_le_prix_de_vente_a_la_creation_mais_pas_le_fournisseur(): void
     {
         $categorie = Categorie::where('nom_categorie', 'Ordinateurs portables')->first();
-        $corps = ['categorie_id' => $categorie->id, 'nom_produit' => 'Dell 5420', 'prix' => 200000, 'prix_vente' => 260000, 'quantite_stock' => 3, 'commission_revente' => 8000, 'etat_produit' => 'neuf'];
+        $corps = ['categorie_id' => $categorie->id, 'nom_produit' => 'Dell 5420', 'prix' => 200000, 'prix_vente' => 260000, 'quantite_stock' => 3, 'commission_apporteur' => 8000, 'etat_produit' => 'neuf'];
 
         $this->actingAs($this->creerAdmin())->postJson('/api/v1/produits', $corps)->assertCreated()->assertJsonPath('data.prix_vente', '260000.00');
         $this->actingAs($this->creerFournisseur())->postJson('/api/v1/produits', $corps)->assertUnprocessable();

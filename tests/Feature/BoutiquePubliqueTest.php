@@ -51,7 +51,7 @@ class BoutiquePubliqueTest extends TestCase
     /** Produit à revendre (commission renseignée), livrable à Cocody (creerProduitPhysique : 2 000 F). */
     private function produitARevendre(array $attributs = []): Produit
     {
-        return $this->creerProduitPhysique(array_merge(['quantite_stock' => 5, 'prix' => 100000, 'commission_revente' => 15000], $attributs));
+        return $this->creerProduitPhysique(array_merge(['quantite_stock' => 5, 'prix' => 100000, 'commission_apporteur' => 15000], $attributs));
     }
 
     private function corpsCommande(array $surcharge = []): array

@@ -19,9 +19,11 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * "Boutique" — le Livreur revend des produits publiés par Fournisseur/
- * Coordinateur/Admin en échange d'une commission (`commission_revente` du
- * produit). Couvre la génération du lien affilié partageable (bouton
- * "Vendre ce produit") et la liste de ses ventes ("Centre des ventes").
+ * Coordinateur/Admin en échange d'une commission (`commission_apporteur` du
+ * produit — le livreur a rejoint le maintenancier comme "apporteur
+ * d'affaire", plus de champ de commission qui lui soit propre, retour du
+ * PDG). Couvre la génération du lien affilié partageable (bouton "Vendre ce
+ * produit") et la liste de ses ventes ("Centre des ventes").
  */
 class BoutiqueController extends Controller
 {
@@ -72,7 +74,7 @@ class BoutiqueController extends Controller
 
         $produit = Produit::where('statut_produit', STATUT_PRODUIT_VALIDE)
             ->where('type_livraison', TYPE_LIVRAISON_PHYSIQUE)
-            ->whereNotNull('commission_revente')
+            ->whereNotNull('commission_apporteur')
             ->find($data['produit_id']);
 
         if (! $produit) {
@@ -256,8 +258,8 @@ class BoutiqueController extends Controller
         $ventesLivrees = (clone $mesVentes)
             ->whereHas('commande', fn ($q) => $q->whereIn('statut_commande', $parStatut['livree']));
 
-        $commissions = Produit::whereNotNull('commission_revente')
-            ->where('commission_revente', '>', 0)
+        $commissions = Produit::whereNotNull('commission_apporteur')
+            ->where('commission_apporteur', '>', 0)
             ->where('statut_produit', STATUT_PRODUIT_VALIDE)
             ->where('quantite_stock', '>', 0);
 
@@ -283,8 +285,8 @@ class BoutiqueController extends Controller
             'lien' => [
                 'url' => $vitrine->url(),
                 // Fourchette des commissions proposées sur les produits actuellement vendables.
-                'commission_min' => (clone $commissions)->min('commission_revente') !== null ? (float) (clone $commissions)->min('commission_revente') : null,
-                'commission_max' => (clone $commissions)->max('commission_revente') !== null ? (float) (clone $commissions)->max('commission_revente') : null,
+                'commission_min' => (clone $commissions)->min('commission_apporteur') !== null ? (float) (clone $commissions)->min('commission_apporteur') : null,
+                'commission_max' => (clone $commissions)->max('commission_apporteur') !== null ? (float) (clone $commissions)->max('commission_apporteur') : null,
                 'clics' => $vitrine->clics + (int) LienAffilie::where('livreur_id', $user->id)->sum('vues'),
                 'livrees' => (clone $ventesLivrees)->where('source', 'whatsapp')->count(),
             ],

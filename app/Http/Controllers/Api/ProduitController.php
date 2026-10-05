@@ -373,13 +373,16 @@ class ProduitController extends Controller
             $produit->motif_rejet = $produit->validations()->latest('date_validation')->value('motif_rejet');
         }
 
-        // Badge "Négociation de prix" (app Fournisseur, retour de test réel) :
-        // true si le Coordinateur/Admin a posté un message de négociation que
-        // CE fournisseur n'a pas encore consulté (fil distinct de la
-        // discussion générale, voir ConsultationNegociationPrix). Calculé
-        // uniquement pour le fournisseur propriétaire — sans objet pour les
-        // autres rôles qui consultent cette même route publique.
-        if ($user && $produit->fournisseur_id === $user->id) {
+        // Badge "Négociation de prix" (fil distinct de la discussion générale,
+        // voir ConsultationNegociationPrix) : true si l'AUTRE partie a posté un
+        // message que CET utilisateur n'a pas encore consulté. Calculé pour le
+        // fournisseur propriétaire (app Fournisseur, retour de test réel) ET
+        // pour le Coordinateur/Admin (app Coordinateur — avant, seul le
+        // fournisseur voyait ce badge alors que c'est le Coordinateur qui
+        // démarre la négociation ; la rangée "Négociation de prix" de sa fiche
+        // produit restait donc muette aux réponses du fournisseur) — sans objet
+        // pour les autres rôles qui consultent cette même route publique.
+        if ($user && ($produit->fournisseur_id === $user->id || in_array($user->type_utilisateur, [ROLE_ADMINISTRATEUR, ROLE_COORDINATEUR], true))) {
             $produit->negociation_a_lire = $produit->negociationALirePar($user);
         }
 
@@ -531,9 +534,12 @@ class ProduitController extends Controller
             'prix_vente' => ['required', 'numeric', 'min:0'],
             'commission_agent' => ['nullable', 'numeric', 'min:0'],
             'commission_apporteur' => ['nullable', 'numeric', 'min:0'],
-            // "Boutique" (Livreur) : commission de revente, prix de référence barré, réduction
-            // affichée et état — facultatifs, absents = inchangés.
-            'commission_revente' => ['nullable', 'numeric', 'min:0'],
+            // "Boutique" (Livreur) : prix de référence barré, réduction affichée
+            // et état — facultatifs, absents = inchangés. Plus de commission de
+            // revente dédiée : le livreur a rejoint le maintenancier comme
+            // "apporteur d'affaire" (retour du PDG), c'est désormais la même
+            // commission_apporteur que tout autre apporteur — voir
+            // VenteBoutique::enregistrer().
             'prix_barre' => ['nullable', 'numeric', 'min:0'],
             'pourcentage_reduction' => ['nullable', 'integer', 'min:0', 'max:100'],
             'etat_produit' => ['nullable', Rule::in(ETATS_PRODUIT)],
@@ -552,7 +558,7 @@ class ProduitController extends Controller
                 'commission_agent' => $data['commission_agent'] ?? 1000,
                 'commission_apporteur' => $data['commission_apporteur'] ?? round(($data['prix_vente'] - $produit->prix) * 0.25, 2),
                 'statut_produit' => STATUT_PRODUIT_VALIDE,
-                ...Arr::only($data, ['commission_revente', 'prix_barre', 'pourcentage_reduction', 'etat_produit']),
+                ...Arr::only($data, ['prix_barre', 'pourcentage_reduction', 'etat_produit']),
             ]);
         });
 
@@ -599,6 +605,38 @@ class ProduitController extends Controller
         $this->authorize('modifierPrix', $produit);
 
         $data = $request->validate(['prix' => ['required', 'numeric', 'min:0']]);
+        $produit->update($data);
+
+        return $this->success($produit->fresh(['images', 'categorie']));
+    }
+
+    /**
+     * "Paramètres boutique" (prix de vente, commissions, prix barré,
+     * réduction, état) d'un produit DÉJÀ publié — publier() ne s'applique
+     * qu'une fois, à la première validation ; cette route couvre tout
+     * ajustement après coup (changer une promotion, corriger une commission
+     * oubliée…). Le fournisseur ne peut plus rien fixer ici depuis le
+     * retrait de ces champs de son formulaire — c'est désormais
+     * entièrement la main du Coordinateur. Chaque champ est facultatif et
+     * indépendant : laissé absent de la requête, il garde sa valeur
+     * actuelle (validate() n'inclut dans $data que ce qui a été envoyé).
+     * Plus de `commission_revente` dédiée : le livreur a rejoint le
+     * maintenancier comme "apporteur d'affaire" (retour du PDG), sa
+     * commission de revente est désormais `commission_apporteur`.
+     */
+    public function modifierBoutique(Request $request, Produit $produit): JsonResponse
+    {
+        $this->authorize('modifierBoutique', $produit);
+
+        $data = $request->validate([
+            'prix_vente' => ['sometimes', 'numeric', 'min:0'],
+            'commission_agent' => ['sometimes', 'numeric', 'min:0'],
+            'commission_apporteur' => ['sometimes', 'numeric', 'min:0'],
+            'prix_barre' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'pourcentage_reduction' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:100'],
+            'etat_produit' => ['sometimes', 'nullable', Rule::in(ETATS_PRODUIT)],
+        ]);
+
         $produit->update($data);
 
         return $this->success($produit->fresh(['images', 'categorie']));

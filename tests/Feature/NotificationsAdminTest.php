@@ -89,7 +89,7 @@ class NotificationsAdminTest extends TestCase
         $admin = $this->creerAdmin();
         $coordinateur = $this->creerCoordinateur();
         $livreurUser = $this->creerLivreur();
-        $produit = $this->creerProduitPhysique(['quantite_stock' => 10, 'commission_revente' => 15000]);
+        $produit = $this->creerProduitPhysique(['quantite_stock' => 10, 'commission_apporteur' => 15000]);
 
         // Crée de vraies ventes boutique pour ce livreur (donc une commission
         // disponible réelle) — même commande artisan que PortefeuilleCommissionsTest.

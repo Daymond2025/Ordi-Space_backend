@@ -45,7 +45,7 @@ class PortefeuilleCommissionsTest extends TestCase
     {
         $this->creerCoordinateur();
         $livreur = $this->creerLivreur();
-        $produit = $this->creerProduitPhysique(['quantite_stock' => 10, 'commission_revente' => 15000]);
+        $produit = $this->creerProduitPhysique(['quantite_stock' => 10, 'commission_apporteur' => 15000]);
 
         $this->assertSame(0, Artisan::call('boutique:ventes-demo', ['email' => $livreur->email, '--produit' => $produit->id]), Artisan::output());
 

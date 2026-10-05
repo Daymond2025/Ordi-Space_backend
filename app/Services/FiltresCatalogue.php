@@ -35,7 +35,7 @@ class FiltresCatalogue
         }
 
         if ($request->boolean('revente')) {
-            $query->whereNotNull('commission_revente');
+            $query->whereNotNull('commission_apporteur');
         }
 
         if ($marques = self::liste($request, 'marques')) {
