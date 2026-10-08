@@ -238,6 +238,79 @@ class Commande extends Model
     }
 
     /**
+     * "Commande validé" ("Mes paiements", app Commercial) — crédite un
+     * montant FIXE (COMMISSION_COMMERCIAL_PAR_VENTE) par commande validée,
+     * quel que soit le produit vendu (confirmé PDG — jamais
+     * Produit::commission_agent, un champ du formulaire Coordinateur sans
+     * lien avec ce montant). Idempotent (une seule transaction "credit" par
+     * commande) pour rester correct même si la commande repasse par
+     * "validée" plusieurs fois (ex. après "reportée").
+     */
+    public function crediterCommissionCommercialSiEligible(): void
+    {
+        if (! $this->commercial_id) {
+            return;
+        }
+
+        if (TransactionPortefeuilleCommercial::where('commande_id', $this->id)->where('type', TYPE_TRANSACTION_PORTEFEUILLE_CREDIT)->exists()) {
+            return;
+        }
+
+        // Autonome (ne suppose jamais que l'appelant a déjà chargé ces
+        // relations) : appelé aussi bien depuis appliquerChangementStatut()
+        // que directement depuis CommandeController::valider() (chemin
+        // principal de validation, qui ne passe pas par cette méthode-là).
+        $this->loadMissing('client.user', 'livraison.adresse.localite');
+
+        $commercial = Commercial::find($this->commercial_id);
+        $commercial?->crediterPortefeuille(
+            COMMISSION_COMMERCIAL_PAR_VENTE, 'Commande validé', $this->id, $this->nomClientPourPortefeuille(), $this->localitePourPortefeuille()
+        );
+    }
+
+    /**
+     * "Commande annulée" — reprise de la commission déjà créditée (commande
+     * validée, puis finalement annulée). Distinct de "Retrait effectué"
+     * (Admin\RetraitController::valider()) : ce libellé-là est réservé au
+     * vrai retrait Mobile Money demandé par le commercial — jamais utilisé
+     * ici, pour ne pas laisser croire à un retrait réel. Pas de
+     * double-reprise si déjà fait.
+     */
+    public function reprendreCommissionCommercialSiEligible(): void
+    {
+        if (! $this->commercial_id) {
+            return;
+        }
+
+        $credit = TransactionPortefeuilleCommercial::where('commande_id', $this->id)->where('type', TYPE_TRANSACTION_PORTEFEUILLE_CREDIT)->first();
+        if (! $credit) {
+            return;
+        }
+
+        $dejaReprise = TransactionPortefeuilleCommercial::where('commande_id', $this->id)->where('type', TYPE_TRANSACTION_PORTEFEUILLE_DEBIT)->exists();
+        if ($dejaReprise) {
+            return;
+        }
+
+        $this->loadMissing('client.user', 'livraison.adresse.localite');
+
+        $commercial = Commercial::find($this->commercial_id);
+        $commercial?->debiterPortefeuille((float) $credit->montant, 'Commande annulée', $this->id, $this->nomClientPourPortefeuille(), $this->localitePourPortefeuille());
+    }
+
+    private function nomClientPourPortefeuille(): ?string
+    {
+        $nom = trim(($this->client?->user?->prenom ?? '').' '.($this->client?->user?->nom ?? ''));
+
+        return $nom !== '' ? $nom : null;
+    }
+
+    private function localitePourPortefeuille(): ?string
+    {
+        return $this->livraison?->adresse?->localite?->nom;
+    }
+
+    /**
      * Effets de bord partagés d'un changement de statut forcé — extrait de
      * l'override Admin (Api\Admin\CommandeController::changerStatut()) pour
      * être réutilisé par le nouveau point d'entrée Coordinateur (liberté
@@ -248,7 +321,7 @@ class Commande extends Model
      */
     public function appliquerChangementStatut(string $cible, ?int $livreurId = null, ?int $coordinateurId = null): void
     {
-        $this->loadMissing('livraison', 'lignes.produit');
+        $this->loadMissing('livraison.adresse.localite', 'lignes.produit', 'client.user');
 
         DB::transaction(function () use ($cible, $livreurId, $coordinateurId) {
             if ($cible === STATUT_COMMANDE_ANNULEE && $this->statut_commande !== STATUT_COMMANDE_ANNULEE) {
@@ -266,6 +339,11 @@ class Commande extends Model
                         'statut_retour' => STATUT_RETOUR_LIVRAISON_EN_COURS,
                     ]);
                 }
+
+                // "Commande annulée" ("Mes paiements", app Commercial) : la
+                // commande avait déjà crédité une commission (validée avant
+                // d'être annulée) — on la reprend, une seule fois.
+                $this->reprendreCommissionCommercialSiEligible();
             }
 
             if ($cible === STATUT_COMMANDE_VALIDEE) {
@@ -273,6 +351,8 @@ class Commande extends Model
                     'coordinateur_id' => $this->coordinateur_id ?? $coordinateurId,
                     'date_validation' => $this->date_validation ?? now(),
                 ]);
+
+                $this->crediterCommissionCommercialSiEligible();
             }
 
             if ($cible === STATUT_COMMANDE_EN_PREPARATION) {

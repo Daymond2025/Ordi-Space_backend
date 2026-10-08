@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\ClientRapideController;
 use App\Http\Controllers\Api\CommandeController;
 use App\Http\Controllers\Api\CommercialController;
 use App\Http\Controllers\Api\LivreurController;
+use App\Http\Controllers\Api\Commercial\EspaceController as CommercialEspaceController;
 use App\Http\Controllers\Api\Coordinateur\EspaceController as CoordinateurEspaceController;
 use App\Http\Controllers\Api\Coordinateur\PortefeuilleController as CoordinateurPortefeuilleController;
 use App\Http\Controllers\Api\FournisseurController;
@@ -40,6 +41,7 @@ use App\Http\Controllers\Api\ProduitController;
 use App\Http\Controllers\Api\PushSubscriptionController;
 use App\Http\Controllers\Api\QuestionFrequenteController;
 use App\Http\Controllers\Api\ReclamationController;
+use App\Http\Controllers\Api\ReponseRapideController;
 use App\Http\Controllers\Api\RetourController;
 use App\Http\Controllers\Api\Sav\DemandeSavController;
 use App\Http\Controllers\Api\Sav\InterventionController;
@@ -104,6 +106,14 @@ Route::prefix('v1')->group(function () {
     Route::get('produits/statistiques', [ProduitController::class, 'statistiques'])
         ->middleware(['auth:sanctum', 'permission:'.PERMISSION_PRODUITS_CONSULTER]);
     Route::get('produits/{produit}', [ProduitController::class, 'show']);
+    // "Copier les infos / télécharger les images" (fiche produit, app
+    // Commercial — voir EcranDetailProduit.tsx) : la photo est déjà publique
+    // via /storage/**, mais ce chemin-là n'est jamais passé par le Kernel
+    // Laravel (fichier statique servi tel quel) donc jamais par CORS — un
+    // fetch() cross-origin échouerait. Cette route API (sous api/*, donc
+    // couverte par HandleCors) ne fait que forcer le téléchargement du même
+    // fichier, sans rien exposer de plus que ce que la fiche affiche déjà.
+    Route::get('produits/{produit}/images/{image}/telecharger', [ProduitController::class, 'telechargerImage']);
     // Référentiel des localités (communes d'Abidjan + villes de CI) — lu par
     // fournisseur/admin (barème produit) et client/commercial (adresse).
     Route::get('localites', [LocaliteController::class, 'index']);
@@ -378,6 +388,17 @@ Route::prefix('v1')->group(function () {
             Route::delete('tutoriels/{tutoriel}', [TutorielController::class, 'destroy']);
         });
 
+        // "Réponse rapide" (app Commercial) : lecture par tout rôle connecté
+        // (voir EcranReponseRapide.tsx), contenu entièrement géré par l'Admin.
+        Route::get('reponses-rapides', [ReponseRapideController::class, 'index']);
+        Route::post('reponses-rapides/{reponseRapide}/copie', [ReponseRapideController::class, 'marquerCopiee']);
+        Route::middleware('permission:'.PERMISSION_REPONSES_RAPIDES_GERER)->group(function () {
+            Route::get('reponses-rapides/{reponseRapide}', [ReponseRapideController::class, 'show']);
+            Route::post('reponses-rapides', [ReponseRapideController::class, 'store']);
+            Route::put('reponses-rapides/{reponseRapide}', [ReponseRapideController::class, 'update']);
+            Route::delete('reponses-rapides/{reponseRapide}', [ReponseRapideController::class, 'destroy']);
+        });
+
         Route::prefix('sav')->middleware('espace:maintenance')->group(function () {
             Route::get('demandes', [DemandeSavController::class, 'index']);
             Route::post('demandes', [DemandeSavController::class, 'store'])->middleware('permission:'.PERMISSION_SAV_CREER);
@@ -446,6 +467,36 @@ Route::prefix('v1')->group(function () {
                 Route::patch('commerciaux/{commercial}/statut', [CommercialController::class, 'changerStatut'])
                     ->middleware('permission:'.PERMISSION_COMMERCIAUX_GERER);
             });
+        });
+
+        // Espace Commercial (humain) — app dédiée. Création de client/commande,
+        // consultation, messagerie : déjà couverts par les routes génériques
+        // ci-dessus (permission:*, pas de role: dédié) grâce aux permissions
+        // du Commercial (RolesAndPermissionsSeeder). Seul l'accueil (stats "mon
+        // activité") manquait une route : PERMISSION_STATISTIQUES_PERIMETRE
+        // était déjà accordée au rôle sans qu'aucune route ne l'utilise.
+        Route::prefix('commercial')->middleware('role:'.ROLE_COMMERCIAL)->group(function () {
+            Route::get('espace/statistiques', [CommercialEspaceController::class, 'statistiques'])
+                ->middleware('permission:'.PERMISSION_STATISTIQUES_PERIMETRE);
+            // "Statistiques" (Compte > Statistique) : tableau de bord détaillé.
+            Route::get('espace/statistiques-detail', [CommercialEspaceController::class, 'statistiquesDetail'])
+                ->middleware('permission:'.PERMISSION_STATISTIQUES_PERIMETRE);
+            // "Commandes" (accueil) : produits vendus par CE commercial, groupés avec un compteur par statut.
+            Route::get('espace/produits-actifs', [CommercialEspaceController::class, 'produitsActifs'])
+                ->middleware('permission:'.PERMISSION_STATISTIQUES_PERIMETRE);
+            // "Mes paiements" (onglet Paiement) : solde + historique des transactions.
+            Route::get('espace/portefeuille', [CommercialEspaceController::class, 'portefeuille'])
+                ->middleware('permission:'.PERMISSION_STATISTIQUES_PERIMETRE);
+            // "Demander un retrait" — réutilise DemandeRetrait (déjà générique,
+            // voir Admin\RetraitController), permission dédiée (le commercial
+            // crée sa propre commande via PERMISSION_COMMANDES_CREER, mais
+            // demander un retrait est une action différente côté argent).
+            Route::post('espace/retraits', [CommercialEspaceController::class, 'demanderRetrait'])
+                ->middleware('permission:'.PERMISSION_STATISTIQUES_PERIMETRE);
+            Route::get('espace/retraits', [CommercialEspaceController::class, 'mesRetraits'])
+                ->middleware('permission:'.PERMISSION_STATISTIQUES_PERIMETRE);
+            Route::post('espace/retraits/{retrait}/annuler', [CommercialEspaceController::class, 'annulerRetrait'])
+                ->middleware('permission:'.PERMISSION_STATISTIQUES_PERIMETRE);
         });
 
         // Assistance : FAQ + audio (contenu publié par l'Administrateur).

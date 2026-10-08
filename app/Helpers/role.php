@@ -69,6 +69,8 @@ defined('PERMISSION_COMMANDES_CHANGER_STATUT') || define('PERMISSION_COMMANDES_C
 defined('PERMISSION_COMMERCIAUX_CONSULTER') || define('PERMISSION_COMMERCIAUX_CONSULTER', 'commerciaux.consulter');
 // Activer/suspendre un compte commercial (écran profil commercial).
 defined('PERMISSION_COMMERCIAUX_GERER') || define('PERMISSION_COMMERCIAUX_GERER', 'commerciaux.gerer');
+// Bibliothèque "Réponse rapide" (app Commercial) — créée/éditée uniquement par l'Admin.
+defined('PERMISSION_REPONSES_RAPIDES_GERER') || define('PERMISSION_REPONSES_RAPIDES_GERER', 'reponses_rapides.gerer');
 
 if (! function_exists('roles_auto_inscription')) {
     /**

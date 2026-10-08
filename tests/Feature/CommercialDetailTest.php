@@ -76,7 +76,10 @@ class CommercialDetailTest extends TestCase
         $this->assertSame(3, $donnees['statistiques']['commandes_total']);
         $this->assertSame(1, $donnees['statistiques']['commandes_validees']);
         $this->assertSame(1, $donnees['statistiques']['commandes_annulees']);
-        $this->assertEquals(1500, $donnees['statistiques']['commission_totale']);
+        // Montant fixe (COMMISSION_COMMERCIAL_PAR_VENTE), jamais
+        // commission_agent (passé à 1500 ci-dessus mais sans effet) : 1
+        // commande livrée × 1000.
+        $this->assertEquals(1000, $donnees['statistiques']['commission_totale']);
     }
 
     public function test_la_liste_des_commandes_expose_lhistorique_du_commercial(): void

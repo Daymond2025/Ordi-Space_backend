@@ -49,6 +49,7 @@ class RolesAndPermissionsSeeder extends Seeder
         PERMISSION_COMMANDES_CHANGER_STATUT,
         PERMISSION_COMMERCIAUX_CONSULTER,
         PERMISSION_COMMERCIAUX_GERER,
+        PERMISSION_REPONSES_RAPIDES_GERER,
     ];
 
     private const ROLES = [
@@ -65,6 +66,11 @@ class RolesAndPermissionsSeeder extends Seeder
             PERMISSION_PRODUITS_CONSULTER, PERMISSION_COMMANDES_CREER, PERMISSION_COMMANDES_CONSULTER,
             PERMISSION_STATISTIQUES_PERIMETRE, PERMISSION_CLIENTS_CREATION_RAPIDE,
             PERMISSION_MESSAGES_PRODUIT_GERER, PERMISSION_MESSAGES_COMMANDE_GERER,
+            // Périmètre réduit à 3 statuts (en_attente/reportee/annulee) et à
+            // ses propres commandes — appliqué dans CommandeController::
+            // changerStatut(), cette permission seule ne suffit pas à le
+            // distinguer du Coordinateur (retour de test réel, app Commercial).
+            PERMISSION_COMMANDES_CHANGER_STATUT,
         ],
         ROLE_COORDINATEUR => [
             PERMISSION_PRODUITS_VALIDER, PERMISSION_PRODUITS_CONSULTER, PERMISSION_COMMANDES_VALIDER,

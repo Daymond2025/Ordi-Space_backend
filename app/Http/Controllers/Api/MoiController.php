@@ -58,6 +58,14 @@ class MoiController extends Controller
             $data['solde_portefeuille'] = $user->fournisseur->solde_portefeuille;
         }
 
+        if ($user->type_utilisateur === ROLE_COMMERCIAL) {
+            // Lignes "Entreprise"/"Localisation" de l'écran "Mon Profil" (app
+            // Commercial) — saisies par le coordinateur, voir migration
+            // add_nom_entreprise_et_localisation_to_commerciaux_table.
+            $data['nom_entreprise'] = $user->commercial->nom_entreprise;
+            $data['localisation'] = $user->commercial->localisation;
+        }
+
         return $this->success($data);
     }
 

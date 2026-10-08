@@ -137,10 +137,42 @@ class ChangerStatutLibreTest extends TestCase
         ])->assertUnprocessable();
     }
 
-    public function test_un_commercial_ne_peut_pas_changer_le_statut_librement(): void
+    /**
+     * Périmètre réduit du Commercial (décision PDG, retour de test réel) :
+     * seulement 3 statuts (en_attente/reportee/annulee), jamais la liberté
+     * totale du Coordinateur — voir CommandeController::changerStatut().
+     */
+    public function test_un_commercial_peut_changer_sa_propre_commande_vers_un_statut_autorise(): void
     {
         $commercial = $this->creerCommercial();
         $commande = $this->creerCommande($commercial);
+
+        $this->actingAs($commercial)->postJson("/api/v1/commandes/{$commande->id}/statut", [
+            'statut_commande' => STATUT_COMMANDE_REPORTEE,
+        ])->assertOk();
+
+        $this->assertSame(STATUT_COMMANDE_REPORTEE, $commande->fresh()->statut_commande);
+    }
+
+    public function test_un_commercial_ne_peut_pas_valider_ou_faire_livrer(): void
+    {
+        $commercial = $this->creerCommercial();
+        $commande = $this->creerCommande($commercial);
+
+        $this->actingAs($commercial)->postJson("/api/v1/commandes/{$commande->id}/statut", [
+            'statut_commande' => STATUT_COMMANDE_VALIDEE,
+        ])->assertUnprocessable();
+
+        $this->actingAs($commercial)->postJson("/api/v1/commandes/{$commande->id}/statut", [
+            'statut_commande' => STATUT_COMMANDE_LIVREE,
+        ])->assertUnprocessable();
+    }
+
+    public function test_un_commercial_ne_peut_pas_changer_le_statut_dune_commande_dun_autre(): void
+    {
+        $commercial = $this->creerCommercial();
+        $autreCommercial = $this->creerCommercialTiers();
+        $commande = $this->creerCommande($autreCommercial);
 
         $this->actingAs($commercial)->postJson("/api/v1/commandes/{$commande->id}/statut", [
             'statut_commande' => STATUT_COMMANDE_ANNULEE,

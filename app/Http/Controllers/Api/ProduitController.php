@@ -22,6 +22,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -387,6 +388,33 @@ class ProduitController extends Controller
         }
 
         return $this->success($produit);
+    }
+
+    /**
+     * "Télécharger les images" (fiche produit, app Commercial — pour préparer
+     * une publication) : l'image est déjà publique via /storage/**, cette
+     * route ne fait que forcer le téléchargement (Content-Disposition) du
+     * même fichier plutôt que l'affichage inline, en passant par api/* pour
+     * bénéficier de CORS (voir routes/api.php). Même règle de visibilité que
+     * show() : pas d'exposition d'un produit non publié à qui ne devrait pas
+     * le voir.
+     */
+    public function telechargerImage(Request $request, Produit $produit, ImageProduit $image)
+    {
+        abort_unless($image->produit_id === $produit->id, 404);
+
+        $user = current_user();
+        $peutVoirNonValide = $user && ($produit->fournisseur_id === $user->id || in_array($user->type_utilisateur, [ROLE_ADMINISTRATEUR, ROLE_COORDINATEUR], true));
+        if ($produit->statut_produit !== STATUT_PRODUIT_VALIDE && ! $peutVoirNonValide) {
+            abort(404);
+        }
+
+        $chemin = $image->cheminStockage();
+        abort_unless($chemin && Storage::disk(IMAGE_PRODUIT_DISQUE)->exists($chemin), 404);
+
+        $nom = Str::slug($produit->nom_produit).'-'.($image->ordre_affichage + 1).'.'.pathinfo($chemin, PATHINFO_EXTENSION);
+
+        return Storage::disk(IMAGE_PRODUIT_DISQUE)->download($chemin, $nom);
     }
 
     public function store(StoreProduitRequest $request): JsonResponse

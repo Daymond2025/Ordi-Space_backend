@@ -291,6 +291,10 @@ defined('STATUT_RETRAIT_REFUSE') || define('STATUT_RETRAIT_REFUSE', 'refuse');
 defined('STATUT_RETRAIT_ANNULE') || define('STATUT_RETRAIT_ANNULE', 'annule');
 defined('OPERATEURS_RETRAIT') || define('OPERATEURS_RETRAIT', ['Orange', 'Wave', 'Mtn', 'Moov']);
 defined('RETRAIT_MONTANT_MINIMUM') || define('RETRAIT_MONTANT_MINIMUM', 1000);
+// Commission du Commercial humain : fixe, identique quel que soit le produit
+// vendu (confirmé PDG — ne dépend jamais de Produit::commission_agent, qui
+// reste un champ du formulaire Coordinateur sans effet sur ce montant).
+defined('COMMISSION_COMMERCIAL_PAR_VENTE') || define('COMMISSION_COMMERCIAL_PAR_VENTE', 1000);
 // Clé du réglage global (table parametres) : numéro du support Ordi'Space affiché aux livreurs.
 defined('PARAMETRE_SUPPORT_TELEPHONE') || define('PARAMETRE_SUPPORT_TELEPHONE', 'support_telephone');
 defined('MESSAGE_AUDIO_DOSSIER') || define('MESSAGE_AUDIO_DOSSIER', 'messages/audio');

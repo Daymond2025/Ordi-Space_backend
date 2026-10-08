@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Commercial;
 use App\Models\DemandeRetrait;
 use App\Models\NotificationOrdispace;
 use Illuminate\Http\JsonResponse;
@@ -66,6 +67,17 @@ class RetraitController extends Controller
             'admin_id' => $request->user()->id,
             'traite_le' => now(),
         ]);
+
+        // Le portefeuille Boutique du livreur n'est jamais stocké (toujours
+        // recalculé depuis ses ventes et ses demandes de retrait — voir
+        // PortefeuilleCommissions), donc rien à débiter ici pour lui : le
+        // changement de statut ci-dessus suffit à le refléter. Celui du
+        // Commercial, lui, est stocké (Commercial::solde_portefeuille) :
+        // sans ce débit, "Mes paiements" ne refléterait jamais ce retrait.
+        if ($retrait->user->type_utilisateur === ROLE_COMMERCIAL) {
+            Commercial::where('user_id', $retrait->user_id)->first()
+                ?->debiterPortefeuille((float) $retrait->montant, 'Retrait effectué', null, null, null);
+        }
 
         $this->notifier($retrait, 'retrait_valide', 'Retrait effectué',
             'Ton retrait de '.number_format((float) $retrait->montant, 0, ',', ' ')." FCFA a été envoyé sur {$retrait->operateur} {$retrait->telephone} (réf. {$retrait->reference}).");

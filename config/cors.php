@@ -28,7 +28,12 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    // "Content-Disposition" n'est pas exposé par défaut en cross-origin :
+    // sans ça, le JS du front (fetch + blob, télécharger une image produit —
+    // voir ProduitController::telechargerImage()) ne peut pas lire le nom de
+    // fichier suggéré par le serveur et retombe sur un nom généré par le
+    // navigateur.
+    'exposed_headers' => ['Content-Disposition'],
 
     'max_age' => 0,
 

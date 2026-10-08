@@ -69,8 +69,10 @@ class CommercialListeTest extends TestCase
         $this->assertSame(4, $ligne['commandes_total']);
         $this->assertSame(1, $ligne['commandes_validees']);
         $this->assertSame(1, $ligne['commandes_annulees']);
-        // Seules les 2 commandes LIVRÉES comptent (1500+2500), pas la validée à 9999.
-        $this->assertEquals(4000, $ligne['commission_totale']);
+        // Montant fixe (COMMISSION_COMMERCIAL_PAR_VENTE) par commande
+        // LIVRÉE, jamais commission_agent (passés à 1500/2500 ci-dessus
+        // mais sans effet), pas la validée à 9999 : 2 livrées × 1000.
+        $this->assertEquals(2000, $ligne['commission_totale']);
     }
 
     public function test_actif_derive_du_statut_de_compte(): void

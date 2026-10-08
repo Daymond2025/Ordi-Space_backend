@@ -88,11 +88,15 @@ class CommandeController extends Controller
 
         $relations = ['lignes.produit.images', 'lignes.produit.categorie', 'livraison', 'paiement', 'canalVente'];
         $estCoordinateurOuAdmin = in_array($request->user()->type_utilisateur, [ROLE_COORDINATEUR, ROLE_ADMINISTRATEUR], true);
-        // Écran détail commande (app Fournisseur) — même "apercu" que
-        // Coordinateur/Admin (client.user + livraison.adresse.localite
-        // suffisent à Commande::versApercu()), jamais les relations
+        // Écran détail commande (apps Fournisseur et Commercial) — même
+        // "apercu" que Coordinateur/Admin (client.user + livraison.adresse.
+        // localite suffisent à Commande::versApercu()), jamais les relations
         // strictement internes au staff ci-dessous (commission, parrain...).
-        $estStaffOuFournisseur = $estCoordinateurOuAdmin || $request->user()->type_utilisateur === ROLE_FOURNISSEUR;
+        // ROLE_COMMERCIAL ajouté (retour de test réel, première app
+        // Commercial) : sans lui, meta.apercu restait vide pour ce rôle et
+        // l'écran détail commande restait bloqué sur "Chargement…".
+        $estStaffOuFournisseur = $estCoordinateurOuAdmin
+            || in_array($request->user()->type_utilisateur, [ROLE_FOURNISSEUR, ROLE_COMMERCIAL], true);
 
         if ($estStaffOuFournisseur) {
             $relations = array_merge($relations, ['client.user', 'livraison.adresse.localite']);
@@ -174,17 +178,35 @@ class CommandeController extends Controller
      * cette transition a toujours besoin d'un livreur, donc passe par
      * assignerLivreur() (déjà l'action "Envoyer à un livreur"/"Livraison en
      * cours" côté front).
+     *
+     * App Commercial (retour de test réel) : même écran/même bouton, mais
+     * périmètre volontairement réduit (décision PDG) — seulement 3 statuts
+     * (en_attente/reportee/annulee, jamais valider/préparer/livrer, qui
+     * restent la main du Coordinateur), et seulement sur SES PROPRES
+     * commandes (jamais celles d'un autre commercial). Vérifié ici, pas
+     * seulement caché côté front : PERMISSION_COMMANDES_CHANGER_STATUT seule
+     * ne suffit pas à distinguer les deux rôles.
      */
     public function changerStatut(Request $request, Commande $commande): JsonResponse
     {
         abort_unless($request->user()->can(PERMISSION_COMMANDES_CHANGER_STATUT), 403);
 
-        $data = $request->validate([
-            'statut_commande' => ['required', 'in:'.implode(',', [
+        $estCommercial = $request->user()->type_utilisateur === ROLE_COMMERCIAL;
+
+        if ($estCommercial) {
+            abort_unless($commande->commercial_id === $request->user()->id, 403);
+        }
+
+        $statutsAutorises = $estCommercial
+            ? [STATUT_COMMANDE_EN_ATTENTE, STATUT_COMMANDE_REPORTEE, STATUT_COMMANDE_ANNULEE]
+            : [
                 STATUT_COMMANDE_EN_ATTENTE, STATUT_COMMANDE_VALIDEE, STATUT_COMMANDE_EN_PREPARATION,
                 STATUT_COMMANDE_LIVREE, STATUT_COMMANDE_ANNULEE, STATUT_COMMANDE_REPORTEE,
                 STATUT_COMMANDE_CLIENT_INJOIGNABLE, STATUT_COMMANDE_NUMERO_INCORRECT,
-            ])],
+            ];
+
+        $data = $request->validate([
+            'statut_commande' => ['required', 'in:'.implode(',', $statutsAutorises)],
             'motif' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -195,7 +217,7 @@ class CommandeController extends Controller
             $commande->client_id,
             ACTION_COMMANDE_STATUT_MODIFIE,
             'commande',
-            "Statut de la commande n°{$commande->id} changé à « {$cible} » par un coordinateur."
+            "Statut de la commande n°{$commande->id} changé à « {$cible} » par un ".($estCommercial ? 'commercial' : 'coordinateur').'.'
                 .(($data['motif'] ?? null) ? " Motif : {$data['motif']}." : ''),
             commandeId: $commande->id,
             donnees: ['statut_apres' => $cible],
@@ -401,6 +423,10 @@ class CommandeController extends Controller
         if ($estNumerique) {
             Garantie::genererPourCommande($commande);
         }
+
+        // "Commande validé" ("Mes paiements", app Commercial) — chemin
+        // principal de validation, ne passe pas par appliquerChangementStatut().
+        $commande->crediterCommissionCommercialSiEligible();
 
         JournalAudit::enregistrer(
             $commande->client_id,
