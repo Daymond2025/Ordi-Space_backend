@@ -244,7 +244,12 @@ class Commande extends Model
      * Produit::commission_agent, un champ du formulaire Coordinateur sans
      * lien avec ce montant). Idempotent (une seule transaction "credit" par
      * commande) pour rester correct même si la commande repasse par
-     * "validée" plusieurs fois (ex. après "reportée").
+     * "validée" plusieurs fois (ex. après "reportée"). Le verrou sur le
+     * commercial + la contrainte unique (commande_id, type) (migration
+     * ..._add_unique_commande_type_to_transactions_portefeuille_commerciaux)
+     * empêchent un double crédit si deux requêtes concurrentes (ex.
+     * "valider" rejouée deux fois) passent toutes les deux le premier
+     * exists() avant qu'aucune n'ait commité son insert (audit sécurité).
      */
     public function crediterCommissionCommercialSiEligible(): void
     {
@@ -262,10 +267,30 @@ class Commande extends Model
         // principal de validation, qui ne passe pas par cette méthode-là).
         $this->loadMissing('client.user', 'livraison.adresse.localite');
 
-        $commercial = Commercial::find($this->commercial_id);
-        $commercial?->crediterPortefeuille(
-            COMMISSION_COMMERCIAL_PAR_VENTE, 'Commande validé', $this->id, $this->nomClientPourPortefeuille(), $this->localitePourPortefeuille()
-        );
+        try {
+            DB::transaction(function () {
+                $commercial = Commercial::where('user_id', $this->commercial_id)->lockForUpdate()->first();
+                if (! $commercial) {
+                    return;
+                }
+
+                // Revérifié sous verrou : la lecture précédente (ligne ~255)
+                // n'était pas protégée contre une requête concurrente.
+                if (TransactionPortefeuilleCommercial::where('commande_id', $this->id)->where('type', TYPE_TRANSACTION_PORTEFEUILLE_CREDIT)->exists()) {
+                    return;
+                }
+
+                $commercial->crediterPortefeuille(
+                    COMMISSION_COMMERCIAL_PAR_VENTE, 'Commande validé', $this->id, $this->nomClientPourPortefeuille(), $this->localitePourPortefeuille()
+                );
+            });
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Dernier filet : contrainte unique (commande_id, type) violée par
+            // une requête concurrente qui a gagné la course — déjà crédité.
+            if ($e->getCode() !== '23000') {
+                throw $e;
+            }
+        }
     }
 
     /**
@@ -274,7 +299,8 @@ class Commande extends Model
      * (Admin\RetraitController::valider()) : ce libellé-là est réservé au
      * vrai retrait Mobile Money demandé par le commercial — jamais utilisé
      * ici, pour ne pas laisser croire à un retrait réel. Pas de
-     * double-reprise si déjà fait.
+     * double-reprise si déjà fait (même protection verrou + contrainte
+     * unique qu'au crédit, voir crediterCommissionCommercialSiEligible()).
      */
     public function reprendreCommissionCommercialSiEligible(): void
     {
@@ -287,15 +313,30 @@ class Commande extends Model
             return;
         }
 
-        $dejaReprise = TransactionPortefeuilleCommercial::where('commande_id', $this->id)->where('type', TYPE_TRANSACTION_PORTEFEUILLE_DEBIT)->exists();
-        if ($dejaReprise) {
+        if (TransactionPortefeuilleCommercial::where('commande_id', $this->id)->where('type', TYPE_TRANSACTION_PORTEFEUILLE_DEBIT)->exists()) {
             return;
         }
 
         $this->loadMissing('client.user', 'livraison.adresse.localite');
 
-        $commercial = Commercial::find($this->commercial_id);
-        $commercial?->debiterPortefeuille((float) $credit->montant, 'Commande annulée', $this->id, $this->nomClientPourPortefeuille(), $this->localitePourPortefeuille());
+        try {
+            DB::transaction(function () use ($credit) {
+                $commercial = Commercial::where('user_id', $this->commercial_id)->lockForUpdate()->first();
+                if (! $commercial) {
+                    return;
+                }
+
+                if (TransactionPortefeuilleCommercial::where('commande_id', $this->id)->where('type', TYPE_TRANSACTION_PORTEFEUILLE_DEBIT)->exists()) {
+                    return;
+                }
+
+                $commercial->debiterPortefeuille((float) $credit->montant, 'Commande annulée', $this->id, $this->nomClientPourPortefeuille(), $this->localitePourPortefeuille());
+            });
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() !== '23000') {
+                throw $e;
+            }
+        }
     }
 
     private function nomClientPourPortefeuille(): ?string

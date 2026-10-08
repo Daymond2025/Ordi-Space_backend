@@ -398,35 +398,47 @@ class CommandeController extends Controller
 
     /**
      * Étape 3 : le coordinateur valide la commande, ce qui débloque sa
-     * préparation par le fournisseur.
+     * préparation par le fournisseur. Statut re-vérifié sous verrou (audit
+     * sécurité) : sans ça, deux requêtes "valider" quasi simultanées sur la
+     * même commande (double-clic, retry réseau) pouvaient toutes les deux
+     * lire "en_attente" avant qu'aucune n'ait commité son update, et donc
+     * toutes les deux créditer la commission commerciale.
      */
     public function valider(Request $request, Commande $commande): JsonResponse
     {
         abort_unless($request->user()->can(PERMISSION_COMMANDES_VALIDER), 403);
 
-        if ($commande->statut_commande !== STATUT_COMMANDE_EN_ATTENTE) {
-            throw ValidationException::withMessages([
-                'statut_commande' => ['Cette commande a déjà été traitée.'],
+        $commande = DB::transaction(function () use ($request, $commande) {
+            // Re-sélection sous verrou : $commande (chargé avant la
+            // transaction par le route model binding) peut être périmé.
+            $commande = Commande::where('id', $commande->id)->lockForUpdate()->first();
+
+            if ($commande->statut_commande !== STATUT_COMMANDE_EN_ATTENTE) {
+                throw ValidationException::withMessages([
+                    'statut_commande' => ['Cette commande a déjà été traitée.'],
+                ]);
+            }
+
+            $estNumerique = ! $commande->livraison;
+
+            $commande->update([
+                'coordinateur_id' => $request->user()->id,
+                'date_validation' => now(),
+                // Une commande 100% numérique n'a rien à préparer ni à livrer :
+                // elle est directement considérée "livrée" une fois validée.
+                'statut_commande' => $estNumerique ? STATUT_COMMANDE_LIVREE : STATUT_COMMANDE_VALIDEE,
             ]);
-        }
 
-        $estNumerique = ! $commande->livraison;
+            if ($estNumerique) {
+                Garantie::genererPourCommande($commande);
+            }
 
-        $commande->update([
-            'coordinateur_id' => $request->user()->id,
-            'date_validation' => now(),
-            // Une commande 100% numérique n'a rien à préparer ni à livrer :
-            // elle est directement considérée "livrée" une fois validée.
-            'statut_commande' => $estNumerique ? STATUT_COMMANDE_LIVREE : STATUT_COMMANDE_VALIDEE,
-        ]);
+            // "Commande validé" ("Mes paiements", app Commercial) — chemin
+            // principal de validation, ne passe pas par appliquerChangementStatut().
+            $commande->crediterCommissionCommercialSiEligible();
 
-        if ($estNumerique) {
-            Garantie::genererPourCommande($commande);
-        }
-
-        // "Commande validé" ("Mes paiements", app Commercial) — chemin
-        // principal de validation, ne passe pas par appliquerChangementStatut().
-        $commande->crediterCommissionCommercialSiEligible();
+            return $commande;
+        });
 
         JournalAudit::enregistrer(
             $commande->client_id,
