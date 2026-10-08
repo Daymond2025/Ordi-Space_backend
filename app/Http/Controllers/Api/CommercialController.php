@@ -112,6 +112,23 @@ class CommercialController extends Controller
     }
 
     /**
+     * Fiche "métier" (entreprise/localisation) — réservée Admin, jamais
+     * Coordinateur (même principe que LivreurController::modifierProfil()) :
+     * CRUD complet côté admin, comme pour un livreur.
+     */
+    public function modifierProfilAdmin(Request $request, Commercial $commercial): JsonResponse
+    {
+        $data = $request->validate([
+            'nom_entreprise' => ['nullable', 'string', 'max:150'],
+            'localisation' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $commercial->update($data);
+
+        return $this->success($commercial->fresh());
+    }
+
+    /**
      * Active/suspend le compte du commercial — action de gestion d'équipe du
      * coordinateur, à la différence du toggle "En ligne" du livreur (lecture
      * seule, reflète un statut que seul le livreur contrôle).

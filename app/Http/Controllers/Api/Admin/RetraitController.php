@@ -20,22 +20,32 @@ use Illuminate\Validation\ValidationException;
 class RetraitController extends Controller
 {
     /**
-     * Liste, plus récentes d'abord ; `statut` filtre (toutes si absent). Les
-     * totaux par statut (nombre + montant) portent sur l'ensemble des
-     * demandes, quel que soit le filtre — ils alimentent l'en-tête de la page.
+     * Liste, plus récentes d'abord ; `statut` filtre (toutes si absent).
+     * `role` filtre par rôle du demandeur (ex. "livreur"/"commercial") —
+     * sans lui, les demandes des deux rôles se mélangeraient (aucun champ
+     * dédié sur DemandeRetrait, le rôle se déduit de `user.type_utilisateur`).
+     * Les totaux par statut (nombre + montant) respectent aussi ce filtre
+     * `role` (mais pas `statut`) — ils alimentent l'en-tête de la page.
      */
     public function index(Request $request): JsonResponse
     {
         $statuts = [STATUT_RETRAIT_EN_ATTENTE, STATUT_RETRAIT_VALIDE, STATUT_RETRAIT_REFUSE, STATUT_RETRAIT_ANNULE];
-        $data = $request->validate(['statut' => ['nullable', Rule::in($statuts)]]);
+        $data = $request->validate([
+            'statut' => ['nullable', Rule::in($statuts)],
+            'role' => ['nullable', Rule::in([ROLE_LIVREUR, ROLE_COMMERCIAL])],
+        ]);
+
+        $baseQuery = fn () => DemandeRetrait::query()
+            ->when($data['role'] ?? null, fn ($q, $role) => $q->whereHas('user', fn ($q2) => $q2->where('type_utilisateur', $role)));
 
         $stats = [];
         foreach ($statuts as $statut) {
-            $requete = DemandeRetrait::where('statut', $statut);
+            $requete = $baseQuery()->where('statut', $statut);
             $stats[$statut] = ['nombre' => (clone $requete)->count(), 'montant' => (float) $requete->sum('montant')];
         }
 
-        $retraits = DemandeRetrait::with('user:id,nom,prenom,telephone')
+        $retraits = $baseQuery()
+            ->with('user:id,nom,prenom,telephone')
             ->when($data['statut'] ?? null, fn ($q, $statut) => $q->where('statut', $statut))
             ->latest('id')
             ->paginate(paginate_per_page($request))

@@ -101,13 +101,13 @@ if (! function_exists('roles_provisionnes_par_admin')) {
      * Coordinateur/Technicien n'ont aucune autre voie de création. Client est
      * normalement auto-inscrit depuis l'appli ; l'admin peut aussi en créer un
      * directement (ex. client accompagné par téléphone) — décision produit.
-     * Fournisseur/Livreur ont leur propre auto-inscription (roles_auto_inscription())
-     * mais l'admin doit aussi pouvoir en créer un directement (ex. partenaire
-     * onboardé en personne, sans passer par l'appli) — CRUD complet côté admin,
-     * comme pour un client.
+     * Fournisseur/Livreur/Commercial ont leur propre auto-inscription
+     * (roles_auto_inscription()) mais l'admin doit aussi pouvoir en créer un
+     * directement (ex. partenaire onboardé en personne, sans passer par
+     * l'appli) — CRUD complet côté admin, comme pour un client.
      */
     function roles_provisionnes_par_admin(): array
     {
-        return [ROLE_COORDINATEUR, ROLE_TECHNICIEN_MAINTENANCE, ROLE_CLIENT, ROLE_FOURNISSEUR, ROLE_LIVREUR];
+        return [ROLE_COORDINATEUR, ROLE_TECHNICIEN_MAINTENANCE, ROLE_CLIENT, ROLE_FOURNISSEUR, ROLE_LIVREUR, ROLE_COMMERCIAL];
     }
 }

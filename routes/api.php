@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Admin\ClientController;
 use App\Http\Controllers\Api\Admin\CommandeController as AdminCommandeController;
 use App\Http\Controllers\Api\Admin\CoordinateurController as AdminCoordinateurController;
 use App\Http\Controllers\Api\Admin\FideliteController;
+use App\Http\Controllers\Api\Admin\CommercialController as AdminCommercialController;
 use App\Http\Controllers\Api\Admin\LivreurController as AdminLivreurController;
 use App\Http\Controllers\Api\Admin\StatistiqueController;
 use App\Http\Controllers\Api\Admin\UtilisateurController;
@@ -466,6 +467,11 @@ Route::prefix('v1')->group(function () {
                     ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
                 Route::patch('commerciaux/{commercial}/statut', [CommercialController::class, 'changerStatut'])
                     ->middleware('permission:'.PERMISSION_COMMERCIAUX_GERER);
+                // Fiche "métier" (entreprise/localisation) — réservée Admin,
+                // jamais Coordinateur (voir CommercialController::modifierProfilAdmin()) :
+                // CRUD complet côté admin, comme pour un livreur.
+                Route::patch('commerciaux/{commercial}/profil', [CommercialController::class, 'modifierProfilAdmin'])
+                    ->middleware('role:'.ROLE_ADMINISTRATEUR);
             });
         });
 
@@ -560,6 +566,10 @@ Route::prefix('v1')->group(function () {
             Route::middleware('espace:livreurs')->group(function () {
                 Route::get('livreurs/tableau-de-bord', [AdminLivreurController::class, 'tableauDeBord']);
                 Route::get('boutique/commandes', [AdminBoutiqueController::class, 'commandes']);
+            });
+
+            Route::middleware('espace:commerciaux')->group(function () {
+                Route::get('commerciaux/tableau-de-bord', [AdminCommercialController::class, 'tableauDeBord']);
             });
 
             Route::middleware('espace:finance')->group(function () {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Models\Commercial;
 use App\Models\Coordinateur;
 use App\Models\Fournisseur;
 use App\Models\Livreur;
@@ -54,6 +55,9 @@ class UtilisateurController extends Controller
             'nom_entreprise' => ['required_if:type_utilisateur,'.ROLE_FOURNISSEUR, 'nullable', 'string', 'max:150'],
             'type_vehicule' => ['nullable', 'string', Rule::in(TYPES_VEHICULE_LIVREUR)],
             'zone_couverture' => ['nullable', 'string', 'max:255'],
+            // Commercial (humain) : mêmes champs métier optionnels que sur sa
+            // fiche (voir CommercialController::modifierProfilAdmin()).
+            'localisation' => ['nullable', 'string', 'max:255'],
             // Optionnelle, quel que soit le rôle créé — même champ que pour
             // l'auto-inscription (RegisterRequest/InscrireTelephoneRequest).
             'photo' => ['nullable', 'file', 'image', 'mimes:'.IMAGE_MIMES_AUTORISES, 'max:'.IMAGE_MAX_POIDS_KO],
@@ -91,6 +95,12 @@ class UtilisateurController extends Controller
                     'user_id' => $user->id,
                     'type_vehicule' => $data['type_vehicule'] ?? null,
                     'zone_couverture' => $data['zone_couverture'] ?? null,
+                ]),
+                ROLE_COMMERCIAL => Commercial::create([
+                    'user_id' => $user->id,
+                    'type_commercial' => TYPE_COMMERCIAL_HUMAIN,
+                    'nom_entreprise' => $data['nom_entreprise'] ?? null,
+                    'localisation' => $data['localisation'] ?? null,
                 ]),
             };
 

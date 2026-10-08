@@ -231,6 +231,35 @@ class PortefeuilleCommissionsTest extends TestCase
         $this->actingAs($this->creerAdmin())->getJson('/api/v1/admin/retraits?statut=zzz')->assertUnprocessable();
     }
 
+    /**
+     * Sans filtre `role`, une demande de retrait Commercial se mélangerait
+     * avec celles des livreurs (DemandeRetrait n'a pas de champ dédié — le
+     * rôle se déduit de `user.type_utilisateur`) : écran "Retraits des
+     * livreurs" ET "Retraits des commerciaux" doivent rester étanches.
+     */
+    public function test_le_filtre_role_separe_les_retraits_livreurs_et_commerciaux(): void
+    {
+        $this->livreurAvecVentes();
+
+        $commercial = $this->creerCommercial();
+        DemandeRetrait::create([
+            'user_id' => $commercial->id, 'montant' => 1000, 'operateur' => 'Orange', 'telephone' => '0700000000',
+            'statut' => STATUT_RETRAIT_EN_ATTENTE,
+        ]);
+
+        $admin = $this->creerAdmin();
+        $livreurs = $this->actingAs($admin)->getJson('/api/v1/admin/retraits?role='.ROLE_LIVREUR);
+        $commerciaux = $this->actingAs($admin)->getJson('/api/v1/admin/retraits?role='.ROLE_COMMERCIAL);
+
+        $this->assertCount(3, $livreurs->json('data.retraits.data'));
+        $this->assertCount(1, $commerciaux->json('data.retraits.data'));
+        $this->assertEquals(1000, $commerciaux->json('data.retraits.data.0.montant'));
+        foreach ($livreurs->json('data.retraits.data') as $ligne) {
+            $this->assertNotEquals(1000, $ligne['montant']);
+        }
+        $this->actingAs($admin)->getJson('/api/v1/admin/retraits?role=zzz')->assertUnprocessable();
+    }
+
     public function test_l_admin_suit_les_commandes_boutique_de_tous_les_livreurs(): void
     {
         $livreur = $this->livreurAvecVentes();
