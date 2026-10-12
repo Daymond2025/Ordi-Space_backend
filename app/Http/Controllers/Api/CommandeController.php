@@ -271,6 +271,18 @@ class CommandeController extends Controller
                 // l'ancien calcul taux_commission (produits publiés avant
                 // cette fonctionnalité).
                 $prixVente = $produit->prix_vente ?? $produit->prix;
+
+                // Un Admin peut négocier le prix pour une vente enregistrée
+                // manuellement (ex. accord téléphonique, "Enregistrer un
+                // achat" sur la fiche client) — tous les autres rôles
+                // restent au prix catalogue, même s'ils envoient ce champ
+                // (ignoré silencieusement). N'affecte jamais
+                // prix_partenaire_unitaire ci-dessous : la commission du
+                // fournisseur reste calculée sur le vrai prix du produit.
+                if ($request->user()->type_utilisateur === ROLE_ADMINISTRATEUR && isset($ligne['prix_unitaire'])) {
+                    $prixVente = (float) $ligne['prix_unitaire'];
+                }
+
                 $sousTotal = $prixVente * $ligne['quantite'];
                 $montantTotal += $sousTotal;
 

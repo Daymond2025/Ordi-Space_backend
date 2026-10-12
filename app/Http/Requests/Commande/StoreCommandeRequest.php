@@ -34,6 +34,9 @@ class StoreCommandeRequest extends FormRequest
             'lignes' => ['required', 'array', 'min:1'],
             'lignes.*.produit_id' => ['required', 'exists:produits,id'],
             'lignes.*.quantite' => ['required', 'integer', 'min:1'],
+            // Prix négocié — honoré uniquement pour un Admin (voir
+            // CommandeController::store()), ignoré silencieusement sinon.
+            'lignes.*.prix_unitaire' => ['nullable', 'numeric', 'min:0'],
             // Code Privilège Space (ex. WELCOME2026), optionnel — vérifié et
             // appliqué dans CommandeController::store.
             'code_promo' => ['nullable', 'string', 'max:50'],
