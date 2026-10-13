@@ -117,7 +117,7 @@ class MoiController extends Controller
             'nom' => ['sometimes', 'string', 'max:100'],
             'prenom' => ['nullable', 'string', 'max:100'],
             'telephone' => ['nullable', 'string', 'max:30'],
-            'email' => ['sometimes', 'email', Rule::unique('users', 'email')->ignore($user->id)],
+            'email' => ['sometimes', 'email', Rule::unique('users', 'email')->ignore($user->id)->where('type_utilisateur', $user->type_utilisateur)],
             'mot_de_passe_actuel' => ['required_with:nouveau_mot_de_passe', 'string'],
             'nouveau_mot_de_passe' => ['sometimes', 'confirmed', Password::min(8)->mixedCase()->numbers()],
         ]);
@@ -129,7 +129,7 @@ class MoiController extends Controller
         if (! empty($data['telephone'])) {
             $data['telephone'] = normaliser_telephone($data['telephone']);
 
-            if (User::where('telephone', $data['telephone'])->where('id', '!=', $user->id)->exists()) {
+            if (User::where('telephone', $data['telephone'])->where('type_utilisateur', $user->type_utilisateur)->where('id', '!=', $user->id)->exists()) {
                 throw ValidationException::withMessages([
                     'telephone' => ['Ce numéro est déjà utilisé par un autre compte.'],
                 ]);

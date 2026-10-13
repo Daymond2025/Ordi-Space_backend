@@ -185,15 +185,22 @@ class TelephoneAuthTest extends TestCase
         ])->assertForbidden();
     }
 
-    public function test_la_creation_rapide_refuse_un_numero_deja_utilise_par_un_non_client(): void
+    public function test_la_creation_rapide_accepte_un_numero_deja_utilise_par_un_non_client(): void
     {
+        // L'unicité email/téléphone est désormais scopée par rôle : un même
+        // numéro peut déjà servir à un compte d'un AUTRE rôle (ici
+        // Administrateur) sans empêcher la création d'un Client distinct.
         $commercial = $this->creerCommercial();
         $admin = $this->creerAdmin(['telephone' => '+225700000010']);
 
-        $this->actingAs($commercial)->postJson('/api/v1/clients/creation-rapide', [
+        $reponse = $this->actingAs($commercial)->postJson('/api/v1/clients/creation-rapide', [
             'nom' => 'Conflit', 'telephone' => '0700000010',
-        ])->assertUnprocessable();
+        ]);
 
+        $reponse->assertCreated();
+        $this->assertDatabaseHas('users', [
+            'telephone' => '+225700000010', 'type_utilisateur' => ROLE_CLIENT, 'nom' => 'Conflit',
+        ]);
         $this->assertNotNull($admin);
     }
 

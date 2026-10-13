@@ -49,7 +49,7 @@ class TelephoneAuthController extends Controller
     {
         $telephone = normaliser_telephone($request->string('telephone'));
 
-        if (User::where('telephone', $telephone)->exists()) {
+        if (User::where('telephone', $telephone)->where('type_utilisateur', ROLE_CLIENT)->exists()) {
             throw ValidationException::withMessages([
                 'telephone' => ['Ce numéro est déjà associé à un compte — connectez-vous plutôt.'],
             ]);

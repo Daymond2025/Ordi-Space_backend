@@ -61,12 +61,11 @@ class DatabaseSeeder extends Seeder
         }
 
         $user = User::firstOrCreate(
-            ['email' => $email],
+            ['email' => $email, 'type_utilisateur' => ROLE_ADMINISTRATEUR],
             [
                 'nom' => 'Administrateur',
                 'prenom' => 'Racine',
                 'password' => Hash::make($password),
-                'type_utilisateur' => ROLE_ADMINISTRATEUR,
                 'statut_compte' => STATUT_COMPTE_ACTIF,
             ]
         );
@@ -87,12 +86,11 @@ class DatabaseSeeder extends Seeder
     private function seedAgentIa(): void
     {
         $user = User::firstOrCreate(
-            ['email' => AGENT_IA_EMAIL],
+            ['email' => AGENT_IA_EMAIL, 'type_utilisateur' => ROLE_COMMERCIAL],
             [
                 'nom' => 'Agent',
                 'prenom' => 'IA',
                 'password' => Hash::make(Str::random(40)),
-                'type_utilisateur' => ROLE_COMMERCIAL,
                 'statut_compte' => STATUT_COMPTE_ACTIF,
             ]
         );

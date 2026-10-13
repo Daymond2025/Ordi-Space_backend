@@ -47,7 +47,7 @@ class UtilisateurController extends Controller
         $data = $request->validate([
             'nom' => ['required', 'string', 'max:100'],
             'prenom' => ['nullable', 'string', 'max:100'],
-            'email' => ['required', 'email', 'unique:users,email'],
+            'email' => ['required', 'email', Rule::unique('users', 'email')->where('type_utilisateur', $request->input('type_utilisateur'))],
             'telephone' => ['nullable', 'string', 'max:30'],
             'password' => ['required', Password::min(8)->mixedCase()->numbers()],
             'type_utilisateur' => ['required', Rule::in(roles_provisionnes_par_admin())],
@@ -123,7 +123,7 @@ class UtilisateurController extends Controller
         $data = $request->validate([
             'nom' => ['sometimes', 'string', 'max:100'],
             'prenom' => ['nullable', 'string', 'max:100'],
-            'email' => ['sometimes', 'email', Rule::unique('users', 'email')->ignore($utilisateur->id)],
+            'email' => ['sometimes', 'email', Rule::unique('users', 'email')->ignore($utilisateur->id)->where('type_utilisateur', $utilisateur->type_utilisateur)],
             'telephone' => ['nullable', 'string', 'max:30'],
         ]);
 

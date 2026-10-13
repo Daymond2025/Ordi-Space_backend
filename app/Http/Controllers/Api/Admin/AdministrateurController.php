@@ -111,7 +111,7 @@ class AdministrateurController extends Controller
         return $request->validate([
             'nom' => [$creation ? 'required' : 'sometimes', 'string', 'max:100'],
             'prenom' => ['nullable', 'string', 'max:100'],
-            'email' => [$creation ? 'required' : 'sometimes', 'email', Rule::unique('users', 'email')->ignore($utilisateurId)],
+            'email' => [$creation ? 'required' : 'sometimes', 'email', Rule::unique('users', 'email')->ignore($utilisateurId)->where('type_utilisateur', ROLE_ADMINISTRATEUR)],
             'telephone' => ['nullable', 'string', 'max:30'],
             'password' => [$creation ? 'required' : 'nullable', Password::min(8)->mixedCase()->numbers()],
             'role' => ['required', Rule::in(['super_admin', 'admin'])],

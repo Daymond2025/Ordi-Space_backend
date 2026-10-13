@@ -65,7 +65,7 @@ class CommandePubliqueService
      */
     public function creer(User $vendeur, Produit $produit, int $quantite, array $acheteur, string $source, ?LienAffilie $lien = null): Commande
     {
-        $agentId = User::where('email', AGENT_IA_EMAIL)->value('id');
+        $agentId = User::where('email', AGENT_IA_EMAIL)->where('type_utilisateur', ROLE_COMMERCIAL)->value('id');
         abort_unless($agentId, 500, "Agent IA système introuvable — relancez le seeder.");
 
         $telephone = normaliser_numero_ci($acheteur['telephone']);
@@ -175,16 +175,12 @@ class CommandePubliqueService
         return $commande;
     }
 
-    /** Client existant (même numéro) ou compte minimal — jamais un compte non-client réutilisé. */
+    /** Client existant (même numéro, même rôle) ou compte minimal. */
     private function trouverOuCreerClient(array $acheteur, string $telephone): User
     {
-        $existant = User::where('telephone', $telephone)->first();
+        $existant = User::where('telephone', $telephone)->where('type_utilisateur', ROLE_CLIENT)->first();
 
         if ($existant) {
-            if ($existant->type_utilisateur !== ROLE_CLIENT) {
-                throw ValidationException::withMessages(['telephone' => ['Ce numéro ne peut pas être utilisé pour commander.']]);
-            }
-
             return $existant;
         }
 

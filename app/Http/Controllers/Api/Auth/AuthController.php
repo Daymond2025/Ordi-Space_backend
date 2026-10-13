@@ -38,7 +38,10 @@ class AuthController extends Controller
         if (! empty($data['telephone'])) {
             $data['telephone'] = normaliser_telephone($data['telephone']);
 
-            if (User::where('telephone', $data['telephone'])->exists()) {
+            // Unique par rôle, pas globalement — un même numéro peut déjà
+            // servir à un compte d'un AUTRE rôle (voir migration
+            // unicite_email_telephone_par_role).
+            if (User::where('telephone', $data['telephone'])->where('type_utilisateur', $data['type_utilisateur'])->exists()) {
                 throw ValidationException::withMessages([
                     'telephone' => ['Ce numéro est déjà utilisé par un autre compte.'],
                 ]);
@@ -92,7 +95,16 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request): JsonResponse
     {
-        $user = User::where('email', $request->string('email'))->first();
+        // Le rôle est optionnel : les apps à rôle unique l'envoient pour
+        // distinguer sans ambiguïté un compte quand le même e-mail sert
+        // aussi à un compte d'un AUTRE rôle ; sans ce champ, on garde le
+        // comportement historique (premier compte non-Client trouvé) —
+        // cas de l'Admin Web, qui sert à la fois Coordinateur et Administrateur.
+        $requete = User::where('email', $request->string('email'));
+        if ($request->filled('type_utilisateur')) {
+            $requete->where('type_utilisateur', $request->string('type_utilisateur'));
+        }
+        $user = $requete->first();
 
         if (! $user || $user->type_utilisateur === ROLE_CLIENT || ! Hash::check($request->string('password'), $user->password)) {
             throw ValidationException::withMessages([
@@ -158,7 +170,11 @@ class AuthController extends Controller
      */
     public function oublierMotDePasse(OublierMotDePasseRequest $request): JsonResponse
     {
-        $user = User::where('email', $request->string('email'))->first();
+        $requete = User::where('email', $request->string('email'));
+        if ($request->filled('type_utilisateur')) {
+            $requete->where('type_utilisateur', $request->string('type_utilisateur'));
+        }
+        $user = $requete->first();
 
         if ($user && $user->peutReinitialiserMotDePasse() && $user->statut_compte === STATUT_COMPTE_ACTIF) {
             $user->notify(new PasswordResetCodeNotification($user->emettreCodeReinitialisation()));
@@ -177,7 +193,11 @@ class AuthController extends Controller
      */
     public function reinitialiserMotDePasse(ReinitialiserMotDePasseRequest $request): JsonResponse
     {
-        $user = User::where('email', $request->string('email'))->first();
+        $requete = User::where('email', $request->string('email'));
+        if ($request->filled('type_utilisateur')) {
+            $requete->where('type_utilisateur', $request->string('type_utilisateur'));
+        }
+        $user = $requete->first();
 
         // Même message qu'un mauvais code, pour ne pas confirmer/infirmer
         // l'existence du compte à cette étape non plus.

@@ -75,7 +75,7 @@ class CreerVentesBoutiqueDemo extends Command
         // De préférence un coordinateur joignable : sa fiche est affichée au livreur ("Mes infos").
         $coordinateurId = Coordinateur::whereHas('user', fn ($q) => $q->whereNotNull('telephone'))->value('user_id')
             ?? Coordinateur::query()->value('user_id');
-        $agentId = User::where('email', AGENT_IA_EMAIL)->value('id');
+        $agentId = User::where('email', AGENT_IA_EMAIL)->where('type_utilisateur', ROLE_COMMERCIAL)->value('id');
         $localite = Localite::where('nom', 'Cocody')->first();
         if (! $coordinateurId || ! $agentId || ! $localite) {
             $this->error("Coordinateur, agent IA ou localité \"Cocody\" manquant — lancez d'abord les seeders.");
@@ -195,7 +195,7 @@ class CreerVentesBoutiqueDemo extends Command
 
     private function creerCommande(Produit $produit, string $prenom, string $nom, string $telephone, string $source, Localite $localite, int $agentId, $date): Commande
     {
-        $client = User::where('telephone', $telephone)->first()
+        $client = User::where('telephone', $telephone)->where('type_utilisateur', ROLE_CLIENT)->first()
             ?? Client::creerCompteMinimal($nom, $prenom, $telephone);
 
         $adresse = Adresse::firstOrCreate(

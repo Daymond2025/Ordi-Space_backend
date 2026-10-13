@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class RegisterRequest extends FormRequest
@@ -17,7 +18,10 @@ class RegisterRequest extends FormRequest
         return [
             'nom' => ['required', 'string', 'max:100'],
             'prenom' => ['nullable', 'string', 'max:100'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            // Unique par rôle, pas globalement : la même adresse peut déjà
+            // être utilisée par un compte d'un AUTRE rôle (voir migration
+            // unicite_email_telephone_par_role).
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->where('type_utilisateur', $this->input('type_utilisateur'))],
             'telephone' => ['nullable', 'string', 'max:30'],
             'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()],
             // Coordinateur, Technicien et Administrateur sont exclus — voir

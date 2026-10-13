@@ -707,7 +707,7 @@ class CommandeController extends Controller
             return $user->id;
         }
 
-        $agentId = User::where('email', AGENT_IA_EMAIL)->value('id');
+        $agentId = User::where('email', AGENT_IA_EMAIL)->where('type_utilisateur', ROLE_COMMERCIAL)->value('id');
 
         abort_unless($agentId, 500, "Agent IA système introuvable — relancez le seeder.");
 

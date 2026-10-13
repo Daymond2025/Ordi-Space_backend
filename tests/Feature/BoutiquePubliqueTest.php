@@ -247,20 +247,21 @@ class BoutiquePubliqueTest extends TestCase
         $this->assertSame(0, Commande::count());
     }
 
-    public function test_le_numero_d_un_compte_non_client_est_refuse_a_la_creation_de_la_commande(): void
+    /**
+     * Unicité désormais par rôle (voir migration unicite_email_telephone_par_role) :
+     * le numéro d'un compte d'un AUTRE rôle (ici le livreur lui-même) ne
+     * bloque plus la création du compte Client minimal et de la commande.
+     */
+    public function test_le_numero_du_livreur_lui_meme_peut_desormais_etre_reutilise_par_un_acheteur(): void
     {
         $livreur = $this->creerLivreur();
         $lien = $this->lienPour($livreur, $this->produitARevendre());
 
-        // Le contrôle du numéro se fait à la création de la commande (après paiement) : l'acheteur
-        // a payé, la commande est impossible — anomalie que l'Admin traite.
-        $this->ouvrirConfirmation($this->corpsCommande(['origine' => 'lien', 'code' => $lien->code, 'telephone' => $livreur->telephone]))->assertCreated();
-        $this->webhookWave('cos_1')->assertOk();
+        $commande = $this->passerCommandePublique($this->corpsCommande(['origine' => 'lien', 'code' => $lien->code, 'telephone' => $livreur->telephone]));
 
-        $acompte = AcompteConfirmation::firstOrFail();
-        $this->assertTrue($acompte->estAnomalie());
-        $this->assertStringContainsString('numéro', $acompte->erreur);
-        $this->assertSame(0, Commande::count());
+        $this->assertNotNull($commande);
+        $this->assertSame(2, User::where('telephone', $livreur->telephone)->count());
+        $this->assertSame(ROLE_CLIENT, $commande->client->user->type_utilisateur);
     }
 
     public function test_un_produit_hors_selection_ne_se_commande_pas_par_vitrine(): void

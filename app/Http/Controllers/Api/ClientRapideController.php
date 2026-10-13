@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Services\ExtractionClientService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 
 /**
  * Nouvelle logique d'acquisition (décision PDG) : un Commercial (humain ou
@@ -32,15 +31,12 @@ class ClientRapideController extends Controller
         ]);
 
         $telephone = normaliser_telephone($data['telephone']);
-        $existant = User::where('telephone', $telephone)->first();
+        // Unique par rôle : ce numéro peut déjà être utilisé par un compte
+        // d'un AUTRE rôle sans que ça pose problème ici — seul un Client
+        // existant avec ce numéro doit être récupéré.
+        $existant = User::where('telephone', $telephone)->where('type_utilisateur', ROLE_CLIENT)->first();
 
         if ($existant) {
-            if ($existant->type_utilisateur !== ROLE_CLIENT) {
-                throw ValidationException::withMessages([
-                    'telephone' => ['Ce numéro est déjà utilisé par un compte non-client.'],
-                ]);
-            }
-
             // Idempotent : un commercial qui rappelle par erreur récupère le
             // client existant plutôt que de provoquer une erreur d'unicité.
             return $this->success($existant->load('client'));

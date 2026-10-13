@@ -105,12 +105,27 @@ class BoutiqueCommandeFournisseurTest extends TestCase
         // Téléphone invalide, nom manquant.
         $this->actingAs($livreur)->postJson('/api/v1/boutique/commandes', $this->corps($produit, ['telephone' => '123']))->assertUnprocessable();
         $this->actingAs($livreur)->postJson('/api/v1/boutique/commandes', $this->corps($produit, ['nom' => '']))->assertUnprocessable();
-        // Numéro d'un compte qui n'est pas un client (ici le livreur lui-même).
-        $this->actingAs($livreur)->postJson('/api/v1/boutique/commandes', $this->corps($produit, ['telephone' => $livreur->telephone]))->assertUnprocessable();
 
         $this->assertSame(5, $produit->fresh()->quantite_stock);
         $this->assertSame(0, Commande::count());
         $this->assertSame(0, User::where('telephone', '+2250700112233')->count());
+    }
+
+    /**
+     * Unicité désormais par rôle (voir migration unicite_email_telephone_par_role) :
+     * le numéro d'un compte d'un AUTRE rôle (ici le livreur lui-même) ne
+     * bloque plus la création du compte Client minimal correspondant.
+     */
+    public function test_le_numero_du_livreur_lui_meme_peut_desormais_servir_a_un_nouveau_client(): void
+    {
+        $livreur = $this->creerLivreur();
+        $produit = $this->produitARevendre();
+
+        $this->actingAs($livreur)->postJson('/api/v1/boutique/commandes', $this->corps($produit, ['telephone' => $livreur->telephone]))->assertCreated();
+
+        $this->assertSame(4, $produit->fresh()->quantite_stock);
+        $this->assertSame(1, Commande::count());
+        $this->assertSame(2, User::where('telephone', $livreur->telephone)->count());
     }
 
     public function test_seul_un_livreur_peut_passer_une_commande_par_ce_moyen(): void

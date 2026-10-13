@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class OublierMotDePasseRequest extends FormRequest
 {
@@ -17,6 +18,11 @@ class OublierMotDePasseRequest extends FormRequest
         // jamais révéler si l'adresse est connue (voir AuthController).
         return [
             'email' => ['required', 'email', 'max:255'],
+            // Optionnel — même rôle de désambiguïsation qu'au login, voir
+            // LoginRequest.
+            'type_utilisateur' => ['nullable', 'string', Rule::in([
+                ROLE_COORDINATEUR, ROLE_FOURNISSEUR, ROLE_LIVREUR, ROLE_COMMERCIAL, ROLE_ADMINISTRATEUR, ROLE_TECHNICIEN_MAINTENANCE,
+            ])],
         ];
     }
 }

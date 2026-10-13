@@ -250,7 +250,7 @@ class MessageController extends Controller
             return;
         }
 
-        $auteurId = User::where('email', AGENT_IA_EMAIL)->value('id');
+        $auteurId = User::where('email', AGENT_IA_EMAIL)->where('type_utilisateur', ROLE_COMMERCIAL)->value('id');
 
         if (! $auteurId) {
             return;
