@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Administrateur;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteragitAvecApi;
@@ -87,10 +88,14 @@ class AdministrateurCrudTest extends TestCase
             'role' => 'admin', 'espaces' => ['clients', 'commandes', 'finance'],
         ])->assertOk();
 
-        $this->assertDatabaseHas('administrateurs', [
-            'user_id' => $adminRestreint->id,
-            'espaces_autorises' => json_encode(['clients', 'commandes', 'finance']),
-        ]);
+        // Comparaison décodée plutôt que sur la chaîne JSON brute : MySQL 8
+        // reformate le JSON stocké (espaces après les virgules), contrairement
+        // à json_encode() — assertDatabaseHas sur une chaîne littérale est donc
+        // fragile selon le moteur, voir le cast "array" sur Administrateur.
+        $this->assertSame(
+            ['clients', 'commandes', 'finance'],
+            Administrateur::where('user_id', $adminRestreint->id)->first()->espaces_autorises
+        );
     }
 
     public function test_un_super_admin_ne_peut_pas_se_retirer_a_lui_meme_le_role_super_admin(): void

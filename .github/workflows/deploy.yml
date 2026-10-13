@@ -69,6 +69,12 @@ jobs:
           DB_DATABASE: ordispace_test
           DB_USERNAME: root
           DB_PASSWORD:
+          # Paire de clés dédiée à la CI, sans rapport avec celle de
+          # production (jamais utilisée pour un vrai envoi push) — .env.example
+          # les laisse vides, donc PushSubscriptionTest échouait faute de clé
+          # exposée par GET /push/cle-publique.
+          VAPID_PUBLIC_KEY: BL6RcMm0HhPYsYPMkF_vbYnY28C2tLKlbZYNYvZ5l6P8a1qfH-BrPauNbOmOfGkjvXliQ3_BY0xM_2A8NwkKPvg
+          VAPID_PRIVATE_KEY: GdTYCDCqaWN8IznlPfz95UOOmj5sv7jxYj8nApzGsH8
         run: php artisan test
 
   # ─────────────────────────────────────────────────────────────────────────
