@@ -286,11 +286,20 @@ class CommandeController extends Controller
                 $sousTotal = $prixVente * $ligne['quantite'];
                 $montantTotal += $sousTotal;
 
+                // Même garde Admin-only que prix_unitaire ci-dessus — durée
+                // négociée pour une vente enregistrée manuellement (écran
+                // "Nouvelle commande"). Absente, Garantie::genererPourCommande()
+                // retombe sur Produit::duree_garantie_mois comme avant.
+                $dureeGarantie = $request->user()->type_utilisateur === ROLE_ADMINISTRATEUR && isset($ligne['duree_garantie_mois'])
+                    ? (int) $ligne['duree_garantie_mois']
+                    : null;
+
                 $lignesAPersister[] = [
                     'produit_id' => $produit->id,
                     'quantite' => $ligne['quantite'],
                     'prix_unitaire' => $prixVente,
                     'prix_partenaire_unitaire' => $produit->prix_vente !== null ? $produit->prix : null,
+                    'duree_garantie_mois' => $dureeGarantie,
                 ];
 
                 $produit->decrement('quantite_stock', $ligne['quantite']);
@@ -314,14 +323,23 @@ class CommandeController extends Controller
 
             $livraisonGratuite = $this->estDeuxiemeCommandeEligible($clientId);
 
-            $fraisLivraison = $necessiteLivraison
-                ? $this->calculerFraisLivraison(
-                    Adresse::findOrFail($request->integer('adresse_id')),
-                    $lignesAPersister,
-                    $produits,
-                    $livraisonGratuite
-                )
-                : 0.0;
+            // Même garde Admin-only que prix_unitaire/duree_garantie_mois —
+            // frais négociés pour une vente enregistrée manuellement (écran
+            // "Nouvelle commande"). Sinon, toujours le calcul automatique
+            // (barème FraisLivraisonProduit), y compris pour un Admin qui
+            // n'envoie pas ce champ.
+            if ($request->user()->type_utilisateur === ROLE_ADMINISTRATEUR && $request->filled('frais_livraison')) {
+                $fraisLivraison = (float) $request->input('frais_livraison');
+            } else {
+                $fraisLivraison = $necessiteLivraison
+                    ? $this->calculerFraisLivraison(
+                        Adresse::findOrFail($request->integer('adresse_id')),
+                        $lignesAPersister,
+                        $produits,
+                        $livraisonGratuite
+                    )
+                    : 0.0;
+            }
 
             $commande = Commande::create([
                 'client_id' => $clientId,
@@ -348,6 +366,9 @@ class CommandeController extends Controller
                     'commande_id' => $commande->id,
                     'adresse_id' => $request->integer('adresse_id'),
                     'statut_livraison' => STATUT_LIVRAISON_EN_PREPARATION,
+                    // Renseignée uniquement par l'écran "Nouvelle commande" —
+                    // colonne existante, jusqu'ici jamais alimentée.
+                    'date_livraison_prevue' => $request->input('date_livraison_prevue'),
                 ]);
             }
 

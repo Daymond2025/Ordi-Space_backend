@@ -28,14 +28,22 @@ class Garantie extends Model
         $commande->loadMissing('lignes.produit', 'lignes.garantie');
 
         foreach ($commande->lignes as $ligne) {
-            if (! $ligne->produit || ! $ligne->produit->duree_garantie_mois || $ligne->garantie) {
+            if ($ligne->garantie) {
+                continue;
+            }
+
+            // Durée négociée à la création (écran "Nouvelle commande") sinon
+            // celle du produit — voir CommandeController::store().
+            $duree = $ligne->duree_garantie_mois ?? $ligne->produit?->duree_garantie_mois;
+
+            if (! $duree) {
                 continue;
             }
 
             static::create([
                 'ligne_commande_id' => $ligne->id,
                 'date_debut' => now(),
-                'date_fin' => now()->addMonths($ligne->produit->duree_garantie_mois),
+                'date_fin' => now()->addMonths($duree),
                 'type_garantie' => TYPE_GARANTIE_ORDISPACE,
                 'conditions' => 'Garantie standard incluse à l\'achat.',
             ]);

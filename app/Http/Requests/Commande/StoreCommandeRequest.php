@@ -37,6 +37,19 @@ class StoreCommandeRequest extends FormRequest
             // Prix négocié — honoré uniquement pour un Admin (voir
             // CommandeController::store()), ignoré silencieusement sinon.
             'lignes.*.prix_unitaire' => ['nullable', 'numeric', 'min:0'],
+            // Durée de garantie négociée (écran "Nouvelle commande") — même
+            // garde Admin-only que prix_unitaire, sinon ignorée (repli sur
+            // Produit::duree_garantie_mois, voir Garantie::genererPourCommande()).
+            'lignes.*.duree_garantie_mois' => ['nullable', 'integer', 'min:1', 'max:120'],
+            // Frais de livraison négociés — honorés uniquement pour un Admin
+            // (voir CommandeController::store()), sinon toujours recalculés
+            // via calculerFraisLivraison().
+            'frais_livraison' => ['nullable', 'numeric', 'min:0'],
+            // Date/heure de livraison prévue (écran "Nouvelle commande") —
+            // transmise telle quelle à Livraison::create(), voir
+            // livraisons.date_livraison_prevue (colonne existante, jusqu'ici
+            // jamais renseignée).
+            'date_livraison_prevue' => ['nullable', 'date'],
             // Code Privilège Space (ex. WELCOME2026), optionnel — vérifié et
             // appliqué dans CommandeController::store.
             'code_promo' => ['nullable', 'string', 'max:50'],
