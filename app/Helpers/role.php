@@ -74,14 +74,30 @@ defined('PERMISSION_REPONSES_RAPIDES_GERER') || define('PERMISSION_REPONSES_RAPI
 
 if (! function_exists('roles_auto_inscription')) {
     /**
-     * Rôles ouverts à l'auto-inscription publique par e-mail/mot de passe.
-     * Client en est exclu depuis le passage à la connexion par téléphone
-     * (WhatsApp + OTP) — voir Api\Auth\TelephoneAuthController. Coordinateur,
-     * Technicien et Administrateur restent exclus (décision d'architecture).
+     * Rôles ouverts à l'auto-inscription publique par e-mail/mot de passe
+     * (AuthController::register()) — conservé uniquement pour la
+     * rétrocompatibilité des comptes déjà créés ainsi ; les nouvelles
+     * inscriptions de ces rôles passent désormais par le téléphone+OTP, voir
+     * roles_auto_inscription_telephone(). Coordinateur, Technicien et
+     * Administrateur restent exclus (décision d'architecture).
      */
     function roles_auto_inscription(): array
     {
         return [ROLE_FOURNISSEUR, ROLE_COMMERCIAL, ROLE_LIVREUR];
+    }
+}
+
+if (! function_exists('roles_auto_inscription_telephone')) {
+    /**
+     * Rôles qui s'inscrivent et se connectent par téléphone + OTP WhatsApp
+     * (Api\Auth\TelephoneAuthController) — Client, plus Fournisseur/
+     * Commercial/Livreur depuis l'uniformisation de l'auth (ils n'ont plus
+     * de mot de passe pour les nouvelles inscriptions). Coordinateur et
+     * Administrateur restent exclus, traités comme comptes internes.
+     */
+    function roles_auto_inscription_telephone(): array
+    {
+        return [ROLE_CLIENT, ...roles_auto_inscription()];
     }
 }
 
