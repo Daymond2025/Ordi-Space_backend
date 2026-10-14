@@ -91,4 +91,49 @@ class ProduitCreationCoordinateurTest extends TestCase
             'statut_produit' => STATUT_PRODUIT_EN_ATTENTE,
         ]);
     }
+
+    public function test_un_admin_peut_associer_un_produit_a_un_fournisseur_existant(): void
+    {
+        $admin = $this->creerAdmin();
+        $fournisseur = $this->creerFournisseur();
+        $categorie = Categorie::firstOrCreate(['nom_categorie' => 'Ordinateurs portables']);
+
+        $reponse = $this->actingAs($admin)->postJson('/api/v1/produits', [
+            'categorie_id' => $categorie->id,
+            'nom_produit' => 'HP EliteBook 840',
+            'prix' => 350000,
+            'quantite_stock' => 5,
+            'fournisseur_id' => $fournisseur->id,
+        ]);
+
+        $reponse->assertCreated();
+        // Associé au fournisseur mais toujours publié directement — l'Admin
+        // reste son propre validateur, l'association n'est qu'attributive.
+        $this->assertDatabaseHas('produits', [
+            'nom_produit' => 'HP EliteBook 840',
+            'fournisseur_id' => $fournisseur->id,
+            'statut_produit' => STATUT_PRODUIT_VALIDE,
+        ]);
+    }
+
+    public function test_la_surcharge_fournisseur_id_est_ignoree_pour_un_coordinateur(): void
+    {
+        $coordinateur = $this->creerCoordinateur();
+        $fournisseur = $this->creerFournisseur();
+        $categorie = Categorie::firstOrCreate(['nom_categorie' => 'Ordinateurs portables']);
+
+        $reponse = $this->actingAs($coordinateur)->postJson('/api/v1/produits', [
+            'categorie_id' => $categorie->id,
+            'nom_produit' => 'HP EliteBook 840',
+            'prix' => 350000,
+            'quantite_stock' => 5,
+            'fournisseur_id' => $fournisseur->id,
+        ]);
+
+        $reponse->assertCreated();
+        $this->assertDatabaseHas('produits', [
+            'nom_produit' => 'HP EliteBook 840',
+            'fournisseur_id' => null,
+        ]);
+    }
 }

@@ -23,6 +23,11 @@ class StoreProduitRequest extends FormRequest
         return [
             'categorie_id' => ['required', 'exists:categories,id'],
             'nom_produit' => ['required', 'string', 'max:150'],
+            // Association à un vrai fournisseur — Admin uniquement (voir
+            // ProduitController::store()) ; ignoré pour tout autre rôle, qui
+            // garde son comportement habituel (null pour un produit
+            // auto-publié, soi-même pour un Fournisseur).
+            'fournisseur_id' => ['nullable', 'exists:fournisseurs,user_id'],
             // Facultative : à défaut, déduite du nom (HP, Dell…) — voir Produit::booted().
             'marque' => ['nullable', 'string', 'max:60'],
             'description' => ['nullable', 'string'],

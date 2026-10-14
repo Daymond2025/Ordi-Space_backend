@@ -425,9 +425,18 @@ class ProduitController extends Controller
         $estAutoPublie = in_array($request->user()->type_utilisateur, [ROLE_ADMINISTRATEUR, ROLE_COORDINATEUR], true);
 
         $produit = DB::transaction(function () use ($request, $estAutoPublie) {
+            // Un Admin peut associer le produit à un vrai fournisseur (ex.
+            // partenaire physique livrant ce stock) sans pour autant lui
+            // transférer le cycle de validation — le produit reste publié
+            // directement, voir statut_produit ci-dessous. Ignoré pour tout
+            // autre rôle, qui garde le comportement habituel.
+            $fournisseurId = $request->user()->type_utilisateur === ROLE_ADMINISTRATEUR && $request->filled('fournisseur_id')
+                ? $request->integer('fournisseur_id')
+                : ($estAutoPublie ? null : $request->user()->id);
+
             $produit = Produit::create([
-                ...$request->safe()->except(['images', 'frais_livraison', 'images_cadeaux']),
-                'fournisseur_id' => $estAutoPublie ? null : $request->user()->id,
+                ...$request->safe()->except(['images', 'frais_livraison', 'images_cadeaux', 'fournisseur_id']),
+                'fournisseur_id' => $fournisseurId,
                 'statut_produit' => $estAutoPublie ? STATUT_PRODUIT_VALIDE : STATUT_PRODUIT_EN_ATTENTE,
                 'date_ajout' => now(),
             ]);
