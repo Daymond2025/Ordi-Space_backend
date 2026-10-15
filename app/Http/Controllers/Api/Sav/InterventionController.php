@@ -49,7 +49,13 @@ class InterventionController extends Controller
             ]
         );
 
-        if ($data['statut_intervention'] === STATUT_INTERVENTION_TERMINEE) {
+        // Même transition que le passage à "terminee" ci-dessous : la demande
+        // suit l'intervention, jamais figée à "planifiee" une fois le
+        // diagnostic commencé (sans quoi l'écran du technicien resterait
+        // bloqué sur "planifier/démarrer" au lieu de passer à "terminer").
+        if ($data['statut_intervention'] === STATUT_INTERVENTION_EN_COURS) {
+            $rendezVous->demandeSav()->update(['statut_demande' => STATUT_DEMANDE_SAV_EN_COURS]);
+        } elseif ($data['statut_intervention'] === STATUT_INTERVENTION_TERMINEE) {
             $rendezVous->demandeSav()->update(['statut_demande' => STATUT_DEMANDE_SAV_RESOLUE]);
         }
 

@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DemandeRetrait;
-use App\Models\Livreur;
+use App\Models\User;
 use App\Models\VenteBoutique;
 use App\Services\NotificationAdminService;
 use App\Services\PortefeuilleCommissions;
@@ -15,8 +15,9 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Portefeuille de commissions du livreur (écran "Portefeuille" de la Boutique) :
- * ses soldes, la liste de ses commissions et ses demandes de retrait. Le
+ * Portefeuille de commissions du Livreur et, depuis l'app Maintenancier, du
+ * Technicien de maintenance (écran "Portefeuille" de la Boutique) : ses
+ * soldes, la liste de ses commissions et ses demandes de retrait. Le
  * traitement des demandes par l'Admin est dans Admin\RetraitController.
  */
 class PortefeuilleController extends Controller
@@ -24,7 +25,7 @@ class PortefeuilleController extends Controller
     /** Soldes : disponible, gain total cumulé, en attente de validation… (voir PortefeuilleCommissions). */
     public function resume(Request $request): JsonResponse
     {
-        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+        abort_unless(in_array($request->user()->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true), 403);
 
         return $this->success([
             ...PortefeuilleCommissions::resume($request->user()),
@@ -39,7 +40,7 @@ class PortefeuilleController extends Controller
      */
     public function commissions(Request $request): JsonResponse
     {
-        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+        abort_unless(in_array($request->user()->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true), 403);
 
         $parStatut = VenteBoutique::statutsCommandeParStatutAffiche();
 
@@ -71,7 +72,7 @@ class PortefeuilleController extends Controller
     /** Onglet "Mes retraits" : ses demandes, plus récentes d'abord. */
     public function retraits(Request $request): JsonResponse
     {
-        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+        abort_unless(in_array($request->user()->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true), 403);
 
         return $this->success(
             DemandeRetrait::where('user_id', $request->user()->id)
@@ -85,13 +86,14 @@ class PortefeuilleController extends Controller
      * Demande de retrait vers un numéro Mobile Money : minimum
      * RETRAIT_MONTANT_MINIMUM, jamais plus que la commission disponible. Le
      * montant est immédiatement réservé (déduit du disponible) jusqu'à la
-     * décision de l'Admin. Le verrou sur la ligne du livreur empêche deux
-     * demandes simultanées de dépasser ensemble le solde.
+     * décision de l'Admin. Le verrou sur la ligne User (générique aux deux
+     * rôles, contrairement à Livreur) empêche deux demandes simultanées de
+     * dépasser ensemble le solde.
      */
     public function demander(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->type_utilisateur === ROLE_LIVREUR, 403);
+        abort_unless(in_array($user->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true), 403);
 
         $data = $request->validate([
             'montant' => ['required', 'integer', 'min:'.RETRAIT_MONTANT_MINIMUM],
@@ -106,7 +108,7 @@ class PortefeuilleController extends Controller
         ]);
 
         $retrait = DB::transaction(function () use ($user, $data) {
-            Livreur::where('user_id', $user->id)->lockForUpdate()->firstOrFail();
+            User::where('id', $user->id)->lockForUpdate()->firstOrFail();
 
             $disponible = PortefeuilleCommissions::resume($user)['disponible'];
             if ($data['montant'] > $disponible) {
@@ -136,7 +138,10 @@ class PortefeuilleController extends Controller
     /** Annulation par le livreur, tant que l'Admin n'a pas statué — le montant redevient disponible. */
     public function annuler(Request $request, DemandeRetrait $retrait): JsonResponse
     {
-        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR && $retrait->user_id === $request->user()->id, 403);
+        abort_unless(
+            in_array($request->user()->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true) && $retrait->user_id === $request->user()->id,
+            403
+        );
 
         if (! $retrait->estEnAttente()) {
             throw ValidationException::withMessages(['statut' => ['Cette demande a déjà été traitée.']]);

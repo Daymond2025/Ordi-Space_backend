@@ -17,6 +17,7 @@ use App\Models\LigneCommande;
 use App\Models\Livreur;
 use App\Models\Localite;
 use App\Models\Produit;
+use App\Models\TechnicienMaintenance;
 use App\Models\User;
 
 trait InteragitAvecApi
@@ -108,6 +109,15 @@ trait InteragitAvecApi
         $user = User::factory()->create(array_merge(['type_utilisateur' => ROLE_LIVREUR], $attributs));
         $user->assignRole(ROLE_LIVREUR);
         Livreur::create(['user_id' => $user->id]);
+
+        return $user;
+    }
+
+    protected function creerTechnicien(array $attributs = []): User
+    {
+        $user = User::factory()->create(array_merge(['type_utilisateur' => ROLE_TECHNICIEN_MAINTENANCE], $attributs));
+        $user->assignRole(ROLE_TECHNICIEN_MAINTENANCE);
+        TechnicienMaintenance::create(['user_id' => $user->id, 'specialite' => 'Matériel']);
 
         return $user;
     }

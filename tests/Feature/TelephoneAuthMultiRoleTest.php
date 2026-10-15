@@ -10,6 +10,7 @@ use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Tests\Feature\Concerns\InteragitAvecApi;
 use Tests\TestCase;
 
 /**
@@ -17,11 +18,14 @@ use Tests\TestCase;
  * se connectent désormais par téléphone + OTP WhatsApp, comme le Client —
  * TelephoneAuthController généralisé (voir TelephoneAuthTest.php pour le
  * comportement Client lui-même, inchangé). Coordinateur/Administrateur
- * restent hors de ce périmètre (AuthController, intact).
+ * restent hors de ce périmètre (AuthController, intact). Le Technicien de
+ * maintenance est un cas à part : connexion par téléphone+OTP comme les
+ * autres, mais sans auto-inscription (compte provisionné par l'Admin) —
+ * voir les deux derniers tests.
  */
 class TelephoneAuthMultiRoleTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, InteragitAvecApi;
 
     protected function setUp(): void
     {
@@ -152,5 +156,38 @@ class TelephoneAuthMultiRoleTest extends TestCase
             'telephone' => '0700000404', 'type_utilisateur' => ROLE_FOURNISSEUR,
         ]);
         $this->assertSame($fournisseur, $demandeFournisseur->json('data.user_id'));
+    }
+
+    public function test_un_technicien_provisionne_par_ladmin_peut_se_connecter_par_telephone(): void
+    {
+        $technicien = $this->creerTechnicien(['telephone' => '+225700000505']);
+
+        $demande = $this->postJson('/api/v1/auth/telephone/otp', [
+            'telephone' => '07 00 00 05 05',
+            'type_utilisateur' => ROLE_TECHNICIEN_MAINTENANCE,
+        ]);
+        $demande->assertOk();
+        $this->assertTrue($demande->json('data.compte_existant'));
+        $this->assertSame($technicien->id, $demande->json('data.user_id'));
+
+        $verification = $this->postJson('/api/v1/auth/verify-otp', [
+            'user_id' => $technicien->id,
+            'code' => $demande->json('data.code_debug'),
+            'device_name' => 'test',
+        ]);
+        $verification->assertOk();
+        $this->assertSame($technicien->id, $verification->json('data.user.id'));
+    }
+
+    public function test_un_technicien_ne_peut_pas_sauto_inscrire_par_telephone(): void
+    {
+        $inscription = $this->postJson('/api/v1/auth/telephone/inscription', [
+            'telephone' => '07 00 00 06 06',
+            'nom' => 'Kouamé',
+            'type_utilisateur' => ROLE_TECHNICIEN_MAINTENANCE,
+        ]);
+
+        $inscription->assertUnprocessable();
+        $this->assertArrayHasKey('type_utilisateur', $inscription->json('error.fields'));
     }
 }

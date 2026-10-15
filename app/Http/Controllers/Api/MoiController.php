@@ -66,6 +66,12 @@ class MoiController extends Controller
             $data['localisation'] = $user->commercial->localisation;
         }
 
+        if ($user->type_utilisateur === ROLE_TECHNICIEN_MAINTENANCE) {
+            // Ligne "Spécialité" de l'écran "Mes infos" (app Maintenancier) —
+            // seul champ métier du technicien, fixé par l'Admin à la création.
+            $data['specialite'] = $user->technicien->specialite;
+        }
+
         return $this->success($data);
     }
 

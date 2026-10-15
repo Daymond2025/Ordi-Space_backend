@@ -101,6 +101,46 @@ class AdminCrudRolesTest extends TestCase
         Storage::disk(IMAGE_PRODUIT_DISQUE)->assertExists($user->getRawOriginal('photo'));
     }
 
+    public function test_ladmin_cree_un_technicien_par_telephone_sans_email_ni_mot_de_passe(): void
+    {
+        $admin = $this->creerAdmin();
+
+        $reponse = $this->actingAs($admin)->postJson('/api/v1/admin/utilisateurs', [
+            'nom' => 'Ouattara', 'prenom' => 'Issa',
+            'telephone' => '07 08 09 10 11',
+            'type_utilisateur' => ROLE_TECHNICIEN_MAINTENANCE,
+            'specialite' => 'Matériel',
+        ]);
+
+        $reponse->assertCreated();
+        $userId = $reponse->json('data.id');
+        $this->assertDatabaseHas('techniciens_maintenance', ['user_id' => $userId, 'specialite' => 'Matériel']);
+        $user = User::findOrFail($userId);
+        $this->assertTrue($user->hasRole(ROLE_TECHNICIEN_MAINTENANCE));
+        $this->assertNull($user->email);
+        // Normalisé comme pour toute connexion par téléphone+OTP (voir
+        // normaliser_telephone()) — sinon la future connexion ne retrouverait pas ce compte.
+        $this->assertSame('+225708091011', $user->telephone);
+    }
+
+    public function test_creer_un_technicien_sans_telephone_echoue(): void
+    {
+        $admin = $this->creerAdmin();
+
+        $this->actingAs($admin)->postJson('/api/v1/admin/utilisateurs', [
+            'nom' => 'Ouattara', 'type_utilisateur' => ROLE_TECHNICIEN_MAINTENANCE, 'specialite' => 'Matériel',
+        ])->assertUnprocessable();
+    }
+
+    public function test_creer_un_technicien_sans_specialite_echoue(): void
+    {
+        $admin = $this->creerAdmin();
+
+        $this->actingAs($admin)->postJson('/api/v1/admin/utilisateurs', [
+            'nom' => 'Ouattara', 'telephone' => '0708091011', 'type_utilisateur' => ROLE_TECHNICIEN_MAINTENANCE,
+        ])->assertUnprocessable();
+    }
+
     public function test_seul_ladmin_peut_provisionner(): void
     {
         $coordinateur = $this->creerCoordinateur();

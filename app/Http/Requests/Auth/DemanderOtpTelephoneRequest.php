@@ -19,7 +19,11 @@ class DemanderOtpTelephoneRequest extends FormRequest
             // Absent => ROLE_CLIENT (comportement historique, voir
             // TelephoneAuthController::demanderOtp()) — les apps
             // Fournisseur/Commercial/Livreur l'envoient désormais aussi.
-            'type_utilisateur' => ['nullable', 'string', Rule::in(roles_auto_inscription_telephone())],
+            // Technicien de maintenance inclus en plus de
+            // roles_auto_inscription_telephone() : connexion seule, pas
+            // d'auto-inscription (compte créé par l'Admin) — voir
+            // InscrireTelephoneRequest, qui reste fermé à ce rôle.
+            'type_utilisateur' => ['nullable', 'string', Rule::in([...roles_auto_inscription_telephone(), ROLE_TECHNICIEN_MAINTENANCE])],
         ];
     }
 }

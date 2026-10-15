@@ -4,8 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\DemandeSav;
 use App\Models\RendezVous;
-use App\Models\TechnicienMaintenance;
-use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteragitAvecApi;
@@ -26,15 +24,6 @@ class SavCoordinateurTest extends TestCase
     {
         parent::setUp();
         $this->seed(DatabaseSeeder::class);
-    }
-
-    private function creerTechnicien(): User
-    {
-        $user = User::factory()->create(['type_utilisateur' => ROLE_TECHNICIEN_MAINTENANCE]);
-        $user->assignRole(ROLE_TECHNICIEN_MAINTENANCE);
-        TechnicienMaintenance::create(['user_id' => $user->id, 'specialite' => 'Matériel']);
-
-        return $user;
     }
 
     public function test_le_coordinateur_voit_la_liste_des_demandes_sav(): void

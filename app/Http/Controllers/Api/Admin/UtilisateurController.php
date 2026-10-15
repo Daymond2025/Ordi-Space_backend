@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
@@ -44,12 +45,19 @@ class UtilisateurController extends Controller
      */
     public function provisionner(Request $request): JsonResponse
     {
+        // Technicien de maintenance : seul rôle sans aucune connexion par
+        // e-mail/mot de passe (app Maintenancier = téléphone+OTP uniquement,
+        // voir TelephoneAuthController) — email/password deviennent
+        // optionnels pour lui, téléphone devient au contraire obligatoire
+        // (c'est son seul identifiant de connexion).
+        $estTechnicien = $request->input('type_utilisateur') === ROLE_TECHNICIEN_MAINTENANCE;
+
         $data = $request->validate([
             'nom' => ['required', 'string', 'max:100'],
             'prenom' => ['nullable', 'string', 'max:100'],
-            'email' => ['required', 'email', Rule::unique('users', 'email')->where('type_utilisateur', $request->input('type_utilisateur'))],
-            'telephone' => ['nullable', 'string', 'max:30'],
-            'password' => ['required', Password::min(8)->mixedCase()->numbers()],
+            'email' => [$estTechnicien ? 'nullable' : 'required', 'email', Rule::unique('users', 'email')->where('type_utilisateur', $request->input('type_utilisateur'))],
+            'telephone' => [$estTechnicien ? 'required' : 'nullable', 'string', 'max:30'],
+            'password' => [$estTechnicien ? 'nullable' : 'required', Password::min(8)->mixedCase()->numbers()],
             'type_utilisateur' => ['required', Rule::in(roles_provisionnes_par_admin())],
             'specialite' => ['required_if:type_utilisateur,'.ROLE_TECHNICIEN_MAINTENANCE, 'nullable', 'string', 'max:150'],
             'nom_entreprise' => ['required_if:type_utilisateur,'.ROLE_FOURNISSEUR, 'nullable', 'string', 'max:150'],
@@ -69,9 +77,12 @@ class UtilisateurController extends Controller
             $user = User::create([
                 'nom' => $data['nom'],
                 'prenom' => $data['prenom'] ?? null,
-                'email' => $data['email'],
-                'telephone' => $data['telephone'] ?? null,
-                'password' => Hash::make($data['password']),
+                'email' => $data['email'] ?? null,
+                'telephone' => isset($data['telephone']) ? normaliser_telephone($data['telephone']) : null,
+                // Sans mot de passe choisi (technicien) : généré et jamais
+                // communiqué, comme pour les comptes créés par téléphone+OTP
+                // (TelephoneAuthController::creerComptePersonnel()).
+                'password' => Hash::make($data['password'] ?? Str::random(40)),
                 'type_utilisateur' => $data['type_utilisateur'],
                 'statut_compte' => STATUT_COMPTE_ACTIF,
                 'photo' => $photoPath,

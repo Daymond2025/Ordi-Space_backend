@@ -12,10 +12,12 @@ use Illuminate\Http\Request;
 class RendezVousController extends Controller
 {
     /**
-     * Liste des techniciens à proposer dans le formulaire "Planifier un
-     * rendez-vous" (Coordinateur) — aucun mockup ne le précise, champ
-     * `technicien_id` volontairement nullable côté store()/update() : un
-     * rendez-vous peut être planifié sans technicien encore affecté.
+     * Liste des techniciens — à proposer dans le formulaire "Planifier un
+     * rendez-vous" (Coordinateur), et pour l'écran Admin "Techniciens"
+     * (lecture seule, création via POST /admin/utilisateurs). Aucun mockup
+     * ne précise `technicien_id` comme obligatoire, champ volontairement
+     * nullable côté store()/update() de RendezVous : un rendez-vous peut
+     * être planifié sans technicien encore affecté.
      */
     public function techniciens(): JsonResponse
     {
@@ -23,7 +25,9 @@ class RendezVousController extends Controller
             'user_id' => $t->user_id,
             'nom' => $t->user->nom,
             'prenom' => $t->user->prenom,
+            'telephone' => $t->user->telephone,
             'specialite' => $t->specialite,
+            'statut_compte' => $t->user->statut_compte,
         ]);
 
         return $this->success($techniciens);

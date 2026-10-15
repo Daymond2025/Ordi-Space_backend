@@ -18,12 +18,16 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * "Boutique" — le Livreur revend des produits publiés par Fournisseur/
- * Coordinateur/Admin en échange d'une commission (`commission_apporteur` du
- * produit — le livreur a rejoint le maintenancier comme "apporteur
- * d'affaire", plus de champ de commission qui lui soit propre, retour du
- * PDG). Couvre la génération du lien affilié partageable (bouton "Vendre ce
- * produit") et la liste de ses ventes ("Centre des ventes").
+ * "Boutique" — le Livreur (et, depuis l'app Maintenancier, le Technicien de
+ * maintenance) revend des produits publiés par Fournisseur/Coordinateur/
+ * Admin en échange d'une commission (`commission_apporteur` du produit —
+ * le livreur a rejoint le maintenancier comme "apporteur d'affaire", plus
+ * de champ de commission qui lui soit propre, retour du PDG). Couvre la
+ * génération du lien affilié partageable (bouton "Vendre ce produit") et la
+ * liste de ses ventes ("Centre des ventes"). Les colonnes `livreur_id`
+ * (ventes_boutique, liens_affilies) restent nommées ainsi par simplicité —
+ * elles stockent l'id de n'importe quel `User` autorisé ici, technicien
+ * inclus ; pas de renommage, juste un rôle élargi.
  */
 class BoutiqueController extends Controller
 {
@@ -34,7 +38,7 @@ class BoutiqueController extends Controller
      */
     public function genererLien(Request $request, Produit $produit): JsonResponse
     {
-        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+        abort_unless(in_array($request->user()->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true), 403);
         abort_unless($produit->estVisibleALaVente(), 404);
 
         $lien = LienAffilie::firstOrCreate(
@@ -59,7 +63,7 @@ class BoutiqueController extends Controller
     public function commander(Request $request, CommandePubliqueService $service): JsonResponse
     {
         $vendeur = $request->user();
-        abort_unless($vendeur->type_utilisateur === ROLE_LIVREUR, 403);
+        abort_unless(in_array($vendeur->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true), 403);
 
         $data = $request->validate([
             'produit_id' => ['required', 'integer'],
@@ -103,7 +107,7 @@ class BoutiqueController extends Controller
     /** Fiche du fournisseur d'un produit (détail produit) — null pour un produit publié directement par l'Admin. */
     public function fournisseurProduit(Request $request, Produit $produit): JsonResponse
     {
-        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+        abort_unless(in_array($request->user()->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true), 403);
         abort_unless($produit->estVisibleALaVente(), 404);
 
         return $this->success(['fournisseur' => $produit->fournisseur?->fichePourLivreur()]);
@@ -116,7 +120,7 @@ class BoutiqueController extends Controller
      */
     public function fournisseurs(Request $request): JsonResponse
     {
-        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+        abort_unless(in_array($request->user()->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true), 403);
         $livreurId = $request->user()->id;
 
         $produitIds = LienAffilie::where('livreur_id', $livreurId)->pluck('produit_id')
@@ -145,7 +149,7 @@ class BoutiqueController extends Controller
      */
     public function ventes(Request $request): JsonResponse
     {
-        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+        abort_unless(in_array($request->user()->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true), 403);
 
         $data = $request->validate([
             'statut' => ['nullable', Rule::in(array_keys(VenteBoutique::statutsCommandeParStatutAffiche()))],
@@ -194,7 +198,7 @@ class BoutiqueController extends Controller
      */
     public function liens(Request $request): JsonResponse
     {
-        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+        abort_unless(in_array($request->user()->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true), 403);
 
         $liens = LienAffilie::where('livreur_id', $request->user()->id)
             ->with(['produit.images', 'ventes.commande'])
@@ -215,7 +219,7 @@ class BoutiqueController extends Controller
      */
     public function lien(Request $request, LienAffilie $lien): JsonResponse
     {
-        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR && $lien->livreur_id === $request->user()->id, 403);
+        abort_unless(in_array($request->user()->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true) && $lien->livreur_id === $request->user()->id, 403);
 
         $lien->load(['produit.images', 'ventes.commande']);
 
@@ -249,7 +253,7 @@ class BoutiqueController extends Controller
     public function profil(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->type_utilisateur === ROLE_LIVREUR, 403);
+        abort_unless(in_array($user->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true), 403);
 
         $vitrine = Vitrine::pour($user);
         $parStatut = VenteBoutique::statutsCommandeParStatutAffiche();

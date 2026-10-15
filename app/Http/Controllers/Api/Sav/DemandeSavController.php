@@ -22,6 +22,15 @@ class DemandeSavController extends Controller
             $query->where('client_id', $user->id);
         }
 
+        // Même logique que RendezVousController::index() : un technicien voit
+        // les demandes sans rendez-vous encore (nouvelles, non affectées) et
+        // celles dont le rendez-vous lui est affecté ou n'est affecté à
+        // personne (non choisi par le Coordinateur à la création).
+        if ($user->type_utilisateur === ROLE_TECHNICIEN_MAINTENANCE) {
+            $query->where(fn ($q) => $q->whereDoesntHave('rendezVous')
+                ->orWhereHas('rendezVous', fn ($rv) => $rv->where('technicien_id', $user->id)->orWhereNull('technicien_id')));
+        }
+
         if ($request->filled('statut_demande')) {
             $query->where('statut_demande', $request->string('statut_demande'));
         }

@@ -32,7 +32,7 @@ class RetraitController extends Controller
         $statuts = [STATUT_RETRAIT_EN_ATTENTE, STATUT_RETRAIT_VALIDE, STATUT_RETRAIT_REFUSE, STATUT_RETRAIT_ANNULE];
         $data = $request->validate([
             'statut' => ['nullable', Rule::in($statuts)],
-            'role' => ['nullable', Rule::in([ROLE_LIVREUR, ROLE_COMMERCIAL])],
+            'role' => ['nullable', Rule::in([ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE, ROLE_COMMERCIAL])],
         ]);
 
         $baseQuery = fn () => DemandeRetrait::query()
