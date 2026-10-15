@@ -118,6 +118,6 @@ class BoutiqueTechnicienTest extends TestCase
         ]);
         $retrait->assertCreated();
         $this->assertSame(STATUT_RETRAIT_EN_ATTENTE, $retrait->json('data.statut'));
-        $this->assertSame(5000.0, $this->actingAs($technicien)->getJson('/api/v1/boutique/portefeuille')->json('data.disponible'));
+        $this->assertSame(5000, $this->actingAs($technicien)->getJson('/api/v1/boutique/portefeuille')->json('data.disponible'));
     }
 }
