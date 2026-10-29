@@ -131,4 +131,35 @@ class CommandeAdminEnrichieTest extends TestCase
             $garantie->date_fin->toDateString()
         );
     }
+
+    public function test_une_duree_courte_en_jours_est_honoree_a_la_place_du_nombre_de_mois(): void
+    {
+        $admin = $this->creerAdmin();
+        $client = $this->creerClient();
+        // duree_garantie_mois par défaut du produit (12) — doit être ignorée
+        // au profit des 14 jours (2 semaines) envoyés.
+        $produit = $this->creerProduitPhysique(['duree_garantie_mois' => 12]);
+        $adresse = $this->creerAdresseAvecLocalite($client);
+
+        $commandeId = $this->actingAs($admin)->postJson('/api/v1/commandes', [
+            'client_id' => $client->id,
+            'adresse_id' => $adresse->id,
+            'lignes' => [['produit_id' => $produit->id, 'quantite' => 1, 'duree_garantie_jours' => 14]],
+        ])->json('data.id');
+
+        $ligne = LigneCommande::where('commande_id', $commandeId)->firstOrFail();
+        $this->assertSame(14, $ligne->duree_garantie_jours);
+        $this->assertNull($ligne->duree_garantie_mois);
+
+        $this->actingAs($admin)->patchJson("/api/v1/admin/commandes/{$commandeId}/statut", [
+            'statut_commande' => 'livree',
+        ])->assertOk();
+
+        $garantie = Garantie::where('ligne_commande_id', $ligne->id)->firstOrFail();
+
+        $this->assertSame(
+            $garantie->date_debut->copy()->addDays(14)->toDateString(),
+            $garantie->date_fin->toDateString()
+        );
+    }
 }

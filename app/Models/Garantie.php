@@ -33,17 +33,20 @@ class Garantie extends Model
             }
 
             // Durée négociée à la création (écran "Nouvelle commande") sinon
-            // celle du produit — voir CommandeController::store().
-            $duree = $ligne->duree_garantie_mois ?? $ligne->produit?->duree_garantie_mois;
+            // celle du produit — voir CommandeController::store(). Les
+            // durées courtes (semaines) sont négociées en jours exacts,
+            // jamais en même temps que duree_garantie_mois sur une ligne.
+            $dureeJours = $ligne->duree_garantie_jours;
+            $dureeMois = $ligne->duree_garantie_mois ?? $ligne->produit?->duree_garantie_mois;
 
-            if (! $duree) {
+            if (! $dureeJours && ! $dureeMois) {
                 continue;
             }
 
             static::create([
                 'ligne_commande_id' => $ligne->id,
                 'date_debut' => now(),
-                'date_fin' => now()->addMonths($duree),
+                'date_fin' => $dureeJours ? now()->addDays($dureeJours) : now()->addMonths($dureeMois),
                 'type_garantie' => TYPE_GARANTIE_ORDISPACE,
                 'conditions' => 'Garantie standard incluse à l\'achat.',
             ]);

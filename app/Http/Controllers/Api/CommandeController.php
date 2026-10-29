@@ -289,17 +289,20 @@ class CommandeController extends Controller
                 // Même garde Admin-only que prix_unitaire ci-dessus — durée
                 // négociée pour une vente enregistrée manuellement (écran
                 // "Nouvelle commande"). Absente, Garantie::genererPourCommande()
-                // retombe sur Produit::duree_garantie_mois comme avant.
-                $dureeGarantie = $request->user()->type_utilisateur === ROLE_ADMINISTRATEUR && isset($ligne['duree_garantie_mois'])
-                    ? (int) $ligne['duree_garantie_mois']
-                    : null;
+                // retombe sur Produit::duree_garantie_mois comme avant. Une
+                // durée courte (semaines) arrive en jours plutôt qu'en mois —
+                // jamais les deux à la fois pour une même ligne.
+                $estAdmin = $request->user()->type_utilisateur === ROLE_ADMINISTRATEUR;
+                $dureeGarantieMois = $estAdmin && isset($ligne['duree_garantie_mois']) ? (int) $ligne['duree_garantie_mois'] : null;
+                $dureeGarantieJours = $estAdmin && isset($ligne['duree_garantie_jours']) ? (int) $ligne['duree_garantie_jours'] : null;
 
                 $lignesAPersister[] = [
                     'produit_id' => $produit->id,
                     'quantite' => $ligne['quantite'],
                     'prix_unitaire' => $prixVente,
                     'prix_partenaire_unitaire' => $produit->prix_vente !== null ? $produit->prix : null,
-                    'duree_garantie_mois' => $dureeGarantie,
+                    'duree_garantie_mois' => $dureeGarantieMois,
+                    'duree_garantie_jours' => $dureeGarantieJours,
                 ];
 
                 $produit->decrement('quantite_stock', $ligne['quantite']);

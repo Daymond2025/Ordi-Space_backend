@@ -41,6 +41,10 @@ class StoreCommandeRequest extends FormRequest
             // garde Admin-only que prix_unitaire, sinon ignorée (repli sur
             // Produit::duree_garantie_mois, voir Garantie::genererPourCommande()).
             'lignes.*.duree_garantie_mois' => ['nullable', 'integer', 'min:1', 'max:120'],
+            // Durée courte (1/2/3 semaines) — alternative à duree_garantie_mois
+            // quand un nombre de mois entier ne peut pas représenter la durée
+            // négociée. Jamais envoyée en même temps que duree_garantie_mois.
+            'lignes.*.duree_garantie_jours' => ['nullable', 'integer', 'min:1', 'max:3650'],
             // Frais de livraison négociés — honorés uniquement pour un Admin
             // (voir CommandeController::store()), sinon toujours recalculés
             // via calculerFraisLivraison().

@@ -11,7 +11,7 @@ class LigneCommande extends Model
 {
     protected $table = 'lignes_commande';
 
-    protected $fillable = ['commande_id', 'produit_id', 'quantite', 'prix_unitaire', 'prix_partenaire_unitaire', 'duree_garantie_mois'];
+    protected $fillable = ['commande_id', 'produit_id', 'quantite', 'prix_unitaire', 'prix_partenaire_unitaire', 'duree_garantie_mois', 'duree_garantie_jours'];
 
     protected function casts(): array
     {
