@@ -147,8 +147,19 @@ class UtilisateurController extends Controller
     {
         abort_if($utilisateur->id === $request->user()->id, 422, 'Vous ne pouvez pas modifier votre propre statut.');
 
+        // "Supprimé" est un palier définitif : une fois atteint, aucun retour
+        // en arrière via cette route (ni réactivation, ni simple suspension).
+        // Les données liées (commandes, garanties…) ne sont jamais touchées.
+        abort_if(
+            $utilisateur->statut_compte === STATUT_COMPTE_SUPPRIME,
+            422,
+            'Ce compte est supprimé, son statut ne peut plus être modifié.'
+        );
+
         $data = $request->validate([
-            'statut_compte' => ['required', Rule::in([STATUT_COMPTE_ACTIF, STATUT_COMPTE_SUSPENDU, STATUT_COMPTE_DESACTIVE])],
+            'statut_compte' => ['required', Rule::in([
+                STATUT_COMPTE_ACTIF, STATUT_COMPTE_SUSPENDU, STATUT_COMPTE_DESACTIVE, STATUT_COMPTE_SUPPRIME,
+            ])],
         ]);
 
         $utilisateur->update($data);

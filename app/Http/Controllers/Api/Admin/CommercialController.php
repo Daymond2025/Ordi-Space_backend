@@ -73,6 +73,7 @@ class CommercialController extends Controller
                 'actifs' => $comptes->where('statut_compte', STATUT_COMPTE_ACTIF)->count(),
                 'suspendus' => $comptes->where('statut_compte', STATUT_COMPTE_SUSPENDU)->count(),
                 'desactives' => $comptes->where('statut_compte', STATUT_COMPTE_DESACTIVE)->count(),
+                'supprimes' => $comptes->where('statut_compte', STATUT_COMPTE_SUPPRIME)->count(),
                 'nouveaux_7j' => $comptes->where('created_at', '>=', now()->subDays(7))->count(),
                 'nouveaux_30j' => $comptes->where('created_at', '>=', now()->subDays(30))->count(),
             ],

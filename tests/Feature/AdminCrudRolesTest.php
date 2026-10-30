@@ -279,4 +279,73 @@ class AdminCrudRolesTest extends TestCase
             $this->assertSame(STATUT_COMPTE_DESACTIVE, $utilisateur->fresh()->statut_compte);
         }
     }
+
+    /**
+     * "Supprimer" un compte (n'importe quel rôle) = palier STATUT_COMPTE_SUPPRIME,
+     * distinct de "desactive" : jamais de DELETE physique (ses commandes/
+     * historique restent intacts), jetons révoqués, connexion bloquée, et
+     * aucun retour en arrière possible via cette route une fois atteint.
+     */
+    public function test_supprimer_un_compte_quel_que_soit_le_role_revoque_les_jetons_et_bloque_la_reconnexion(): void
+    {
+        $admin = $this->creerAdmin();
+        $client = $this->creerClient();
+        $coordinateurUser = $this->creerCoordinateur();
+
+        foreach ([$client, $coordinateurUser] as $utilisateur) {
+            $utilisateur->createToken('session-test');
+            $this->assertCount(1, $utilisateur->tokens);
+
+            $this->actingAs($admin)
+                ->patchJson("/api/v1/admin/utilisateurs/{$utilisateur->id}/statut", ['statut_compte' => STATUT_COMPTE_SUPPRIME])
+                ->assertOk();
+
+            $utilisateurSupprime = $utilisateur->fresh();
+            $this->assertSame(STATUT_COMPTE_SUPPRIME, $utilisateurSupprime->statut_compte);
+            // Jeton révoqué en base — un jeton supprimé ne peut plus authentifier
+            // aucune requête (vérifié au niveau données, pas via une requête HTTP
+            // réelle : $this->actingAs() ci-dessus laisse une session active sur
+            // le guard web pour le reste du test, ce qui fausserait un test via
+            // en-tête Authorization tant que ce guard garde l'admin connecté).
+            $this->assertCount(0, $utilisateurSupprime->tokens);
+        }
+    }
+
+    public function test_un_compte_supprime_ne_peut_plus_changer_de_statut(): void
+    {
+        $admin = $this->creerAdmin();
+        $client = $this->creerClient();
+        $client->update(['statut_compte' => STATUT_COMPTE_SUPPRIME]);
+
+        $this->actingAs($admin)
+            ->patchJson("/api/v1/admin/utilisateurs/{$client->id}/statut", ['statut_compte' => STATUT_COMPTE_ACTIF])
+            ->assertUnprocessable();
+
+        $this->assertSame(STATUT_COMPTE_SUPPRIME, $client->fresh()->statut_compte);
+    }
+
+    /**
+     * Les données liées à un compte supprimé (ici une commande) ne sont
+     * jamais touchées — seul le User passe à STATUT_COMPTE_SUPPRIME.
+     */
+    public function test_supprimer_un_client_preserve_ses_commandes(): void
+    {
+        $admin = $this->creerAdmin();
+        $commercial = $this->creerCommercial();
+        $client = $this->creerClient();
+        $produit = $this->creerProduitPhysique();
+        $adresse = $this->creerAdresseAvecLocalite($client);
+
+        $reponse = $this->actingAs($commercial)->postJson('/api/v1/commandes', [
+            'client_id' => $client->id, 'adresse_id' => $adresse->id,
+            'lignes' => [['produit_id' => $produit->id, 'quantite' => 1]],
+        ]);
+        $commandeId = $reponse->json('data.id');
+
+        $this->actingAs($admin)
+            ->patchJson("/api/v1/admin/utilisateurs/{$client->id}/statut", ['statut_compte' => STATUT_COMPTE_SUPPRIME])
+            ->assertOk();
+
+        $this->assertDatabaseHas('commandes', ['id' => $commandeId, 'client_id' => $client->id]);
+    }
 }

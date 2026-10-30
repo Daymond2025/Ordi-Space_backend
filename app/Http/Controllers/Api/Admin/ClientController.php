@@ -283,6 +283,7 @@ class ClientController extends Controller
                 'actifs' => $clients->where('statut_compte', STATUT_COMPTE_ACTIF)->count(),
                 'suspendus' => $clients->where('statut_compte', STATUT_COMPTE_SUSPENDU)->count(),
                 'desactives' => $clients->where('statut_compte', STATUT_COMPTE_DESACTIVE)->count(),
+                'supprimes' => $clients->where('statut_compte', STATUT_COMPTE_SUPPRIME)->count(),
                 'en_ligne' => $clients->filter(fn ($c) => $c->derniere_connexion && $c->derniere_connexion->greaterThanOrEqualTo($rechercheEnLigne))->count(),
                 'nouveaux_7j' => $clients->where('created_at', '>=', now()->subDays(7))->count(),
                 'nouveaux_30j' => $clients->where('created_at', '>=', now()->subDays(30))->count(),

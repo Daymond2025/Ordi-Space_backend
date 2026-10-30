@@ -125,6 +125,7 @@ defined('STATUT_RETOUR_REMBOURSE') || define('STATUT_RETOUR_REMBOURSE', 'rembour
 defined('STATUT_COMPTE_ACTIF') || define('STATUT_COMPTE_ACTIF', 'actif');
 defined('STATUT_COMPTE_SUSPENDU') || define('STATUT_COMPTE_SUSPENDU', 'suspendu');
 defined('STATUT_COMPTE_DESACTIVE') || define('STATUT_COMPTE_DESACTIVE', 'desactive');
+defined('STATUT_COMPTE_SUPPRIME') || define('STATUT_COMPTE_SUPPRIME', 'supprime');
 
 // --- Garantie de base, gratuite, incluse à l'achat (cf. migration garanties) --
 defined('TYPE_GARANTIE_CONSTRUCTEUR') || define('TYPE_GARANTIE_CONSTRUCTEUR', 'constructeur');
