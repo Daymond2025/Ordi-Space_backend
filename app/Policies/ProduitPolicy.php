@@ -13,10 +13,12 @@ class ProduitPolicy
             return false;
         }
 
-        // Accessoire/logiciel publié directement par l'Admin : pas de cycle
-        // de validation, il peut le modifier à tout moment.
+        // L'Admin peut corriger n'importe quel produit à tout moment, y
+        // compris celui d'un fournisseur (erreur de fiche/prix à corriger
+        // après coup) — contrairement au fournisseur, il est l'autorité de
+        // validation elle-même, pas soumis au cycle qu'il contrôle.
         if ($user->type_utilisateur === ROLE_ADMINISTRATEUR) {
-            return $produit->fournisseur_id === null;
+            return true;
         }
 
         return $produit->fournisseur_id === $user->id

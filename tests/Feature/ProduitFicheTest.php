@@ -94,4 +94,33 @@ class ProduitFicheTest extends TestCase
             'images' => [UploadedFile::fake()->create('photo.jpg', 100, 'image/jpeg')],
         ])->assertForbidden();
     }
+
+    /**
+     * ProduitPolicy::update() : l'Admin n'est plus limité aux produits sans
+     * fournisseur — contrairement au fournisseur (qui reste bloqué une fois
+     * validé, cf. test_le_fournisseur_proprietaire_gere_toujours_ses_propres_images()
+     * et son commentaire), il peut corriger n'importe quelle fiche, même
+     * déjà publiée, via l'écran d'édition complet (pas seulement /fiche).
+     */
+    public function test_l_administrateur_modifie_la_fiche_complete_d_un_produit_fournisseur_deja_valide(): void
+    {
+        $admin = $this->creerAdmin();
+        $produit = $this->creerProduitPhysique(['statut_produit' => STATUT_PRODUIT_VALIDE, 'prix' => 500000, 'quantite_stock' => 10]);
+        $fournisseurId = $produit->fournisseur_id;
+
+        $reponse = $this->actingAs($admin)->putJson("/api/v1/produits/{$produit->id}", [
+            'categorie_id' => $produit->categorie_id,
+            'nom_produit' => 'Laptop corrigé par l\'admin',
+            'prix' => 480000,
+            'quantite_stock' => 8,
+        ]);
+
+        $reponse->assertOk();
+        $produit->refresh();
+        $this->assertSame("Laptop corrigé par l'admin", $produit->nom_produit);
+        $this->assertEquals(480000, $produit->prix);
+        $this->assertSame(8, $produit->quantite_stock);
+        // Le produit reste bien celui du fournisseur — l'admin corrige sa fiche, ne se l'approprie pas.
+        $this->assertSame($fournisseurId, $produit->fournisseur_id);
+    }
 }
