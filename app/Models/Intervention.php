@@ -12,11 +12,20 @@ class Intervention extends Model
     protected $fillable = [
         'rendez_vous_id', 'technicien_id', 'diagnostic', 'reparation_effectuee',
         'statut_intervention', 'cout', 'date_intervention',
+        'problemes', 'probleme_identifie', 'cause_panne', 'niveau_gravite', 'duree_estimee_minutes',
+        'prestations', 'pieces_remplacees', 'date_fin', 'duree_reelle_minutes', 'note_fin',
     ];
 
     protected function casts(): array
     {
-        return ['cout' => 'decimal:2', 'date_intervention' => 'datetime'];
+        return [
+            'cout' => 'decimal:2',
+            'date_intervention' => 'datetime',
+            'date_fin' => 'datetime',
+            'problemes' => 'array',
+            'prestations' => 'array',
+            'pieces_remplacees' => 'array',
+        ];
     }
 
     public function rendezVous(): BelongsTo

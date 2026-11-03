@@ -12,7 +12,12 @@ class TechnicienMaintenance extends Model
     protected $primaryKey = 'user_id';
     public $incrementing = false;
 
-    protected $fillable = ['user_id', 'specialite'];
+    protected $fillable = ['user_id', 'specialite', 'disponible'];
+
+    protected function casts(): array
+    {
+        return ['disponible' => 'boolean'];
+    }
 
     public function user(): BelongsTo
     {

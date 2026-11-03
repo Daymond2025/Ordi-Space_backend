@@ -70,6 +70,7 @@ class MoiController extends Controller
             // Ligne "Spécialité" de l'écran "Mes infos" (app Maintenancier) —
             // seul champ métier du technicien, fixé par l'Admin à la création.
             $data['specialite'] = $user->technicien->specialite;
+            $data['disponible'] = $user->technicien->disponible;
         }
 
         return $this->success($data);
@@ -79,15 +80,17 @@ class MoiController extends Controller
      * Bascule "En ligne / Hors ligne" (écran Space, app Livreur) — ce même
      * champ Livreur::disponible existe déjà côté Coordinateur (lecture seule
      * sur LivreurController::show()), mais aucun endpoint ne permettait
-     * jusqu'ici au livreur de le modifier lui-même.
+     * jusqu'ici au livreur de le modifier lui-même. Même bascule pour le
+     * technicien (accueil de l'app Maintenancier).
      */
     public function basculerDisponibilite(Request $request): JsonResponse
     {
-        abort_unless($request->user()->type_utilisateur === ROLE_LIVREUR, 403);
+        $user = $request->user();
+        abort_unless(in_array($user->type_utilisateur, [ROLE_LIVREUR, ROLE_TECHNICIEN_MAINTENANCE], true), 403);
 
         $data = $request->validate(['disponible' => ['required', 'boolean']]);
 
-        $request->user()->livreur->update($data);
+        ($user->type_utilisateur === ROLE_LIVREUR ? $user->livreur : $user->technicien)->update($data);
 
         return $this->success(['disponible' => $data['disponible']]);
     }

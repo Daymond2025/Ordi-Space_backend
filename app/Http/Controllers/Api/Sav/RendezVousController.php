@@ -45,8 +45,10 @@ class RendezVousController extends Controller
         return $this->success($query->latest('date_rdv')->paginate(paginate_per_page($request)));
     }
 
-    public function show(RendezVous $rendezVous): JsonResponse
+    public function show(Request $request, RendezVous $rendezVous): JsonResponse
     {
+        abort_unless($rendezVous->estAccessiblePar($request->user()), 403);
+
         return $this->success($rendezVous->load(['demandeSav.client.user', 'technicien.user', 'intervention']));
     }
 
@@ -55,13 +57,19 @@ class RendezVousController extends Controller
      */
     public function store(Request $request, DemandeSav $demandeSav): JsonResponse
     {
-        abort_unless($request->user()->can(PERMISSION_SAV_TRAITER), 403);
+        $user = $request->user();
+        abort_unless($user->can(PERMISSION_SAV_TRAITER) && $demandeSav->estAccessiblePar($user), 403);
 
         $data = $request->validate([
             'technicien_id' => ['nullable', 'exists:techniciens_maintenance,user_id'],
             'date_rdv' => ['required', 'date', 'after:now'],
             'lieu' => ['nullable', 'string', 'max:255'],
         ]);
+
+        // Un technicien ne planifie que pour lui-même.
+        if ($user->type_utilisateur === ROLE_TECHNICIEN_MAINTENANCE) {
+            $data['technicien_id'] = $user->id;
+        }
 
         $rdv = RendezVous::create([...$data, 'demande_sav_id' => $demandeSav->id]);
 
@@ -76,11 +84,19 @@ class RendezVousController extends Controller
      */
     public function update(Request $request, RendezVous $rendezVous): JsonResponse
     {
+        $user = $request->user();
+        abort_unless($rendezVous->estAccessiblePar($user), 403);
+
         $data = $request->validate([
             'technicien_id' => ['nullable', 'exists:techniciens_maintenance,user_id'],
             'date_rdv' => ['sometimes', 'date'],
             'lieu' => ['nullable', 'string', 'max:255'],
         ]);
+
+        // La réaffectation reste au service maintenance : un technicien garde le rendez-vous pour lui.
+        if ($user->type_utilisateur === ROLE_TECHNICIEN_MAINTENANCE && array_key_exists('technicien_id', $data)) {
+            $data['technicien_id'] = $user->id;
+        }
 
         $rendezVous->update($data);
 

@@ -27,6 +27,9 @@ class DatabaseSeeder extends Seeder
         $this->seedAgentIa();
         $this->seedCategoriesAjoutProduitCoordinateur();
         $this->call(FiltresCatalogueSeeder::class);
+
+        // Présentation de l'app Maintenancier — à retirer ensuite.
+        $this->call(DemoSavSeeder::class);
     }
 
     /**

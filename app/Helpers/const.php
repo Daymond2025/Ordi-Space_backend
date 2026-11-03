@@ -115,6 +115,13 @@ defined('STATUT_INTERVENTION_EN_COURS') || define('STATUT_INTERVENTION_EN_COURS'
 defined('STATUT_INTERVENTION_TERMINEE') || define('STATUT_INTERVENTION_TERMINEE', 'terminee');
 defined('STATUT_INTERVENTION_ANNULEE') || define('STATUT_INTERVENTION_ANNULEE', 'annulee');
 
+// ----- Statuts RENDEZ_VOUS (cf. migration add_statut_rdv_to_rendez_vous_table) -----
+defined('STATUT_RDV_DEMANDE') || define('STATUT_RDV_DEMANDE', 'demande');
+defined('STATUT_RDV_CONFIRME') || define('STATUT_RDV_CONFIRME', 'confirme');
+defined('STATUT_RDV_REPORTE') || define('STATUT_RDV_REPORTE', 'reporte');
+defined('STATUT_RDV_REFUSE') || define('STATUT_RDV_REFUSE', 'refuse');
+defined('STATUT_RDV_TERMINE') || define('STATUT_RDV_TERMINE', 'termine');
+
 // --- Statuts RETOUR (cf. migration create_retours_table) -----------------
 defined('STATUT_RETOUR_EN_ATTENTE') || define('STATUT_RETOUR_EN_ATTENTE', 'en_attente');
 defined('STATUT_RETOUR_ACCEPTE') || define('STATUT_RETOUR_ACCEPTE', 'accepte');

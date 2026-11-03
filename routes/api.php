@@ -404,10 +404,11 @@ Route::prefix('v1')->group(function () {
             Route::get('demandes', [DemandeSavController::class, 'index']);
             Route::post('demandes', [DemandeSavController::class, 'store'])->middleware('permission:'.PERMISSION_SAV_CREER);
             Route::get('demandes/{demandeSav}', [DemandeSavController::class, 'show']);
-            Route::get('techniciens', [RendezVousController::class, 'techniciens']);
-
             Route::middleware('permission:'.PERMISSION_SAV_TRAITER)->group(function () {
+                // Liste avec téléphones : jamais exposée aux clients.
+                Route::get('techniciens', [RendezVousController::class, 'techniciens']);
                 Route::patch('demandes/{demandeSav}/statut', [DemandeSavController::class, 'changerStatut']);
+                Route::post('demandes/{demandeSav}/decision', [DemandeSavController::class, 'decider']);
                 Route::get('rendez-vous', [RendezVousController::class, 'index']);
                 Route::get('rendez-vous/{rendezVous}', [RendezVousController::class, 'show']);
                 Route::post('demandes/{demandeSav}/rendez-vous', [RendezVousController::class, 'store']);
