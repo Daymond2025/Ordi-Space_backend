@@ -36,11 +36,11 @@ class UniciteEmailTelephoneParRoleTest extends TestCase
 
     public function test_le_meme_telephone_peut_servir_a_deux_comptes_de_roles_differents(): void
     {
-        $this->creerLivreur(['telephone' => '+225700000050']);
-        $fournisseur = $this->creerFournisseur(['telephone' => '+225700000050']);
+        $this->creerLivreur(['telephone' => '+2250700000050']);
+        $fournisseur = $this->creerFournisseur(['telephone' => '+2250700000050']);
 
         $this->assertNotNull($fournisseur);
-        $this->assertSame(2, User::where('telephone', '+225700000050')->count());
+        $this->assertSame(2, User::where('telephone', '+2250700000050')->count());
     }
 
     public function test_la_contrainte_db_refuse_toujours_un_doublon_dans_le_meme_role(): void

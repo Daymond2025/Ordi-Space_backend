@@ -33,7 +33,7 @@ class AuthRegisterTest extends TestCase
         return array_merge([
             'nom' => 'Koffi',
             'prenom' => 'Jean',
-            'telephone' => '+225700000099',
+            'telephone' => '+2250700000099',
             'email' => 'jean.koffi@example.com',
             'password' => 'Password123',
             'password_confirmation' => 'Password123',

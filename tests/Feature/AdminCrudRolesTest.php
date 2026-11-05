@@ -120,7 +120,7 @@ class AdminCrudRolesTest extends TestCase
         $this->assertNull($user->email);
         // Normalisé comme pour toute connexion par téléphone+OTP (voir
         // normaliser_telephone()) — sinon la future connexion ne retrouverait pas ce compte.
-        $this->assertSame('+225708091011', $user->telephone);
+        $this->assertSame('+2250708091011', $user->telephone);
     }
 
     public function test_creer_un_technicien_sans_telephone_echoue(): void

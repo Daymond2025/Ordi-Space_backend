@@ -26,7 +26,7 @@ class TelephoneAuthTest extends TestCase
 
         $reponse->assertOk();
         $this->assertFalse($reponse->json('data.compte_existant'));
-        $this->assertDatabaseMissing('users', ['telephone' => '+225700000001']);
+        $this->assertDatabaseMissing('users', ['telephone' => '+2250700000001']);
     }
 
     public function test_l_inscription_par_telephone_cree_le_compte_et_emet_un_otp(): void
@@ -41,7 +41,7 @@ class TelephoneAuthTest extends TestCase
         $reponse->assertJsonPath('data.code_debug', fn ($code) => is_string($code) && strlen($code) === OTP_LONGUEUR);
 
         $this->assertDatabaseHas('users', [
-            'telephone' => '+225700000002', 'nom' => 'Kouassi', 'type_utilisateur' => ROLE_CLIENT, 'email' => null,
+            'telephone' => '+2250700000002', 'nom' => 'Kouassi', 'type_utilisateur' => ROLE_CLIENT, 'email' => null,
         ]);
         $this->assertDatabaseHas('clients', ['user_id' => $reponse->json('data.user_id')]);
     }
@@ -58,7 +58,7 @@ class TelephoneAuthTest extends TestCase
         ]);
 
         $reponse->assertCreated();
-        $user = User::where('telephone', '+225700000003')->first();
+        $user = User::where('telephone', '+2250700000003')->first();
         $this->assertNotNull($user->getRawOriginal('photo'));
         Storage::disk(IMAGE_PRODUIT_DISQUE)->assertExists($user->getRawOriginal('photo'));
     }
@@ -83,7 +83,7 @@ class TelephoneAuthTest extends TestCase
 
     public function test_demander_otp_reconnait_un_numero_deja_inscrit(): void
     {
-        $client = $this->creerClient(['telephone' => '+225700000004']);
+        $client = $this->creerClient(['telephone' => '+2250700000004']);
 
         $reponse = $this->postJson('/api/v1/auth/telephone/otp', ['telephone' => '0700000004']);
 
@@ -94,7 +94,7 @@ class TelephoneAuthTest extends TestCase
 
     public function test_on_ne_peut_pas_s_inscrire_deux_fois_avec_le_meme_numero(): void
     {
-        $this->creerClient(['telephone' => '+225700000005']);
+        $this->creerClient(['telephone' => '+2250700000005']);
 
         $this->postJson('/api/v1/auth/telephone/inscription', [
             'telephone' => '0700000005', 'nom' => 'Doublon',
@@ -103,7 +103,7 @@ class TelephoneAuthTest extends TestCase
 
     public function test_un_compte_client_suspendu_est_rejete_a_la_demande_d_otp(): void
     {
-        $this->creerClient(['telephone' => '+225700000006', 'statut_compte' => STATUT_COMPTE_SUSPENDU]);
+        $this->creerClient(['telephone' => '+2250700000006', 'statut_compte' => STATUT_COMPTE_SUSPENDU]);
 
         $this->postJson('/api/v1/auth/telephone/otp', ['telephone' => '0700000006'])->assertUnprocessable();
     }
@@ -131,7 +131,7 @@ class TelephoneAuthTest extends TestCase
 
         $reponse->assertCreated();
         $this->assertDatabaseHas('users', [
-            'telephone' => '+225700000007', 'nom' => 'Traore', 'type_utilisateur' => ROLE_CLIENT,
+            'telephone' => '+2250700000007', 'nom' => 'Traore', 'type_utilisateur' => ROLE_CLIENT,
         ]);
 
         // Le client_id obtenu est immédiatement utilisable par le flux de
@@ -159,7 +159,7 @@ class TelephoneAuthTest extends TestCase
         $premier->assertCreated();
         $second->assertOk();
         $this->assertSame($premier->json('data.id'), $second->json('data.id'));
-        $this->assertSame(1, User::where('telephone', '+225700000008')->count());
+        $this->assertSame(1, User::where('telephone', '+2250700000008')->count());
     }
 
     public function test_un_admin_peut_aussi_enregistrer_un_nouveau_client_par_telephone(): void
@@ -172,7 +172,7 @@ class TelephoneAuthTest extends TestCase
 
         $reponse->assertCreated();
         $this->assertDatabaseHas('users', [
-            'telephone' => '+225700000011', 'nom' => 'Kouame', 'type_utilisateur' => ROLE_CLIENT,
+            'telephone' => '+2250700000011', 'nom' => 'Kouame', 'type_utilisateur' => ROLE_CLIENT,
         ]);
     }
 
@@ -191,7 +191,7 @@ class TelephoneAuthTest extends TestCase
         // numéro peut déjà servir à un compte d'un AUTRE rôle (ici
         // Administrateur) sans empêcher la création d'un Client distinct.
         $commercial = $this->creerCommercial();
-        $admin = $this->creerAdmin(['telephone' => '+225700000010']);
+        $admin = $this->creerAdmin(['telephone' => '+2250700000010']);
 
         $reponse = $this->actingAs($commercial)->postJson('/api/v1/clients/creation-rapide', [
             'nom' => 'Conflit', 'telephone' => '0700000010',
@@ -199,7 +199,7 @@ class TelephoneAuthTest extends TestCase
 
         $reponse->assertCreated();
         $this->assertDatabaseHas('users', [
-            'telephone' => '+225700000010', 'type_utilisateur' => ROLE_CLIENT, 'nom' => 'Conflit',
+            'telephone' => '+2250700000010', 'type_utilisateur' => ROLE_CLIENT, 'nom' => 'Conflit',
         ]);
         $this->assertNotNull($admin);
     }

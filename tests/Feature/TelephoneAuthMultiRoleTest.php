@@ -57,7 +57,7 @@ class TelephoneAuthMultiRoleTest extends TestCase
         $user = User::findOrFail($userId);
         $this->assertSame(ROLE_FOURNISSEUR, $user->type_utilisateur);
         $this->assertNull($user->email);
-        $this->assertSame('+225700000101', $user->telephone);
+        $this->assertSame('+2250700000101', $user->telephone);
         $this->assertDatabaseHas('fournisseurs', ['user_id' => $userId, 'nom_entreprise' => 'Kouadio Informatique']);
 
         $verification = $this->postJson('/api/v1/auth/verify-otp', [
@@ -160,7 +160,7 @@ class TelephoneAuthMultiRoleTest extends TestCase
 
     public function test_un_technicien_provisionne_par_ladmin_peut_se_connecter_par_telephone(): void
     {
-        $technicien = $this->creerTechnicien(['telephone' => '+225700000505']);
+        $technicien = $this->creerTechnicien(['telephone' => '+2250700000505']);
 
         $demande = $this->postJson('/api/v1/auth/telephone/otp', [
             'telephone' => '07 00 00 05 05',

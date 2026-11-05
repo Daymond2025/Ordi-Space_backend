@@ -90,19 +90,18 @@ if (! function_exists('normaliser_telephone')) {
     {
         $nettoye = preg_replace('/[^\d+]/', '', $telephone) ?? '';
 
-        if (str_starts_with($nettoye, '+')) {
-            return $nettoye;
-        }
+        $e164 = match (true) {
+            str_starts_with($nettoye, '+') => '+'.preg_replace('/\D/', '', $nettoye),
+            str_starts_with($nettoye, '00') => '+'.substr($nettoye, 2),
+            // Indicatif sans "+" (numéro copié depuis WhatsApp : "225 05 64 22 08 87").
+            str_starts_with($nettoye, '225') && strlen($nettoye) >= 11 => '+'.$nettoye,
+            // Numéro local : le 0 initial fait partie du numéro ivoirien (10 chiffres depuis 2021).
+            default => TELEPHONE_INDICATIF_PAYS_DEFAUT.$nettoye,
+        };
 
-        if (str_starts_with($nettoye, '00')) {
-            return '+'.substr($nettoye, 2);
-        }
-
-        if (str_starts_with($nettoye, '0')) {
-            return TELEPHONE_INDICATIF_PAYS_DEFAUT.substr($nettoye, 1);
-        }
-
-        return TELEPHONE_INDICATIF_PAYS_DEFAUT.$nettoye;
+        // +225 suivi de 9 chiffres = 0 initial perdu (ancienne normalisation) :
+        // WhatsApp répondait "ce numéro n'est pas sur WhatsApp".
+        return preg_replace('/^\+225(\d{9})$/', '+2250$1', $e164);
     }
 }
 
@@ -110,7 +109,7 @@ if (! function_exists('normaliser_numero_ci')) {
     /**
      * E.164 pour wa.me, tel: et les transferts Mobile Money — un numéro local
      * commençant par 0 garde ce 0 (numérotation ivoirienne à 10 chiffres,
-     * "+225 07 58 84 92 81"), contrairement à normaliser_telephone() qui le retire.
+     * "+225 07 58 84 92 81"), comme normaliser_telephone().
      */
     function normaliser_numero_ci(string $saisie): string
     {
