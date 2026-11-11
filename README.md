@@ -1,59 +1,100 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# OrdiSpace — API backend
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+API REST (Laravel) commune à toutes les applications OrdiSpace : client, administration, coordinateur, fournisseur, commercial, livreur, technicien de maintenance (Maintenancier) et partenaire. Elle porte toute la logique métier : catalogue, commandes, livraisons, paiements, garanties & GarantiX, SAV, réclamations, portefeuilles et commissions, boutique d'affiliation, partenaires, notifications et assistant IA.
 
-## About Laravel
+## Applications qui consomment cette API
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+| Application | Dépôt | Rôle(s) |
+| --- | --- | --- |
+| Client | [`Ordi-Space_App_Mobile`](https://github.com/Daymond2025/Ordi-Space_App_Mobile) | `client` |
+| Administration | [`Ordi-Space_Admin_Web`](https://github.com/Daymond2025/Ordi-Space_Admin_Web) | `administrateur` |
+| Coordinateur | [`ordispace-coordinateur-web`](https://github.com/Daymond2025/ordispace-coordinateur-web) | `coordinateur` |
+| Fournisseur | [`ordi-space-fournisseur`](https://github.com/Daymond2025/ordi-space-fournisseur) | `fournisseur` |
+| Commercial | [`Ordi-space-commercial`](https://github.com/Daymond2025/Ordi-space-commercial) | `commercial` |
+| Livreur | [`ordi-space-livreur`](https://github.com/Daymond2025/ordi-space-livreur) | `livreur` |
+| Maintenancier | [`Ordi-space-maintenancier`](https://github.com/Daymond2025/Ordi-space-maintenancier) | `technicien_maintenance` |
+| Partenaire | [`Ordi-Space-partenaire`](https://github.com/Daymond2025/Ordi-Space-partenaire) | `partenaire` |
+| Page de commande (acheteur, sans compte) | [`client-commande`](https://github.com/Daymond2025/client-commande) | public |
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Stack technique
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- PHP 8.2+, [Laravel 12](https://laravel.com)
+- MySQL (production et développement), SQLite en mémoire pour les tests
+- Authentification par jeton Bearer — [Laravel Sanctum](https://laravel.com/docs/sanctum)
+- Rôles et permissions — [spatie/laravel-permission](https://spatie.be/docs/laravel-permission) (matrice dans `database/seeders/RolesAndPermissionsSeeder.php`, constantes dans `app/Helpers/role.php`)
+- OTP WhatsApp — Twilio (`twilio/sdk`) ; notifications push — Web Push / VAPID (`minishlink/web-push`)
+- Paiement Mobile Money — Wave (Checkout + webhook signé)
+- PDF — `barryvdh/laravel-dompdf` ; assistant IA — API Anthropic
 
-## Learning Laravel
+## Structure du projet
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+```text
+app/
+├── Helpers/              # Constantes (const.php, role.php) et fonctions globales (helper.php)
+├── Http/
+│   ├── Controllers/Api/  # Un dossier par espace : Admin/, Auth/, Coordinateur/, Commercial/,
+│   │                     # Partenaire/, Sav/, Garantix/… + contrôleurs partagés
+│   ├── Middleware/       # dont VerifieEspaceAdmin (espaces d'un admin restreint)
+│   └── Requests/         # Validation des requêtes (FormRequest)
+├── Models/               # Modèles Eloquent
+└── Services/             # Logique métier transverse (Partenaire/, Wave/, Whatsapp/, …)
+database/
+├── migrations/           # Schéma (ordre chronologique)
+└── seeders/              # Rôles/permissions, localités, compte admin initial…
+routes/api.php            # Toutes les routes, préfixe /api/v1
+tests/Feature/            # Tests d'intégration (PHPUnit)
+public/deploy-hook.php    # Étapes post-déploiement (migrations, seeders, storage:link)
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Les réponses suivent toujours la même enveloppe : `{ "success": true, "data": … }` en cas de succès, `{ "success": false, "error": { "code", "message", "fields" } }` en cas d'erreur (voir `bootstrap/app.php`).
 
-## Laravel Sponsors
+## Démarrage en local
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Prérequis : PHP 8.2+, Composer, MySQL (ex. XAMPP), Node.js (pour Vite, optionnel).
 
-### Premium Partners
+```bash
+composer install
+cp .env.example .env          # renseigner au minimum DB_* et CORS_ALLOWED_ORIGINS
+php artisan key:generate
+php artisan migrate --seed    # schéma + rôles, permissions, localités, admin initial
+php artisan storage:link      # images produits et photos servies depuis /storage
+php artisan serve             # http://127.0.0.1:8000 — API sur /api/v1
+```
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+En local, si l'envoi WhatsApp n'est pas configuré, le code OTP est renvoyé dans la réponse de l'API (`code_debug`) — **jamais en production**.
 
-## Contributing
+### Variables d'environnement principales
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+| Variable(s) | Rôle |
+| --- | --- |
+| `APP_URL`, `APP_KEY`, `APP_ENV`, `APP_DEBUG` | Configuration Laravel (`APP_DEBUG=false` en production) |
+| `DB_*` | Connexion MySQL |
+| `CORS_ALLOWED_ORIGINS` | Origines autorisées, séparées par des virgules (une par application front, ex. `http://localhost:3006`) |
+| `ADMIN_INITIAL_EMAIL`, `ADMIN_INITIAL_PASSWORD` | Compte administrateur créé par le seeder |
+| `MAIL_*` | Envoi des e-mails (OTP de double authentification admin/coordinateur) |
+| `TWILIO_*` | OTP par WhatsApp |
+| `WAVE_*` | Paiement Mobile Money (Checkout + secret du webhook) |
+| `VAPID_*` | Notifications push web |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Assistant IA |
+| `LIVREUR_APP_URL`, `PAGE_COMMANDE_URL`, `PLATEFORME_*_URL` | URLs des applications (liens envoyés aux utilisateurs) |
 
-## Code of Conduct
+Aucun secret ne doit être commité : le `.env` est ignoré par git.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Tests
 
-## Security Vulnerabilities
+```bash
+php artisan test                         # suite complète
+php artisan test --filter=PartenaireTest # un fichier
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Les tests utilisent une base SQLite en mémoire : ils ne touchent jamais à la base locale ni à la production.
 
-## License
+## Déploiement
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Hébergement mutualisé (`ordisapce.daymondboutique.com`), sans accès SSH. Le workflow `.github/workflows/deploy.yml` s'exécute à chaque push sur `master` :
+
+1. **Tests** — la suite complète doit passer ;
+2. **Déploiement FTP** — envoi des fichiers ;
+3. **Hook post-déploiement** — `public/deploy-hook.php` (protégé par `DEPLOY_TOKEN`) lance `migrate --force`, `db:seed --force` et `storage:link`.
+
+⚠️ Un push sur `master` déploie donc directement en production et applique les migrations. Le workflow peut aussi être relancé à la main depuis l'onglet *Actions* (`workflow_dispatch`).
