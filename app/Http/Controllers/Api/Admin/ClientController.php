@@ -17,6 +17,7 @@ use App\Models\Reclamation;
 use App\Models\TransactionPortefeuille;
 use App\Models\User;
 use App\Models\UtilisationPrivilege;
+use App\Services\SuppressionClientService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -114,6 +115,18 @@ class ClientController extends Controller
         ];
 
         return $this->success($clients, ['stats' => $statistiques]);
+    }
+
+    /**
+     * Suppression définitive (bouton "Supprimer" de la fiche client) : le
+     * compte, ses accès et tout ce qui lui est rattaché — voir
+     * SuppressionClientService. Irréversible.
+     */
+    public function supprimer(Request $request, User $utilisateur, SuppressionClientService $service): JsonResponse
+    {
+        $service->supprimer($utilisateur, $request->user());
+
+        return $this->success(['supprime' => true]);
     }
 
     /**

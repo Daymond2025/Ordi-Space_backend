@@ -22,8 +22,9 @@ class DemanderOtpTelephoneRequest extends FormRequest
             // Technicien de maintenance inclus en plus de
             // roles_auto_inscription_telephone() : connexion seule, pas
             // d'auto-inscription (compte créé par l'Admin) — voir
-            // InscrireTelephoneRequest, qui reste fermé à ce rôle.
-            'type_utilisateur' => ['nullable', 'string', Rule::in([...roles_auto_inscription_telephone(), ROLE_TECHNICIEN_MAINTENANCE])],
+            // InscrireTelephoneRequest, qui reste fermé à ce rôle. Idem pour le
+            // Partenaire (compte créé par l'Admin).
+            'type_utilisateur' => ['nullable', 'string', Rule::in([...roles_auto_inscription_telephone(), ROLE_TECHNICIEN_MAINTENANCE, ROLE_PARTENAIRE])],
         ];
     }
 }

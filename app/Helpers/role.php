@@ -19,6 +19,8 @@ defined('ROLE_CLIENT') || define('ROLE_CLIENT', 'client');
 defined('ROLE_LIVREUR') || define('ROLE_LIVREUR', 'livreur');
 defined('ROLE_TECHNICIEN_MAINTENANCE') || define('ROLE_TECHNICIEN_MAINTENANCE', 'technicien_maintenance');
 defined('ROLE_ADMINISTRATEUR') || define('ROLE_ADMINISTRATEUR', 'administrateur');
+// Représentant d'Ordi'Space dans une ou plusieurs villes (voir le modèle Partenaire).
+defined('ROLE_PARTENAIRE') || define('ROLE_PARTENAIRE', 'partenaire');
 
 // --- Sous-type Commercial -------------------------------------------------
 defined('TYPE_COMMERCIAL_HUMAIN') || define('TYPE_COMMERCIAL_HUMAIN', 'humain');
@@ -71,6 +73,8 @@ defined('PERMISSION_COMMERCIAUX_CONSULTER') || define('PERMISSION_COMMERCIAUX_CO
 defined('PERMISSION_COMMERCIAUX_GERER') || define('PERMISSION_COMMERCIAUX_GERER', 'commerciaux.gerer');
 // Bibliothèque "Réponse rapide" (app Commercial) — créée/éditée uniquement par l'Admin.
 defined('PERMISSION_REPONSES_RAPIDES_GERER') || define('PERMISSION_REPONSES_RAPIDES_GERER', 'reponses_rapides.gerer');
+// Partenaires Ordi'Space (comptes, prix de cession, approvisionnements) — Admin uniquement.
+defined('PERMISSION_PARTENAIRES_GERER') || define('PERMISSION_PARTENAIRES_GERER', 'partenaires.gerer');
 
 if (! function_exists('roles_auto_inscription')) {
     /**
@@ -124,6 +128,6 @@ if (! function_exists('roles_provisionnes_par_admin')) {
      */
     function roles_provisionnes_par_admin(): array
     {
-        return [ROLE_COORDINATEUR, ROLE_TECHNICIEN_MAINTENANCE, ROLE_CLIENT, ROLE_FOURNISSEUR, ROLE_LIVREUR, ROLE_COMMERCIAL];
+        return [ROLE_COORDINATEUR, ROLE_TECHNICIEN_MAINTENANCE, ROLE_CLIENT, ROLE_FOURNISSEUR, ROLE_LIVREUR, ROLE_COMMERCIAL, ROLE_PARTENAIRE];
     }
 }

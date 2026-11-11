@@ -323,8 +323,36 @@ defined('TYPE_LOCALITE_VILLE') || define('TYPE_LOCALITE_VILLE', 'ville');
 // --- Espaces de l'Admin Web (accès restreignable par admin non super-admin) ----
 // Cf. VerifieEspaceAdmin + Administrateur::peutAccederEspace(). Le Dashboard
 // général et l'onglet "Mon compte" des Settings restent toujours visibles ;
-// seuls ces 10 espaces peuvent être individuellement accordés/retirés.
+// seuls ces 11 espaces peuvent être individuellement accordés/retirés.
 defined('ESPACES_ADMIN') || define('ESPACES_ADMIN', [
     'operations', 'commandes', 'clients', 'commerciaux', 'fournisseurs',
-    'livreurs', 'maintenance', 'coordinateurs', 'finance', 'reports',
+    'livreurs', 'maintenance', 'coordinateurs', 'finance', 'reports', 'partenaires',
 ]);
+
+// --- Partenaires Ordi'Space ----------------------------------------------
+// Approvisionnement : le partenaire paie d'avance son prix de cession, l'Admin
+// valide le paiement puis expédie ; le stock n'entre qu'à la réception.
+defined('STATUT_APPRO_EN_ATTENTE_PAIEMENT') || define('STATUT_APPRO_EN_ATTENTE_PAIEMENT', 'en_attente_paiement');
+defined('STATUT_APPRO_PAIEMENT_DECLARE') || define('STATUT_APPRO_PAIEMENT_DECLARE', 'paiement_declare');
+defined('STATUT_APPRO_PAIEMENT_VALIDE') || define('STATUT_APPRO_PAIEMENT_VALIDE', 'paiement_valide');
+defined('STATUT_APPRO_EXPEDIE') || define('STATUT_APPRO_EXPEDIE', 'expedie');
+defined('STATUT_APPRO_RECU') || define('STATUT_APPRO_RECU', 'recu');
+defined('STATUT_APPRO_ANNULE') || define('STATUT_APPRO_ANNULE', 'annule');
+
+// Commande d'un client chez un partenaire : mêmes statuts que le circuit
+// Ordi'Space (STATUT_COMMANDE_*). Stock du partenaire sorti à la validation
+// (validee/en_preparation/en_livraison/livree), remis si annulée.
+defined('STATUTS_CMD_PARTENAIRE_STOCK_SORTI') || define('STATUTS_CMD_PARTENAIRE_STOCK_SORTI', ['validee', 'en_preparation', 'en_livraison', 'livree']);
+
+defined('MODE_REMISE_LIVRAISON') || define('MODE_REMISE_LIVRAISON', 'livraison');
+defined('MODE_REMISE_RETRAIT_BOUTIQUE') || define('MODE_REMISE_RETRAIT_BOUTIQUE', 'retrait_boutique');
+
+// Mouvements de stock partenaire (quantité signée, voir StockPartenaireService).
+defined('MOUVEMENT_STOCK_APPROVISIONNEMENT') || define('MOUVEMENT_STOCK_APPROVISIONNEMENT', 'approvisionnement');
+defined('MOUVEMENT_STOCK_VENTE') || define('MOUVEMENT_STOCK_VENTE', 'vente');
+defined('MOUVEMENT_STOCK_RETOUR_ANNULATION') || define('MOUVEMENT_STOCK_RETOUR_ANNULATION', 'retour_annulation');
+defined('MOUVEMENT_STOCK_AJUSTEMENT') || define('MOUVEMENT_STOCK_AJUSTEMENT', 'ajustement');
+
+defined('PARTENAIRE_PREUVE_DOSSIER') || define('PARTENAIRE_PREUVE_DOSSIER', 'partenaires/preuves');
+// Disque privé (storage/app/private) : preuves de paiement jamais publiques.
+defined('PARTENAIRE_PREUVE_DISQUE') || define('PARTENAIRE_PREUVE_DISQUE', 'local');

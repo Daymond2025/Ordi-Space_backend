@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DemandeSav;
 use App\Models\Garantie;
 use App\Models\JournalAudit;
+use App\Models\LigneCommandePartenaire;
 use App\Models\NotificationOrdispace;
 use App\Models\RendezVous;
 use App\Services\NotificationAdminService;
@@ -35,10 +36,11 @@ class DemandeSavController extends Controller
             $query->where('client_id', $user->id);
         } elseif ($user->type_utilisateur === ROLE_TECHNICIEN_MAINTENANCE) {
             // Même logique que RendezVousController::index().
-            $query->visiblesPourTechnicien($user->id);
+            $query->visiblesPourTechnicien($user->id)->coteOrdispace();
         } else {
             // Livreur, fournisseur, commercial… : aucune demande SAV (données client).
             abort_unless($user->can(PERMISSION_SAV_TRAITER), 403);
+            $query->coteOrdispace();
         }
 
         if ($request->filled('statut_demande')) {
@@ -162,7 +164,9 @@ class DemandeSavController extends Controller
         abort_unless($request->user()->type_utilisateur === ROLE_CLIENT, 403);
 
         $data = $request->validate([
-            'garantie_id' => ['nullable', 'exists:garanties,id'],
+            'garantie_id' => ['nullable', 'exists:garanties,id', 'prohibits:ligne_commande_partenaire_id'],
+            // Produit acheté chez un partenaire : la panne lui est adressée d'abord.
+            'ligne_commande_partenaire_id' => ['nullable', 'integer', 'exists:lignes_commande_partenaire,id'],
             'description_probleme' => ['required', 'string', 'max:2000'],
         ]);
 
@@ -175,12 +179,36 @@ class DemandeSavController extends Controller
             );
         }
 
+        $partenaireId = null;
+        if (! empty($data['ligne_commande_partenaire_id'])) {
+            $commandePartenaire = LigneCommandePartenaire::findOrFail($data['ligne_commande_partenaire_id'])->commande;
+            abort_unless($commandePartenaire->client_id === $request->user()->id, 403, 'Cet achat ne vous appartient pas.');
+            if ($commandePartenaire->statut !== STATUT_COMMANDE_LIVREE) {
+                throw ValidationException::withMessages(['ligne_commande_partenaire_id' => ["Cet achat n'a pas encore été livré."]]);
+            }
+            $partenaireId = $commandePartenaire->partenaire_id;
+        }
+
         $demande = DemandeSav::create([
             ...$data,
+            'partenaire_id' => $partenaireId,
             'client_id' => $request->user()->id,
             'statut_demande' => STATUT_DEMANDE_SAV_EN_ATTENTE,
             'date_demande' => now(),
         ]);
+
+        if ($partenaireId !== null) {
+            NotificationOrdispace::create([
+                'user_id' => $partenaireId,
+                'type_notification' => 'panne_declaree',
+                'titre' => 'Nouvelle déclaration de panne',
+                'contenu' => "{$request->user()->nom} a déclaré une panne : « ".mb_substr($data['description_probleme'], 0, 120).' »',
+                'lu' => false,
+                'date_envoi' => now(),
+            ]);
+
+            return $this->success($demande, status: 201);
+        }
 
         JournalAudit::enregistrer(
             $request->user()->id,

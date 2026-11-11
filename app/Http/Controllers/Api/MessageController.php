@@ -445,7 +445,7 @@ class MessageController extends Controller
     private function creerMessage(StoreMessageRequest $request, array $cible): Message
     {
         if ($request->hasFile('fichier')) {
-            $donnees = $this->inferTypeEtStocker($request->file('fichier'), $request->string('type')->toString() ?: null);
+            $donnees = self::inferTypeEtStocker($request->file('fichier'), $request->string('type')->toString() ?: null);
         } else {
             $donnees = ['type' => TYPE_MESSAGE_TEXTE, 'contenu' => $request->string('contenu')->toString()];
         }
@@ -464,7 +464,7 @@ class MessageController extends Controller
      * ne valide que l'appartenance globale aux mimes pris en charge — le
      * plafond dépend du type inféré, indisponible à ce stade-là).
      */
-    private function inferTypeEtStocker(UploadedFile $fichier, ?string $typeSouhaite): array
+    public static function inferTypeEtStocker(UploadedFile $fichier, ?string $typeSouhaite): array
     {
         $extension = strtolower($fichier->getClientOriginalExtension());
 

@@ -84,7 +84,7 @@ class StatistiqueController extends Controller
             'a_traiter' => [
                 'produits_a_valider' => Produit::where('statut_produit', STATUT_PRODUIT_EN_ATTENTE)->count(),
                 'reclamations_nouvelles' => Reclamation::where('statut', STATUT_RECLAMATION_NOUVELLE)->count(),
-                'pannes_en_attente' => DemandeSav::where('statut_demande', STATUT_DEMANDE_SAV_EN_ATTENTE)->count(),
+                'pannes_en_attente' => DemandeSav::coteOrdispace()->where('statut_demande', STATUT_DEMANDE_SAV_EN_ATTENTE)->count(),
                 'retraits_en_attente' => DemandeRetrait::where('statut', STATUT_RETRAIT_EN_ATTENTE)->count(),
             ],
             'catalogue' => [

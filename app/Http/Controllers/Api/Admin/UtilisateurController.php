@@ -8,6 +8,7 @@ use App\Models\Commercial;
 use App\Models\Coordinateur;
 use App\Models\Fournisseur;
 use App\Models\Livreur;
+use App\Models\Partenaire;
 use App\Models\TechnicienMaintenance;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password;
 
 class UtilisateurController extends Controller
@@ -50,7 +52,8 @@ class UtilisateurController extends Controller
         // voir TelephoneAuthController) — email/password deviennent
         // optionnels pour lui, téléphone devient au contraire obligatoire
         // (c'est son seul identifiant de connexion).
-        $estTechnicien = $request->input('type_utilisateur') === ROLE_TECHNICIEN_MAINTENANCE;
+        // Même règle pour le Partenaire (app Partenaire = téléphone+OTP).
+        $estTechnicien = in_array($request->input('type_utilisateur'), [ROLE_TECHNICIEN_MAINTENANCE, ROLE_PARTENAIRE], true);
 
         $data = $request->validate([
             'nom' => ['required', 'string', 'max:100'],
@@ -66,10 +69,23 @@ class UtilisateurController extends Controller
             // Commercial (humain) : mêmes champs métier optionnels que sur sa
             // fiche (voir CommercialController::modifierProfilAdmin()).
             'localisation' => ['nullable', 'string', 'max:255'],
+            // Partenaire : boutique, remise par défaut (%) sur le prix
+            // Ordi'Space et villes couvertes (voir Admin\PartenaireController).
+            'nom_boutique' => ['required_if:type_utilisateur,'.ROLE_PARTENAIRE, 'nullable', 'string', 'max:150'],
+            'adresse_boutique' => ['nullable', 'string', 'max:255'],
+            'remise_defaut' => ['nullable', 'numeric', 'min:0', 'max:90'],
+            'localite_ids' => ['required_if:type_utilisateur,'.ROLE_PARTENAIRE, 'nullable', 'array', 'min:1'],
+            'localite_ids.*' => ['integer', 'distinct', 'exists:localites,id'],
             // Optionnelle, quel que soit le rôle créé — même champ que pour
             // l'auto-inscription (RegisterRequest/InscrireTelephoneRequest).
             'photo' => ['nullable', 'file', 'image', 'mimes:'.IMAGE_MIMES_AUTORISES, 'max:'.IMAGE_MAX_POIDS_KO],
         ]);
+
+        // Le téléphone est l'identifiant de connexion de ces rôles : un
+        // doublon rendrait la connexion ambiguë (TelephoneAuthController).
+        if ($estTechnicien && User::where('telephone', normaliser_telephone($data['telephone']))->where('type_utilisateur', $data['type_utilisateur'])->exists()) {
+            throw ValidationException::withMessages(['telephone' => ['Ce numéro est déjà utilisé par un autre compte de ce rôle.']]);
+        }
 
         $photoPath = $request->hasFile('photo') ? $request->file('photo')->store(PHOTO_PROFIL_DOSSIER, IMAGE_PRODUIT_DISQUE) : null;
 
@@ -113,6 +129,12 @@ class UtilisateurController extends Controller
                     'nom_entreprise' => $data['nom_entreprise'] ?? null,
                     'localisation' => $data['localisation'] ?? null,
                 ]),
+                ROLE_PARTENAIRE => Partenaire::create([
+                    'user_id' => $user->id,
+                    'nom_boutique' => $data['nom_boutique'],
+                    'adresse_boutique' => $data['adresse_boutique'] ?? null,
+                    'remise_defaut' => $data['remise_defaut'] ?? 0,
+                ])->localites()->sync($data['localite_ids']),
             };
 
             $user->assignRole($data['type_utilisateur']);

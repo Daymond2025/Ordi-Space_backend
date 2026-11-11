@@ -7,6 +7,15 @@ use App\Http\Controllers\Api\Admin\CoordinateurController as AdminCoordinateurCo
 use App\Http\Controllers\Api\Admin\FideliteController;
 use App\Http\Controllers\Api\Admin\CommercialController as AdminCommercialController;
 use App\Http\Controllers\Api\Admin\LivreurController as AdminLivreurController;
+use App\Http\Controllers\Api\Admin\ApprovisionnementPartenaireController as AdminApprovisionnementPartenaireController;
+use App\Http\Controllers\Api\Admin\PartenaireController as AdminPartenaireController;
+use App\Http\Controllers\Api\Admin\NouvelleCommandeClientController as AdminNouvelleCommandeClientController;
+use App\Http\Controllers\Api\CommandePartenaireClientController;
+use App\Http\Controllers\Api\Partenaire\ApprovisionnementController as PartenaireApprovisionnementController;
+use App\Http\Controllers\Api\Partenaire\CommandeController as PartenaireCommandeController;
+use App\Http\Controllers\Api\Partenaire\ConversationController as PartenaireConversationController;
+use App\Http\Controllers\Api\Partenaire\EspacePartenaireController;
+use App\Http\Controllers\Api\Partenaire\SavController as PartenaireSavController;
 use App\Http\Controllers\Api\Admin\StatistiqueController;
 use App\Http\Controllers\Api\Admin\UtilisateurController;
 use App\Http\Controllers\Api\AssistantIaController;
@@ -190,6 +199,58 @@ Route::prefix('v1')->group(function () {
             Route::get('liens/{lien}', [BoutiqueController::class, 'lien']);
         });
 
+        // Côté client : partenaires de sa ville pour un produit, et commandes
+        // passées chez eux (voir CommandePartenaireClientController).
+        Route::get('produits/{produit}/partenaires', [CommandePartenaireClientController::class, 'partenairesPourProduit']);
+        Route::prefix('commandes-partenaire')->group(function () {
+            Route::get('/', [CommandePartenaireClientController::class, 'index']);
+            Route::post('/', [CommandePartenaireClientController::class, 'store'])->middleware('throttle:20,1');
+            Route::get('{commande}', [CommandePartenaireClientController::class, 'show']);
+            Route::post('{commande}/annuler', [CommandePartenaireClientController::class, 'annuler']);
+        });
+
+        // Espace Partenaire (app Partenaire) — tout part du partenaire du
+        // jeton courant, voir Api\Partenaire\ControleurPartenaire.
+        Route::prefix('partenaire')->middleware('role:'.ROLE_PARTENAIRE)->group(function () {
+            Route::get('moi', [EspacePartenaireController::class, 'moi']);
+            Route::get('accueil', [EspacePartenaireController::class, 'accueil']);
+            Route::get('profil', [EspacePartenaireController::class, 'profil']);
+            Route::get('statistiques', [EspacePartenaireController::class, 'statistiques']);
+            Route::patch('profil', [EspacePartenaireController::class, 'modifierProfil']);
+            Route::get('catalogue', [EspacePartenaireController::class, 'catalogue']);
+            Route::get('catalogue/{produit}', [EspacePartenaireController::class, 'produit']);
+            Route::put('catalogue/{produit}/offre', [EspacePartenaireController::class, 'definirOffre']);
+            Route::get('stock', [EspacePartenaireController::class, 'stock']);
+            Route::get('stock/mouvements', [EspacePartenaireController::class, 'mouvements']);
+            Route::post('stock/{produit}/sortie', [EspacePartenaireController::class, 'ajusterStock']);
+
+            Route::get('approvisionnements', [PartenaireApprovisionnementController::class, 'index']);
+            Route::post('approvisionnements', [PartenaireApprovisionnementController::class, 'store'])->middleware('throttle:20,1');
+            Route::get('approvisionnements/{approvisionnement}', [PartenaireApprovisionnementController::class, 'show']);
+            Route::post('approvisionnements/{approvisionnement}/paiement', [PartenaireApprovisionnementController::class, 'declarerPaiement']);
+            Route::post('approvisionnements/{approvisionnement}/confirmer', [PartenaireApprovisionnementController::class, 'confirmerPaiement']);
+            Route::get('approvisionnements/{approvisionnement}/preuve', [PartenaireApprovisionnementController::class, 'preuve']);
+            Route::post('approvisionnements/{approvisionnement}/annuler', [PartenaireApprovisionnementController::class, 'annuler']);
+            Route::post('approvisionnements/{approvisionnement}/reception', [PartenaireApprovisionnementController::class, 'confirmerReception']);
+
+            // Suivi des commandes — même processus que le circuit Ordi'Space.
+            Route::get('produits-actifs', [PartenaireConversationController::class, 'produitsActifs']);
+            Route::get('produits/{produit}/conversation', [PartenaireConversationController::class, 'conversation']);
+            Route::post('produits/{produit}/messages', [PartenaireConversationController::class, 'envoyerMessage']);
+            Route::get('commandes', [PartenaireCommandeController::class, 'index']);
+            Route::post('commandes', [PartenaireCommandeController::class, 'store'])->middleware('throttle:20,1');
+            Route::get('commandes/{commande}', [PartenaireCommandeController::class, 'show']);
+            Route::get('commandes/{commande}/suivi', [PartenaireCommandeController::class, 'suivi']);
+            Route::get('commandes/{commande}/messages', [PartenaireCommandeController::class, 'messages']);
+            Route::post('commandes/{commande}/messages', [PartenaireCommandeController::class, 'envoyerMessage']);
+            Route::post('commandes/{commande}/statut', [PartenaireCommandeController::class, 'changerStatut']);
+
+            Route::get('sav', [PartenaireSavController::class, 'index']);
+            Route::get('sav/{demandeSav}', [PartenaireSavController::class, 'show']);
+            Route::patch('sav/{demandeSav}/statut', [PartenaireSavController::class, 'changerStatut']);
+            Route::post('sav/{demandeSav}/transferer', [PartenaireSavController::class, 'transferer']);
+        });
+
         // Espace Fournisseur en libre-service (app Fournisseur) — mêmes vues
         // que le Centre des opérations du Coordinateur (fournisseurs/{id}/...
         // plus bas), rejouées sur le fournisseur du jeton courant. Voir
@@ -334,7 +395,7 @@ Route::prefix('v1')->group(function () {
         Route::get('retours', [RetourController::class, 'index']);
         Route::post('retours/{retour}/traiter', [RetourController::class, 'traiter'])->middleware('permission:'.PERMISSION_RETOURS_TRAITER);
 
-        Route::middleware('permission:'.PERMISSION_LIVRAISONS_GERER)->group(function () {
+        Route::middleware('permission:'.PERMISSION_LIVRAISONS_GERER)->group(function () { 
             Route::get('livraisons', [LivraisonController::class, 'index']);
             Route::post('livraisons/{livraison}/affecter', [LivraisonController::class, 'affecter']);
             Route::post('livraisons/{livraison}/accepter', [LivraisonController::class, 'accepter']);
@@ -437,6 +498,21 @@ Route::prefix('v1')->group(function () {
         // groupe comme un coordinateur — il a déjà toutes les permissions
         // (RolesAndPermissionsSeeder), seul le rôle Spatie manquait ici.
         Route::prefix('coordinateur')->middleware('role:'.ROLE_COORDINATEUR.'|'.ROLE_ADMINISTRATEUR)->group(function () {
+            // Suivi des commandes partenaires : seul le coordinateur (et l'admin)
+            // voit les conversations d'un partenaire — jamais le fournisseur. Un
+            // admin restreint doit en plus avoir l'espace "partenaires".
+            Route::middleware('espace:partenaires')->group(function () {
+                Route::get('partenaires', [PartenaireConversationController::class, 'partenaires']);
+                Route::get('partenaires/{partenaire}/produits-actifs', [PartenaireConversationController::class, 'produitsActifs']);
+                Route::get('partenaires/{partenaire}/produits/{produit}/conversation', [PartenaireConversationController::class, 'conversationPourCoordinateur']);
+                Route::post('partenaires/{partenaire}/produits/{produit}/messages', [PartenaireConversationController::class, 'envoyerMessagePourCoordinateur']);
+                Route::get('partenaires/{partenaire}/commandes', [PartenaireCommandeController::class, 'index']);
+                Route::get('commandes-partenaire/{commande}', [PartenaireCommandeController::class, 'show']);
+                Route::get('commandes-partenaire/{commande}/suivi', [PartenaireCommandeController::class, 'suivi']);
+                Route::get('commandes-partenaire/{commande}/messages', [PartenaireCommandeController::class, 'messages']);
+                Route::post('commandes-partenaire/{commande}/messages', [PartenaireCommandeController::class, 'envoyerMessage']);
+            });
+
             Route::get('espace/statistiques', [CoordinateurEspaceController::class, 'statistiques'])
                 ->middleware('permission:'.PERMISSION_STATISTIQUES_PERIMETRE);
             Route::middleware(['permission:'.PERMISSION_FOURNISSEURS_CONSULTER, 'espace:finance'])->group(function () {
@@ -549,8 +625,11 @@ Route::prefix('v1')->group(function () {
 
             Route::middleware('espace:clients')->group(function () {
                 Route::get('clients', [ClientController::class, 'index']);
+                // Client + adresse + commande + livreur en une seule transaction (écran "Nouveau client").
+                Route::post('clients/nouvelle-commande', [AdminNouvelleCommandeClientController::class, 'store']);
                 Route::get('clients/tableau-de-bord', [ClientController::class, 'tableauDeBord']);
                 Route::get('clients/{utilisateur}', [ClientController::class, 'show']);
+                Route::delete('clients/{utilisateur}', [ClientController::class, 'supprimer']);
                 Route::post('clients/{utilisateur}/notifier', [ClientController::class, 'notifier']);
                 Route::get('fidelite', [FideliteController::class, 'index']);
                 Route::get('assistant-ia/clients', [AdminAssistantIaController::class, 'index']);
@@ -584,6 +663,29 @@ Route::prefix('v1')->group(function () {
                 Route::get('coordinateurs/{coordinateur}', [AdminCoordinateurController::class, 'show']);
                 Route::patch('coordinateurs/{coordinateur}/profil', [AdminCoordinateurController::class, 'modifierProfil']);
                 Route::get('coordinateurs/{coordinateur}/activites', [AdminCoordinateurController::class, 'activites']);
+            });
+
+            // Partenaires Ordi'Space — création du compte via POST utilisateurs
+            // (type_utilisateur=partenaire), voir Admin\PartenaireController.
+            Route::middleware(['espace:partenaires', 'permission:'.PERMISSION_PARTENAIRES_GERER])->group(function () {
+                Route::get('partenaires', [AdminPartenaireController::class, 'index']);
+                Route::get('partenaires/{partenaire}', [AdminPartenaireController::class, 'show']);
+                Route::patch('partenaires/{partenaire}', [AdminPartenaireController::class, 'modifier']);
+                Route::get('partenaires/{partenaire}/tarifs', [AdminPartenaireController::class, 'tarifs']);
+                Route::put('partenaires/{partenaire}/tarifs/{produit}', [AdminPartenaireController::class, 'definirTarif']);
+                Route::delete('partenaires/{partenaire}/tarifs/{produit}', [AdminPartenaireController::class, 'supprimerTarif']);
+                Route::get('partenaires/{partenaire}/stock', [AdminPartenaireController::class, 'stock']);
+                Route::get('partenaires/{partenaire}/stock/mouvements', [AdminPartenaireController::class, 'mouvements']);
+                Route::post('partenaires/{partenaire}/stock/{produit}/ajustement', [AdminPartenaireController::class, 'ajusterStock']);
+                Route::get('partenaires/{partenaire}/commandes', [AdminPartenaireController::class, 'commandes']);
+
+                Route::get('approvisionnements-partenaires', [AdminApprovisionnementPartenaireController::class, 'index']);
+                Route::get('approvisionnements-partenaires/{approvisionnement}', [AdminApprovisionnementPartenaireController::class, 'show']);
+                Route::get('approvisionnements-partenaires/{approvisionnement}/preuve', [AdminApprovisionnementPartenaireController::class, 'preuve']);
+                Route::post('approvisionnements-partenaires/{approvisionnement}/valider', [AdminApprovisionnementPartenaireController::class, 'validerPaiement']);
+                Route::post('approvisionnements-partenaires/{approvisionnement}/refuser', [AdminApprovisionnementPartenaireController::class, 'refuserPaiement']);
+                Route::post('approvisionnements-partenaires/{approvisionnement}/expedier', [AdminApprovisionnementPartenaireController::class, 'expedier']);
+                Route::post('approvisionnements-partenaires/{approvisionnement}/annuler', [AdminApprovisionnementPartenaireController::class, 'annuler']);
             });
         });
     });

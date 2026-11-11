@@ -50,6 +50,7 @@ class RolesAndPermissionsSeeder extends Seeder
         PERMISSION_COMMERCIAUX_CONSULTER,
         PERMISSION_COMMERCIAUX_GERER,
         PERMISSION_REPONSES_RAPIDES_GERER,
+        PERMISSION_PARTENAIRES_GERER,
     ];
 
     private const ROLES = [
@@ -96,6 +97,9 @@ class RolesAndPermissionsSeeder extends Seeder
         ROLE_TECHNICIEN_MAINTENANCE => [
             PERMISSION_SAV_TRAITER,
         ],
+        // Espace Partenaire : cloisonné par rôle + propriété (routes "partenaire/…"),
+        // aucune permission transverse — il ne voit jamais le circuit Ordi'Space.
+        ROLE_PARTENAIRE => [],
         ROLE_ADMINISTRATEUR => null, // reçoit toutes les permissions, voir plus bas.
     ];
 
