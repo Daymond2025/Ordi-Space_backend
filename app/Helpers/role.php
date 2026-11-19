@@ -82,12 +82,14 @@ if (! function_exists('roles_auto_inscription')) {
      * (AuthController::register()) — conservé uniquement pour la
      * rétrocompatibilité des comptes déjà créés ainsi ; les nouvelles
      * inscriptions de ces rôles passent désormais par le téléphone+OTP, voir
-     * roles_auto_inscription_telephone(). Coordinateur, Technicien et
-     * Administrateur restent exclus (décision d'architecture).
+     * roles_auto_inscription_telephone(). Coordinateur, Technicien,
+     * Commercial et Administrateur restent exclus : le Commercial est devenu
+     * une entité interne, son compte est créé par l'Admin avec son numéro
+     * (voir roles_connexion_telephone()).
      */
     function roles_auto_inscription(): array
     {
-        return [ROLE_FOURNISSEUR, ROLE_COMMERCIAL, ROLE_LIVREUR];
+        return [ROLE_FOURNISSEUR, ROLE_LIVREUR];
     }
 }
 
@@ -95,13 +97,26 @@ if (! function_exists('roles_auto_inscription_telephone')) {
     /**
      * Rôles qui s'inscrivent et se connectent par téléphone + OTP WhatsApp
      * (Api\Auth\TelephoneAuthController) — Client, plus Fournisseur/
-     * Commercial/Livreur depuis l'uniformisation de l'auth (ils n'ont plus
-     * de mot de passe pour les nouvelles inscriptions). Coordinateur et
-     * Administrateur restent exclus, traités comme comptes internes.
+     * Livreur depuis l'uniformisation de l'auth (ils n'ont plus de mot de
+     * passe pour les nouvelles inscriptions). Coordinateur et Administrateur
+     * restent exclus, traités comme comptes internes.
      */
     function roles_auto_inscription_telephone(): array
     {
         return [ROLE_CLIENT, ...roles_auto_inscription()];
+    }
+}
+
+if (! function_exists('roles_connexion_telephone')) {
+    /**
+     * Rôles qui se CONNECTENT par téléphone + OTP : ceux qui s'inscrivent
+     * eux-mêmes, plus les comptes créés uniquement par l'Admin avec leur
+     * numéro (Technicien, Partenaire, Commercial) — connexion seule, jamais
+     * d'inscription.
+     */
+    function roles_connexion_telephone(): array
+    {
+        return [...roles_auto_inscription_telephone(), ROLE_TECHNICIEN_MAINTENANCE, ROLE_PARTENAIRE, ROLE_COMMERCIAL];
     }
 }
 

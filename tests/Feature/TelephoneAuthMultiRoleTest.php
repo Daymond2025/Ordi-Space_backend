@@ -78,19 +78,16 @@ class TelephoneAuthMultiRoleTest extends TestCase
         $this->assertSame($userId, $reconnexion->json('data.user_id'));
     }
 
-    public function test_un_commercial_peut_sinscrire_par_telephone_sans_champ_supplementaire(): void
+    public function test_un_commercial_ne_peut_plus_sinscrire_lui_meme(): void
     {
-        $inscription = $this->postJson('/api/v1/auth/telephone/inscription', [
+        // Entité interne : le compte est créé par l'Admin avec son numéro.
+        $this->postJson('/api/v1/auth/telephone/inscription', [
             'telephone' => '07 00 00 02 02',
             'nom' => 'Traore',
             'type_utilisateur' => ROLE_COMMERCIAL,
-        ]);
+        ])->assertUnprocessable()->assertJsonValidationErrors('type_utilisateur', 'error.fields');
 
-        $inscription->assertCreated();
-        $userId = $inscription->json('data.user_id');
-
-        $this->assertDatabaseHas('users', ['id' => $userId, 'type_utilisateur' => ROLE_COMMERCIAL]);
-        $this->assertDatabaseHas('commerciaux', ['user_id' => $userId, 'type_commercial' => TYPE_COMMERCIAL_HUMAIN]);
+        $this->assertDatabaseMissing('users', ['telephone' => normaliser_telephone('07 00 00 02 02'), 'type_utilisateur' => ROLE_COMMERCIAL]);
     }
 
     public function test_un_livreur_doit_fournir_ses_documents_pour_sinscrire_par_telephone(): void

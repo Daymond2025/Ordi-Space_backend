@@ -67,6 +67,10 @@ class StoreProduitRequest extends FormRequest
             // reste indépendant de `prix` (coût fournisseur, jamais montré au
             // revendeur) et `prix_vente` (prix public réel).
             'commission_apporteur' => ['nullable', 'numeric', 'min:0'],
+            // Commission d'un commercial INDÉPENDANT par produit vendu — vide =
+            // COMMISSION_COMMERCIAL_INDEPENDANT_DEFAUT (voir CommissionCommercial).
+            // Fixée par l'Admin/le Coordinateur, jamais par le fournisseur.
+            'commission_commercial_independant' => ['nullable', 'numeric', 'min:0', Rule::prohibitedIf(fn () => $this->user()?->type_utilisateur === ROLE_FOURNISSEUR)],
             'etat_produit' => ['nullable', Rule::in(ETATS_PRODUIT)],
             'pourcentage_reduction' => ['nullable', 'integer', 'min:0', 'max:100'],
             'prix_barre' => ['nullable', 'numeric', 'min:0'],

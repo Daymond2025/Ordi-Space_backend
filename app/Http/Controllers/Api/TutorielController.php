@@ -21,6 +21,14 @@ class TutorielController extends Controller
             $query->where('statut', STATUT_TUTORIEL_PUBLIE);
         }
 
+        // Les commerciaux ne voient que les formations de vente ; elles ne
+        // sont montrées à aucun autre public (Academy Space des clients…).
+        if ($request->user()->type_utilisateur === ROLE_COMMERCIAL) {
+            $query->where('type', TYPE_TUTORIEL_FORMATION_VENTE);
+        } elseif ($request->user()->type_utilisateur !== ROLE_ADMINISTRATEUR) {
+            $query->where('type', '!=', TYPE_TUTORIEL_FORMATION_VENTE);
+        }
+
         if ($request->filled('type')) {
             $query->where('type', $request->string('type'));
         }
@@ -31,6 +39,12 @@ class TutorielController extends Controller
     public function show(Request $request, Tutoriel $tutoriel): JsonResponse
     {
         if ($tutoriel->statut !== STATUT_TUTORIEL_PUBLIE && $request->user()->type_utilisateur !== ROLE_ADMINISTRATEUR) {
+            abort(404);
+        }
+
+        $role = $request->user()->type_utilisateur;
+        $estFormationVente = $tutoriel->type === TYPE_TUTORIEL_FORMATION_VENTE;
+        if ($role !== ROLE_ADMINISTRATEUR && ($role === ROLE_COMMERCIAL) !== $estFormationVente) {
             abort(404);
         }
 
@@ -115,7 +129,7 @@ class TutorielController extends Controller
 
         return $request->validate([
             'titre' => [$requis, 'string', 'max:200'],
-            'type' => ['nullable', Rule::in([TYPE_TUTORIEL_RAPIDE, TYPE_TUTORIEL_FORMATION])],
+            'type' => ['nullable', Rule::in([TYPE_TUTORIEL_RAPIDE, TYPE_TUTORIEL_FORMATION, TYPE_TUTORIEL_FORMATION_VENTE])],
             'url_video' => ['nullable', 'url', 'regex:/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\//'],
             'contenu' => ['nullable', 'string'],
             'statut' => ['nullable', Rule::in([STATUT_TUTORIEL_BROUILLON, STATUT_TUTORIEL_PUBLIE])],

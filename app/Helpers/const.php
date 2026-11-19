@@ -193,6 +193,8 @@ defined('STATUT_TUTORIEL_PUBLIE') || define('STATUT_TUTORIEL_PUBLIE', 'publie');
 // Academy Space (app client) : deux onglets distincts sur le même contenu.
 defined('TYPE_TUTORIEL_RAPIDE') || define('TYPE_TUTORIEL_RAPIDE', 'tutoriel_rapide');
 defined('TYPE_TUTORIEL_FORMATION') || define('TYPE_TUTORIEL_FORMATION', 'formation');
+// Formation spécifique de vente : créée par l'Admin, visible des seuls commerciaux.
+defined('TYPE_TUTORIEL_FORMATION_VENTE') || define('TYPE_TUTORIEL_FORMATION_VENTE', 'formation_vente');
 defined('TUTORIEL_DOSSIER') || define('TUTORIEL_DOSSIER', 'tutoriels');
 
 // --- Journal d'audit (fil "Activités" de la fiche client admin) ---------
@@ -299,12 +301,22 @@ defined('STATUT_RETRAIT_REFUSE') || define('STATUT_RETRAIT_REFUSE', 'refuse');
 defined('STATUT_RETRAIT_ANNULE') || define('STATUT_RETRAIT_ANNULE', 'annule');
 defined('OPERATEURS_RETRAIT') || define('OPERATEURS_RETRAIT', ['Orange', 'Wave', 'Mtn', 'Moov']);
 defined('RETRAIT_MONTANT_MINIMUM') || define('RETRAIT_MONTANT_MINIMUM', 1000);
-// Commission du Commercial humain : fixe, identique quel que soit le produit
-// vendu (confirmé PDG — ne dépend jamais de Produit::commission_agent, qui
-// reste un champ du formulaire Coordinateur sans effet sur ce montant).
-defined('COMMISSION_COMMERCIAL_PAR_VENTE') || define('COMMISSION_COMMERCIAL_PAR_VENTE', 1000);
+// Commission du Commercial, PAR PRODUIT VENDU (quantité comprise), selon
+// son type — voir App\Services\CommissionCommercial :
+// - interne (salarié de l'entreprise) : montant fixe ;
+// - indépendant (recruté) : Produit::commission_commercial_independant,
+//   modifiable par l'Admin, ou le montant par défaut s'il est vide.
+// Produit::commission_agent (formulaire Coordinateur) n'intervient jamais.
+defined('CATEGORIE_COMMERCIAL_INTERNE') || define('CATEGORIE_COMMERCIAL_INTERNE', 'interne');
+defined('CATEGORIE_COMMERCIAL_INDEPENDANT') || define('CATEGORIE_COMMERCIAL_INDEPENDANT', 'independant');
+defined('CATEGORIES_COMMERCIAL') || define('CATEGORIES_COMMERCIAL', [CATEGORIE_COMMERCIAL_INTERNE, CATEGORIE_COMMERCIAL_INDEPENDANT]);
+defined('COMMISSION_COMMERCIAL_INTERNE') || define('COMMISSION_COMMERCIAL_INTERNE', 1000);
+defined('COMMISSION_COMMERCIAL_INDEPENDANT_DEFAUT') || define('COMMISSION_COMMERCIAL_INDEPENDANT_DEFAUT', 2500);
 // Clé du réglage global (table parametres) : numéro du support Ordi'Space affiché aux livreurs.
 defined('PARAMETRE_SUPPORT_TELEPHONE') || define('PARAMETRE_SUPPORT_TELEPHONE', 'support_telephone');
+// Contact du service pour les commerciaux (écran "Contactez le service" de l'app Commercial) — fixés par l'Admin.
+defined('PARAMETRE_CONTACT_COMMERCIAL_APPEL') || define('PARAMETRE_CONTACT_COMMERCIAL_APPEL', 'contact_commercial_appel');
+defined('PARAMETRE_CONTACT_COMMERCIAL_WHATSAPP') || define('PARAMETRE_CONTACT_COMMERCIAL_WHATSAPP', 'contact_commercial_whatsapp');
 defined('MESSAGE_AUDIO_DOSSIER') || define('MESSAGE_AUDIO_DOSSIER', 'messages/audio');
 // Vidéo et document : aucun précédent dans le code, constantes nouvelles.
 defined('VIDEO_MIMES_AUTORISES') || define('VIDEO_MIMES_AUTORISES', 'mp4,mov,webm');

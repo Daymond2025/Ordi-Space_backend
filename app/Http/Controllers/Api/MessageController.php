@@ -15,6 +15,7 @@ use App\Models\Message;
 use App\Models\PreferenceAccueilProduit;
 use App\Models\Produit;
 use App\Models\User;
+use App\Models\Scopes\CommandeTransmiseScope;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -36,7 +37,7 @@ class MessageController extends Controller
 
         $this->marquerConsulte($request, $produit);
 
-        return $this->success($this->messagesPagines($produit->messages()->where('est_negociation_prix', false), $request));
+        return $this->success($this->messagesPagines($this->messagesProduitVisibles($produit, $request->user()), $request));
     }
 
     public function storeProduit(StoreMessageRequest $request, Produit $produit): JsonResponse
@@ -75,6 +76,8 @@ class MessageController extends Controller
     public function negociationPrix(Request $request, Produit $produit): JsonResponse
     {
         abort_unless($produit->estAccessibleConversationPar($request->user()), 403);
+        // Négociation plateforme ↔ fournisseur : jamais visible d'un commercial.
+        abort_if($request->user()->type_utilisateur === ROLE_COMMERCIAL, 403);
 
         $this->marquerConsulteNegociation($request, $produit);
 
@@ -86,6 +89,7 @@ class MessageController extends Controller
     public function repondreNegociationPrix(StoreMessageRequest $request, Produit $produit): JsonResponse
     {
         abort_unless($produit->estAccessibleConversationPar($request->user()), 403);
+        abort_if($request->user()->type_utilisateur === ROLE_COMMERCIAL, 403);
 
         return $this->success(
             $this->creerMessage($request, ['produit_id' => $produit->id, 'est_negociation_prix' => true]),
@@ -123,12 +127,14 @@ class MessageController extends Controller
         $this->marquerConsulte($request, $produit);
         $this->genererRapportQuotidienSiNecessaire($produit);
 
-        $messages = $this->messagesPagines($produit->messages()->where('est_negociation_prix', false), $request);
+        $messages = $this->messagesPagines($this->messagesProduitVisibles($produit, $request->user()), $request);
+
+        $estCommercial = $request->user()->type_utilisateur === ROLE_COMMERCIAL;
 
         $commandesQuery = Commande::whereHas('lignes', fn ($q) => $q->where('produit_id', $produit->id))
             ->with(['client.user', 'livraison.adresse.localite']);
 
-        if ($request->user()->type_utilisateur === ROLE_COMMERCIAL) {
+        if ($estCommercial) {
             $commandesQuery->where('commercial_id', $request->user()->id);
         }
 
@@ -176,7 +182,8 @@ class MessageController extends Controller
 
         return $this->success([
             'items' => $items,
-            'en_tete' => $produit->statistiquesCommandes(),
+            // Un commercial ne voit que les compteurs de SES commandes.
+            'en_tete' => $produit->statistiquesCommandes($estCommercial ? $request->user()->id : null),
         ], meta: [
             'messages' => [
                 'current_page' => $messages->currentPage(), 'last_page' => $messages->lastPage(),
@@ -184,6 +191,36 @@ class MessageController extends Controller
             ],
             'commandes_cartes' => ['total_affiche' => $commandes->count(), 'limite' => 50],
         ]);
+    }
+
+    /**
+     * Messages du fil d'un produit visibles par cet utilisateur :
+     * - Commercial : uniquement ses messages et ceux de l'équipe Ordi'Space
+     *   (coordination, fournisseur…), jamais ceux d'un autre commercial, ni
+     *   les cartes de commandes qui ne sont pas les siennes, ni le rapport du
+     *   jour (il compte les commandes de tout le monde).
+     * - Coordination/fournisseur/livreur : pas encore les cartes des
+     *   commandes programmées (date_envoi = date de transmission).
+     */
+    private function messagesProduitVisibles(Produit $produit, User $user): HasMany
+    {
+        $relation = $produit->messages()->where('est_negociation_prix', false);
+
+        if ($user->type_utilisateur === ROLE_COMMERCIAL) {
+            $mesCommandes = Commande::where('commercial_id', $user->id)->select('id');
+
+            return $relation
+                ->where('type', '!=', TYPE_MESSAGE_RAPPORT)
+                ->where(fn ($q) => $q->whereNull('commande_id')->orWhereIn('commande_id', $mesCommandes))
+                ->where(fn ($q) => $q->where('auteur_id', $user->id)
+                    ->orWhereHas('auteur', fn ($a) => $a->where('type_utilisateur', '!=', ROLE_COMMERCIAL)));
+        }
+
+        if (in_array($user->type_utilisateur, CommandeTransmiseScope::ROLES_CONCERNES, true)) {
+            $relation->where('date_envoi', '<=', now());
+        }
+
+        return $relation;
     }
 
     private function formaterCommandeCarte(Commande $commande, Produit $produit, int $nouvellesActivites, ?JournalAudit $dernierSuivi): array
@@ -217,7 +254,7 @@ class MessageController extends Controller
             return null;
         }
 
-        return $adresse->localite ? "{$adresse->ville}, {$adresse->localite->nom}" : $adresse->ville;
+        return $adresse->libelleZone();
     }
 
     /**

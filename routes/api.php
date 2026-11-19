@@ -182,6 +182,7 @@ Route::prefix('v1')->group(function () {
         // affilié partageable). Voir BoutiqueController.
         // Support Ordi'Space (numéro fixé par l'Admin) — lisible par tout compte connecté.
         Route::get('support', [ParametreController::class, 'support']);
+        Route::get('contact-commercial', [ParametreController::class, 'contactCommercial']);
 
         Route::prefix('boutique')->group(function () {
             Route::post('produits/{produit}/lien', [BoutiqueController::class, 'genererLien']);
@@ -619,9 +620,11 @@ Route::prefix('v1')->group(function () {
             Route::post('utilisateurs', [UtilisateurController::class, 'provisionner']);
             Route::patch('utilisateurs/{utilisateur}', [UtilisateurController::class, 'modifier']);
             Route::patch('utilisateurs/{utilisateur}/statut', [UtilisateurController::class, 'changerStatut']);
+            Route::post('utilisateurs/{utilisateur}/deconnecter', [UtilisateurController::class, 'deconnecter']);
             Route::get('statistiques', [StatistiqueController::class, 'globales']);
             Route::get('statistiques/tableau-de-bord', [StatistiqueController::class, 'tableauDeBordGeneral']);
             Route::put('parametres/support', [ParametreController::class, 'modifierSupport']);
+            Route::put('parametres/contact-commercial', [ParametreController::class, 'modifierContactCommercial']);
 
             Route::middleware('espace:clients')->group(function () {
                 Route::get('clients', [ClientController::class, 'index']);

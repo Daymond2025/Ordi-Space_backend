@@ -326,12 +326,12 @@ class CommandeController extends Controller
 
             $livraisonGratuite = $this->estDeuxiemeCommandeEligible($clientId);
 
-            // Même garde Admin-only que prix_unitaire/duree_garantie_mois —
-            // frais négociés pour une vente enregistrée manuellement (écran
-            // "Nouvelle commande"). Sinon, toujours le calcul automatique
-            // (barème FraisLivraisonProduit), y compris pour un Admin qui
-            // n'envoie pas ce champ.
-            if ($request->user()->type_utilisateur === ROLE_ADMINISTRATEUR && $request->filled('frais_livraison')) {
+            // Frais saisis à la main par un Admin ou un Commercial (écran
+            // "Nouvelle commande" : le commercial peut corriger les frais
+            // proposés). Sinon, toujours le calcul automatique (barème
+            // FraisLivraisonProduit), y compris quand ce champ est absent.
+            $peutFixerFrais = in_array($request->user()->type_utilisateur, [ROLE_ADMINISTRATEUR, ROLE_COMMERCIAL], true);
+            if ($peutFixerFrais && $necessiteLivraison && $request->filled('frais_livraison')) {
                 $fraisLivraison = (float) $request->input('frais_livraison');
             } else {
                 $fraisLivraison = $necessiteLivraison
@@ -343,6 +343,8 @@ class CommandeController extends Controller
                     )
                     : 0.0;
             }
+
+            $dateTransmission = $this->resoudreDateTransmission($request);
 
             $commande = Commande::create([
                 'client_id' => $clientId,
@@ -358,6 +360,7 @@ class CommandeController extends Controller
                 'bonus_offerts' => $request->input('bonus_offerts'),
                 'notes' => $request->input('notes'),
                 'date_commande' => now(),
+                'date_transmission' => $dateTransmission,
             ]);
 
             foreach ($lignesAPersister as $ligne) {
@@ -427,7 +430,10 @@ class CommandeController extends Controller
             'commande_id' => $commande->id,
             'auteur_id' => $request->user()->id,
             'type' => TYPE_MESSAGE_COMMANDE_CREEE,
-            'date_envoi' => now(),
+            // Commande programmée : la carte n'apparaît dans le fil de la
+            // coordination qu'au moment de la transmission (voir
+            // MessageController::messagesProduitVisibles()).
+            'date_envoi' => $commande->date_transmission ?? now(),
             'donnees' => $commande->versApercu(),
         ]);
     }
@@ -718,6 +724,31 @@ class CommandeController extends Controller
         );
 
         return $this->success($commande->fresh('livraison'));
+    }
+
+    /**
+     * Livraison programmée par un commercial : la commande n'est transmise
+     * à la coordination qu'une heure avant la date choisie. Livraison
+     * immédiate (pas de date), date trop proche ou autre rôle : transmise
+     * tout de suite (null).
+     */
+    private function resoudreDateTransmission(StoreCommandeRequest $request): ?\Illuminate\Support\Carbon
+    {
+        if ($request->user()->type_utilisateur !== ROLE_COMMERCIAL || ! $request->filled('date_livraison_prevue')) {
+            return null;
+        }
+
+        $dateLivraison = \Illuminate\Support\Carbon::parse($request->input('date_livraison_prevue'));
+
+        if ($dateLivraison->isPast()) {
+            throw ValidationException::withMessages([
+                'date_livraison_prevue' => ['La date de livraison doit être dans le futur.'],
+            ]);
+        }
+
+        $transmission = $dateLivraison->copy()->subHour();
+
+        return $transmission->isFuture() ? $transmission : null;
     }
 
     /**

@@ -27,6 +27,8 @@ class DatabaseSeeder extends Seeder
         $this->seedAgentIa();
         $this->seedCategoriesAjoutProduitCoordinateur();
         $this->call(FiltresCatalogueSeeder::class);
+        // Réponses rapides de l'app Commercial (mêmes contenus qu'en local).
+        $this->call(ReponsesRapidesSeeder::class);
 
         // Présentation de l'app Maintenancier — à retirer ensuite.
         $this->call(DemoSavSeeder::class);

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\CommandeTransmiseScope;
+use App\Services\CommissionCommercial;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,11 +14,17 @@ class Commande extends Model
 {
     protected $table = 'commandes';
 
+    /** Commande programmée : invisible pour la coordination tant qu'elle n'est pas transmise. */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new CommandeTransmiseScope());
+    }
+
     protected $fillable = [
         'client_id', 'commercial_id', 'coordinateur_id', 'canal_vente_id',
         'statut_commande', 'montant_total', 'montant_remise', 'frais_livraison', 'bonus_offerts', 'notes', 'privilege_id', 'date_commande',
         'date_validation', 'parrain_id', 'parrainage_recompense_versee', 'livraison_gratuite_appliquee',
-        'commissions_fournisseurs_versees',
+        'commissions_fournisseurs_versees', 'commission_commercial', 'date_transmission',
     ];
 
     protected function casts(): array
@@ -25,8 +33,10 @@ class Commande extends Model
             'montant_total' => 'decimal:2',
             'montant_remise' => 'decimal:2',
             'frais_livraison' => 'decimal:2',
+            'commission_commercial' => 'decimal:2',
             'date_commande' => 'datetime',
             'date_validation' => 'datetime',
+            'date_transmission' => 'datetime',
         ];
     }
 
@@ -238,18 +248,16 @@ class Commande extends Model
     }
 
     /**
-     * "Commande validé" ("Mes paiements", app Commercial) — crédite un
-     * montant FIXE (COMMISSION_COMMERCIAL_PAR_VENTE) par commande validée,
-     * quel que soit le produit vendu (confirmé PDG — jamais
-     * Produit::commission_agent, un champ du formulaire Coordinateur sans
-     * lien avec ce montant). Idempotent (une seule transaction "credit" par
-     * commande) pour rester correct même si la commande repasse par
-     * "validée" plusieurs fois (ex. après "reportée"). Le verrou sur le
-     * commercial + la contrainte unique (commande_id, type) (migration
-     * ..._add_unique_commande_type_to_transactions_portefeuille_commerciaux)
-     * empêchent un double crédit si deux requêtes concurrentes (ex.
-     * "valider" rejouée deux fois) passent toutes les deux le premier
-     * exists() avant qu'aucune n'ait commité son insert (audit sécurité).
+     * "Commande validé" ("Mes paiements", app Commercial) — crédite la
+     * commission du commercial PAR PRODUIT VENDU, selon son type (interne :
+     * montant fixe ; indépendant : montant propre au produit, voir
+     * App\Services\CommissionCommercial). Le montant est figé sur la commande
+     * (commission_commercial) au moment du crédit. Idempotent (une seule
+     * transaction "credit" par commande) pour rester correct même si la
+     * commande repasse par "validée" plusieurs fois (ex. après "reportée").
+     * Le verrou sur le commercial + la contrainte unique (commande_id, type)
+     * empêchent un double crédit si deux requêtes concurrentes passent toutes
+     * les deux le premier exists() avant qu'aucune n'ait commité son insert.
      */
     public function crediterCommissionCommercialSiEligible(): void
     {
@@ -280,8 +288,15 @@ class Commande extends Model
                     return;
                 }
 
+                $montant = CommissionCommercial::calculer($this, $commercial);
+                $this->forceFill(['commission_commercial' => $montant])->saveQuietly();
+
+                if ($montant <= 0) {
+                    return;
+                }
+
                 $commercial->crediterPortefeuille(
-                    COMMISSION_COMMERCIAL_PAR_VENTE, 'Commande validé', $this->id, $this->nomClientPourPortefeuille(), $this->localitePourPortefeuille()
+                    $montant, 'Commande validé', $this->id, $this->nomClientPourPortefeuille(), $this->localitePourPortefeuille()
                 );
             });
         } catch (\Illuminate\Database\QueryException $e) {
@@ -446,7 +461,7 @@ class Commande extends Model
             'prix_produit' => (float) $this->montant_total,
             'nom_client' => trim(($this->client?->user?->prenom ?? '').' '.($this->client?->user?->nom ?? '')),
             'telephone' => $this->client?->user?->telephone,
-            'zone_livraison' => $adresse ? ($adresse->localite ? "{$adresse->ville}, {$adresse->localite->nom}" : $adresse->ville) : null,
+            'zone_livraison' => $adresse?->libelleZone(),
             'date_livraison_prevue' => $this->livraison?->date_livraison_prevue,
             'frais_livraison' => (float) $this->frais_livraison,
             'remise' => (float) $this->montant_remise,

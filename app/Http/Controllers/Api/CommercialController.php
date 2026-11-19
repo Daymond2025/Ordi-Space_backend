@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Commande;
 use App\Models\Commercial;
+use App\Services\CommissionCommercial;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Écran "Les commerciaux" (Espace Agent, bottombar) — Espace Coordinateur.
@@ -16,10 +18,8 @@ class CommercialController extends Controller
     /**
      * Statistiques calculées par sous-requête corrélée (même technique que
      * FournisseurController::index()) — pas de colonnes dédiées.
-     * "commission_totale" = COMMISSION_COMMERCIAL_PAR_VENTE × commandes
-     * livrées (montant fixe, confirmé PDG — jamais Produit::commission_agent,
-     * un champ du formulaire Coordinateur sans lien avec ce que touche
-     * réellement l'agent commercial).
+     * "commission_totale" = commissions des commandes livrées, par produit
+     * vendu selon le type du commercial (voir App\Services\CommissionCommercial).
      */
     public function liste(Request $request): JsonResponse
     {
@@ -41,17 +41,22 @@ class CommercialController extends Controller
                 'commandes_annulees_count' => 'integer',
                 'commandes_livrees_count' => 'integer',
             ])
-            ->get()
+            ->get();
+
+        $commissions = CommissionCommercial::totauxLivreesParCommercial($commerciaux->pluck('user_id'));
+
+        $commerciaux = $commerciaux
             ->map(fn (Commercial $commercial) => [
                 'user_id' => $commercial->user_id,
                 'nom' => $commercial->user->nom,
                 'prenom' => $commercial->user->prenom,
                 'actif' => $commercial->user->statut_compte === STATUT_COMPTE_ACTIF,
+                'categorie_commercial' => $commercial->categorie_commercial,
                 'membre_depuis' => $commercial->created_at,
                 'commandes_total' => $commercial->commandes_total_count,
                 'commandes_validees' => $commercial->commandes_validees_count,
                 'commandes_annulees' => $commercial->commandes_annulees_count,
-                'commission_totale' => (float) ($commercial->commandes_livrees_count * COMMISSION_COMMERCIAL_PAR_VENTE),
+                'commission_totale' => (float) ($commissions[$commercial->user_id] ?? 0),
             ]);
 
         return $this->success($commerciaux);
@@ -67,7 +72,6 @@ class CommercialController extends Controller
         abort_unless($request->user()->can(PERMISSION_COMMERCIAUX_CONSULTER), 403);
 
         $commandes = $commercial->commandes();
-        $commandesLivrees = (clone $commandes)->where('statut_commande', STATUT_COMMANDE_LIVREE)->count();
 
         return $this->success([
             'user_id' => $commercial->user_id,
@@ -77,11 +81,12 @@ class CommercialController extends Controller
             'actif' => $commercial->user->statut_compte === STATUT_COMPTE_ACTIF,
             'nom_entreprise' => $commercial->nom_entreprise,
             'localisation' => $commercial->localisation,
+            'categorie_commercial' => $commercial->categorie_commercial,
             'statistiques' => [
                 'commandes_total' => (clone $commandes)->count(),
                 'commandes_validees' => (clone $commandes)->where('statut_commande', STATUT_COMMANDE_VALIDEE)->count(),
                 'commandes_annulees' => (clone $commandes)->where('statut_commande', STATUT_COMMANDE_ANNULEE)->count(),
-                'commission_totale' => (float) ($commandesLivrees * COMMISSION_COMMERCIAL_PAR_VENTE),
+                'commission_totale' => CommissionCommercial::totalLivrees($commercial->commandes()),
             ],
         ]);
     }
@@ -121,6 +126,9 @@ class CommercialController extends Controller
         $data = $request->validate([
             'nom_entreprise' => ['nullable', 'string', 'max:150'],
             'localisation' => ['nullable', 'string', 'max:255'],
+            // Le changement ne vaut que pour les commissions à venir : celles
+            // déjà créditées restent figées sur leur commande.
+            'categorie_commercial' => ['sometimes', Rule::in(CATEGORIES_COMMERCIAL)],
         ]);
 
         $commercial->update($data);

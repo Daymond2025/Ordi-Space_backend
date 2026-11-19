@@ -13,7 +13,7 @@ class Commercial extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'user_id', 'type_commercial', 'matricule', 'nom_modele_ia', 'nom_entreprise', 'localisation', 'solde_portefeuille',
+        'user_id', 'type_commercial', 'categorie_commercial', 'matricule', 'nom_modele_ia', 'nom_entreprise', 'localisation', 'solde_portefeuille',
     ];
 
     protected function casts(): array
@@ -39,6 +39,11 @@ class Commercial extends Model
     public function estAgentIa(): bool
     {
         return $this->type_commercial === TYPE_COMMERCIAL_IA;
+    }
+
+    public function estIndependant(): bool
+    {
+        return $this->categorie_commercial === CATEGORIE_COMMERCIAL_INDEPENDANT;
     }
 
     /** "Commande validé" (+commission_agent cumulé des lignes) — voir Commande::crediterCommissionCommercialSiEligible(). */

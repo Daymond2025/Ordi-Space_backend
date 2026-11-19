@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\DemanderOtpTelephoneRequest;
 use App\Http\Requests\Auth\InscrireTelephoneRequest;
 use App\Models\Client;
-use App\Models\Commercial;
 use App\Models\Fournisseur;
 use App\Models\Livreur;
 use App\Models\User;
@@ -76,7 +75,7 @@ class TelephoneAuthController extends Controller
     }
 
     /**
-     * Fournisseur/Commercial/Livreur par téléphone — même création de
+     * Fournisseur/Livreur par téléphone — même création de
      * sous-profil que AuthController::register() (volontairement dupliquée,
      * pas extraite : register() reste intact pour les comptes existants),
      * mais sans mot de passe choisi ni e-mail, comme Client::creerCompteMinimal().
@@ -100,7 +99,6 @@ class TelephoneAuthController extends Controller
                     'user_id' => $user->id,
                     'nom_entreprise' => $request->string('nom_entreprise'),
                 ]),
-                ROLE_COMMERCIAL => Commercial::create(['user_id' => $user->id, 'type_commercial' => TYPE_COMMERCIAL_HUMAIN]),
                 ROLE_LIVREUR => Livreur::create([
                     'user_id' => $user->id,
                     'photo_permis' => $request->file('photo_permis')->store(LIVREUR_DOCUMENT_DOSSIER, IMAGE_PRODUIT_DISQUE),

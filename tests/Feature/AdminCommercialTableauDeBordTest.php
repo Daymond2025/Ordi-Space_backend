@@ -102,9 +102,9 @@ class AdminCommercialTableauDeBordTest extends TestCase
         $reponse = $this->actingAs($admin)->postJson('/api/v1/admin/utilisateurs', [
             'nom' => 'Koné',
             'prenom' => 'Awa',
-            'email' => 'awa.kone@example.com',
-            'password' => 'MotDePasse1',
+            'telephone' => '07 11 22 33 44',
             'type_utilisateur' => ROLE_COMMERCIAL,
+            'categorie_commercial' => CATEGORIE_COMMERCIAL_INDEPENDANT,
             'nom_entreprise' => 'Awa Distrib',
             'localisation' => 'Abidjan, Marcory',
         ]);
@@ -113,7 +113,7 @@ class AdminCommercialTableauDeBordTest extends TestCase
         $userId = $reponse->json('data.id');
 
         $this->assertDatabaseHas('commerciaux', [
-            'user_id' => $userId, 'type_commercial' => TYPE_COMMERCIAL_HUMAIN,
+            'user_id' => $userId, 'type_commercial' => TYPE_COMMERCIAL_HUMAIN, 'categorie_commercial' => CATEGORIE_COMMERCIAL_INDEPENDANT,
             'nom_entreprise' => 'Awa Distrib', 'localisation' => 'Abidjan, Marcory',
         ]);
         $this->assertTrue(User::find($userId)->hasRole(ROLE_COMMERCIAL));

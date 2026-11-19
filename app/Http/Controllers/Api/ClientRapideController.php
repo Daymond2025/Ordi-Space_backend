@@ -75,6 +75,9 @@ class ClientRapideController extends Controller
 
         $data = $request->validate([
             'localite_id' => ['required', 'exists:localites,id'],
+            // Précision libre du lieu (quartier, repère…) — saisie par le
+            // commercial dans "Nouvelle commande". Sinon le nom de la localité.
+            'precision' => ['nullable', 'string', 'max:255'],
         ]);
 
         $localite = Localite::findOrFail($data['localite_id']);
@@ -84,6 +87,7 @@ class ClientRapideController extends Controller
             'client_id' => $client,
             'ville' => $ville,
             'rue' => $localite->nom,
+            'precision_lieu' => ($data['precision'] ?? null) ?: null,
             'pays' => "Côte d'Ivoire",
             'localite_id' => $localite->id,
         ]);

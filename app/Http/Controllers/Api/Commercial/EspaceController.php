@@ -10,6 +10,7 @@ use App\Models\LigneCommande;
 use App\Models\Produit;
 use App\Models\TransactionPortefeuilleCommercial;
 use App\Services\NotificationAdminService;
+use App\Services\CommissionCommercial;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,9 +21,9 @@ use Illuminate\Validation\ValidationException;
  * "Accueil" — Espace Commercial (humain) : mêmes compteurs que l'Espace
  * Coordinateur (Api\Coordinateur\EspaceController), mais scopés aux seules
  * commandes DE ce commercial (commercial_id), jamais toutes les commandes
- * de la plateforme. "commission_totale" = COMMISSION_COMMERCIAL_PAR_VENTE ×
- * nombre de commandes livrées (montant fixe, confirmé PDG — jamais
- * Produit::commission_agent) — même calcul que CommercialController::show()
+ * de la plateforme. "commission_totale" = commissions des commandes livrées,
+ * par produit vendu selon son type (App\Services\CommissionCommercial) —
+ * même calcul que CommercialController::show()
  * (vue Coordinateur sur un commercial précis), ici en self-service.
  * PERMISSION_STATISTIQUES_PERIMETRE était déjà seedée pour ROLE_COMMERCIAL
  * (RolesAndPermissionsSeeder) sans qu'aucune route ne l'utilise encore pour
@@ -53,7 +54,7 @@ class EspaceController extends Controller
             'commandes_en_cours' => (clone $base)->whereNotIn('statut_commande', [STATUT_COMMANDE_LIVREE, STATUT_COMMANDE_ANNULEE])->count(),
             'commandes_livrees' => $commandesLivrees,
             'commandes_annulees' => (clone $base)->where('statut_commande', STATUT_COMMANDE_ANNULEE)->count(),
-            'commission_totale' => (float) ($commandesLivrees * COMMISSION_COMMERCIAL_PAR_VENTE),
+            'commission_totale' => CommissionCommercial::totalLivrees($base),
         ]);
     }
 
@@ -102,8 +103,8 @@ class EspaceController extends Controller
             ]);
 
         return $this->success([
-            'commission_totale' => (float) ($commandesLivrees * COMMISSION_COMMERCIAL_PAR_VENTE),
-            'croissance_pourcentage' => $this->croissancePourcentageCommercial($commercialId, $request, $commandesLivrees),
+            'commission_totale' => $commissionTotale = CommissionCommercial::totalLivrees($base),
+            'croissance_pourcentage' => $this->croissancePourcentageCommercial($commercialId, $request, $commissionTotale),
             'commandes_total' => (clone $base)->count(),
             'commandes_validees' => (clone $base)->where('statut_commande', STATUT_COMMANDE_VALIDEE)->count(),
             'commandes_livrees' => $commandesLivrees,
@@ -115,12 +116,12 @@ class EspaceController extends Controller
     }
 
     /**
-     * Compare les commandes livrées (× montant fixe) de la période
+     * Compare les commissions des commandes livrées de la période
      * sélectionnée à la période équivalente précédente — null si "tout" ou
      * si la précédente est à 0 (division impossible). Même structure que
      * FournisseurController::croissancePourcentage().
      */
-    private function croissancePourcentageCommercial(int $commercialId, Request $request, int $commandesLivreesActuelles): ?float
+    private function croissancePourcentageCommercial(int $commercialId, Request $request, float $commissionActuelle): ?float
     {
         $periode = $request->string('periode')->toString() ?: 'tout';
 
@@ -136,17 +137,13 @@ class EspaceController extends Controller
             return null;
         }
 
-        $commandesLivreesPrecedentes = Commande::where('commercial_id', $commercialId)
-            ->where('statut_commande', STATUT_COMMANDE_LIVREE)
-            ->whereBetween('date_commande', [$debutPrecedent, $finPrecedent])
-            ->count();
+        $commissionPrecedente = CommissionCommercial::totalLivrees(
+            Commande::where('commercial_id', $commercialId)->whereBetween('date_commande', [$debutPrecedent, $finPrecedent])
+        );
 
-        if ($commandesLivreesPrecedentes <= 0) {
+        if ($commissionPrecedente <= 0) {
             return null;
         }
-
-        $commissionActuelle = $commandesLivreesActuelles * COMMISSION_COMMERCIAL_PAR_VENTE;
-        $commissionPrecedente = $commandesLivreesPrecedentes * COMMISSION_COMMERCIAL_PAR_VENTE;
 
         return round((($commissionActuelle - $commissionPrecedente) / $commissionPrecedente) * 100, 1);
     }

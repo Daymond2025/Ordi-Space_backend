@@ -26,7 +26,7 @@ class Produit extends Model
         'type_livraison', 'duree_garantie_mois', 'est_booste',
         'processeur', 'memoire_ram', 'stockage', 'taille',
         'systeme_exploitation', 'carte_graphique', 'couleur', 'cadeaux', 'contenu_pack', 'images_cadeaux', 'etat_produit',
-        'prix_vente', 'commission_agent', 'commission_apporteur',
+        'prix_vente', 'commission_agent', 'commission_commercial_independant', 'commission_apporteur',
         'pourcentage_reduction', 'prix_barre', 'marque',
     ];
 
@@ -54,6 +54,7 @@ class Produit extends Model
             'prix' => 'decimal:2',
             'prix_vente' => 'decimal:2',
             'commission_agent' => 'decimal:2',
+            'commission_commercial_independant' => 'decimal:2',
             'commission_apporteur' => 'decimal:2',
             'prix_barre' => 'decimal:2',
             'pourcentage_reduction' => 'integer',
@@ -203,9 +204,10 @@ class Produit extends Model
      * 3 statuts "problème" de la Phase 1). Utilisé par la discussion produit
      * et le fil d'activité récente de l'accueil (MessageController).
      */
-    public function statistiquesCommandes(): array
+    public function statistiquesCommandes(?int $commercialId = null): array
     {
-        $base = Commande::whereHas('lignes', fn ($q) => $q->where('produit_id', $this->id));
+        $base = Commande::whereHas('lignes', fn ($q) => $q->where('produit_id', $this->id))
+            ->when($commercialId, fn ($q) => $q->where('commercial_id', $commercialId));
 
         return [
             'recues' => (clone $base)->count(),

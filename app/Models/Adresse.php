@@ -10,7 +10,7 @@ class Adresse extends Model
 {
     protected $table = 'adresses';
 
-    protected $fillable = ['client_id', 'libelle', 'rue', 'ville', 'pays', 'localite_id', 'lien_maps'];
+    protected $fillable = ['client_id', 'libelle', 'rue', 'precision_lieu', 'ville', 'pays', 'localite_id', 'lien_maps'];
 
     public function client(): BelongsTo
     {
@@ -25,5 +25,17 @@ class Adresse extends Model
     public function livraisons(): HasMany
     {
         return $this->hasMany(Livraison::class, 'adresse_id');
+    }
+
+    /**
+     * "Ville, Localité" (ou juste la ville, texte libre historique), suivi
+     * de la précision saisie par le commercial (quartier, repère…) — voir
+     * ClientRapideController::creerAdresse().
+     */
+    public function libelleZone(): string
+    {
+        $zone = $this->localite ? "{$this->ville}, {$this->localite->nom}" : (string) $this->ville;
+
+        return $this->precision_lieu ? "{$zone} — {$this->precision_lieu}" : $zone;
     }
 }

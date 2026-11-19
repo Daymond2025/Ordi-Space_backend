@@ -8,6 +8,7 @@ use App\Models\Commercial;
 use App\Models\DemandeRetrait;
 use App\Models\TransactionPortefeuilleCommercial;
 use App\Models\User;
+use App\Services\CommissionCommercial;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -49,19 +50,17 @@ class CommercialController extends Controller
             $retraitsParStatut[$statut] = ['nombre' => (clone $requete)->count(), 'montant' => (float) $requete->sum('montant')];
         }
 
-        $commandesCommercial = fn () => Commande::selectRaw('count(*)')->whereColumn('commercial_id', 'commerciaux.user_id')
-            ->where('commandes.statut_commande', STATUT_COMMANDE_LIVREE);
+        $commissions = CommissionCommercial::totauxLivreesParCommercial($idsHumains);
 
         $topCommerciaux = Commercial::with('user:id,nom,prenom')
             ->where('type_commercial', TYPE_COMMERCIAL_HUMAIN)
-            ->addSelect(['commandes_livrees_count' => $commandesCommercial()])
-            ->withCasts(['commandes_livrees_count' => 'integer'])
             ->get()
             ->map(fn (Commercial $c) => [
                 'user_id' => $c->user_id,
                 'nom' => $c->user->nom,
                 'prenom' => $c->user->prenom,
-                'commission_totale' => (float) ($c->commandes_livrees_count * COMMISSION_COMMERCIAL_PAR_VENTE),
+                'categorie_commercial' => $c->categorie_commercial,
+                'commission_totale' => (float) ($commissions[$c->user_id] ?? 0),
             ])
             ->sortByDesc('commission_totale')
             ->take(5)

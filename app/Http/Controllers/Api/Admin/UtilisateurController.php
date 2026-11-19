@@ -52,8 +52,10 @@ class UtilisateurController extends Controller
         // voir TelephoneAuthController) — email/password deviennent
         // optionnels pour lui, téléphone devient au contraire obligatoire
         // (c'est son seul identifiant de connexion).
-        // Même règle pour le Partenaire (app Partenaire = téléphone+OTP).
-        $estTechnicien = in_array($request->input('type_utilisateur'), [ROLE_TECHNICIEN_MAINTENANCE, ROLE_PARTENAIRE], true);
+        // Même règle pour le Partenaire (app Partenaire = téléphone+OTP) et
+        // le Commercial (entité interne, compte créé par l'Admin avec son
+        // numéro, plus d'auto-inscription).
+        $estTechnicien = in_array($request->input('type_utilisateur'), [ROLE_TECHNICIEN_MAINTENANCE, ROLE_PARTENAIRE, ROLE_COMMERCIAL], true);
 
         $data = $request->validate([
             'nom' => ['required', 'string', 'max:100'],
@@ -69,6 +71,9 @@ class UtilisateurController extends Controller
             // Commercial (humain) : mêmes champs métier optionnels que sur sa
             // fiche (voir CommercialController::modifierProfilAdmin()).
             'localisation' => ['nullable', 'string', 'max:255'],
+            // Interne (salarié : 1 000 F par produit vendu) ou indépendant
+            // (recruté : commission propre au produit, 2 500 F par défaut).
+            'categorie_commercial' => ['required_if:type_utilisateur,'.ROLE_COMMERCIAL, 'nullable', Rule::in(CATEGORIES_COMMERCIAL)],
             // Partenaire : boutique, remise par défaut (%) sur le prix
             // Ordi'Space et villes couvertes (voir Admin\PartenaireController).
             'nom_boutique' => ['required_if:type_utilisateur,'.ROLE_PARTENAIRE, 'nullable', 'string', 'max:150'],
@@ -126,6 +131,7 @@ class UtilisateurController extends Controller
                 ROLE_COMMERCIAL => Commercial::create([
                     'user_id' => $user->id,
                     'type_commercial' => TYPE_COMMERCIAL_HUMAIN,
+                    'categorie_commercial' => $data['categorie_commercial'],
                     'nom_entreprise' => $data['nom_entreprise'] ?? null,
                     'localisation' => $data['localisation'] ?? null,
                 ]),
@@ -156,13 +162,30 @@ class UtilisateurController extends Controller
         $data = $request->validate([
             'nom' => ['sometimes', 'string', 'max:100'],
             'prenom' => ['nullable', 'string', 'max:100'],
-            'email' => ['sometimes', 'email', Rule::unique('users', 'email')->ignore($utilisateur->id)->where('type_utilisateur', $utilisateur->type_utilisateur)],
+            // Nullable : les comptes créés avec leur seul numéro (Technicien,
+            // Partenaire, Commercial) n'ont pas d'e-mail.
+            'email' => ['sometimes', 'nullable', 'email', Rule::unique('users', 'email')->ignore($utilisateur->id)->where('type_utilisateur', $utilisateur->type_utilisateur)],
             'telephone' => ['nullable', 'string', 'max:30'],
         ]);
 
         $utilisateur->update($data);
 
         return $this->success($utilisateur->fresh());
+    }
+
+    /**
+     * "Déconnecter" — ferme toutes les sessions ouvertes de l'utilisateur sans
+     * toucher à son compte : il devra se reconnecter (code WhatsApp). Le
+     * Commercial n'a pas de bouton de déconnexion dans son app, seul l'Admin
+     * peut le déconnecter.
+     */
+    public function deconnecter(Request $request, User $utilisateur): JsonResponse
+    {
+        abort_if($utilisateur->id === $request->user()->id, 422, 'Vous ne pouvez pas vous déconnecter vous-même ici.');
+
+        $sessions = $utilisateur->tokens()->delete();
+
+        return $this->success(['sessions_fermees' => $sessions]);
     }
 
     public function changerStatut(Request $request, User $utilisateur): JsonResponse

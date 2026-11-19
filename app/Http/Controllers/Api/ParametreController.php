@@ -37,6 +37,45 @@ class ParametreController extends Controller
         return $this->success($this->formaterSupport());
     }
 
+    /**
+     * "Contactez le service" (app Commercial) — numéro d'appel et numéro
+     * WhatsApp du service, fixés par l'Admin. null tant qu'ils ne sont pas
+     * renseignés.
+     */
+    public function contactCommercial(): JsonResponse
+    {
+        return $this->success($this->formaterContactCommercial());
+    }
+
+    /** Administrateur uniquement (route sous le préfixe admin). */
+    public function modifierContactCommercial(Request $request): JsonResponse
+    {
+        $numero = ['required', 'string', 'max:30', function (string $attribut, mixed $valeur, \Closure $echec) {
+            if (strlen(preg_replace('/\D/', '', (string) $valeur)) < 8) {
+                $echec('Le numéro doit contenir au moins 8 chiffres.');
+            }
+        }];
+
+        $data = $request->validate(['appel' => $numero, 'whatsapp' => $numero]);
+
+        Parametre::ecrire(PARAMETRE_CONTACT_COMMERCIAL_APPEL, normaliser_numero_ci($data['appel']));
+        Parametre::ecrire(PARAMETRE_CONTACT_COMMERCIAL_WHATSAPP, normaliser_numero_ci($data['whatsapp']));
+
+        return $this->success($this->formaterContactCommercial());
+    }
+
+    private function formaterContactCommercial(): array
+    {
+        $whatsapp = Parametre::lire(PARAMETRE_CONTACT_COMMERCIAL_WHATSAPP);
+
+        return [
+            'nom' => "Service Ordi'Space",
+            'appel' => Parametre::lire(PARAMETRE_CONTACT_COMMERCIAL_APPEL),
+            'whatsapp' => $whatsapp,
+            'whatsapp_url' => lien_whatsapp($whatsapp),
+        ];
+    }
+
     private function formaterSupport(): array
     {
         $telephone = Parametre::lire(PARAMETRE_SUPPORT_TELEPHONE);

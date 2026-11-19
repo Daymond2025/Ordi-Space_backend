@@ -65,19 +65,25 @@ class CommandeAdminEnrichieTest extends TestCase
         $produit = $this->creerProduitPhysique(['duree_garantie_mois' => 12]);
         $adresse = $this->creerAdresseAvecLocalite($client);
 
+        // La garantie négociée reste réservée à l'Admin, même pour un commercial
+        // (qui peut en revanche fixer les frais de livraison — voir
+        // CommercialGestionCommandesTest).
         $reponse = $this->actingAs($commercial)->postJson('/api/v1/commandes', [
             'client_id' => $client->id,
             'adresse_id' => $adresse->id,
             'lignes' => [['produit_id' => $produit->id, 'quantite' => 1, 'duree_garantie_mois' => 6]],
-            'frais_livraison' => 1,
         ]);
 
         $reponse->assertCreated();
         $commandeId = $reponse->json('data.id');
 
-        // Le barème automatique prévaut (2000, voir creerProduitPhysique()),
-        // pas le "1" envoyé.
-        $this->assertEquals(2000, $reponse->json('data.frais_livraison'));
+        // Un client qui commande lui-même ne peut pas fixer les frais : le
+        // barème automatique prévaut (2000, voir creerProduitPhysique()), pas le "1" envoyé.
+        $this->actingAs($client)->postJson('/api/v1/commandes', [
+            'adresse_id' => $adresse->id,
+            'lignes' => [['produit_id' => $produit->id, 'quantite' => 1]],
+            'frais_livraison' => 1,
+        ])->assertCreated()->assertJsonPath('data.frais_livraison', fn ($frais) => (float) $frais === 2000.0);
 
         $ligne = LigneCommande::where('commande_id', $commandeId)->firstOrFail();
         $this->assertNull($ligne->duree_garantie_mois);

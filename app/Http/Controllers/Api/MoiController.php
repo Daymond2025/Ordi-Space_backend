@@ -64,6 +64,7 @@ class MoiController extends Controller
             // add_nom_entreprise_et_localisation_to_commerciaux_table.
             $data['nom_entreprise'] = $user->commercial->nom_entreprise;
             $data['localisation'] = $user->commercial->localisation;
+            $data['categorie_commercial'] = $user->commercial->categorie_commercial;
         }
 
         if ($user->type_utilisateur === ROLE_TECHNICIEN_MAINTENANCE) {

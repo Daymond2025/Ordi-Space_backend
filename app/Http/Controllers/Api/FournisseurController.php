@@ -205,7 +205,7 @@ class FournisseurController extends Controller
             return null;
         }
 
-        return $adresse->localite ? "{$adresse->ville}, {$adresse->localite->nom}" : $adresse->ville;
+        return $adresse->libelleZone();
     }
 
     /**

@@ -45,14 +45,13 @@ class StoreCommandeRequest extends FormRequest
             // quand un nombre de mois entier ne peut pas représenter la durée
             // négociée. Jamais envoyée en même temps que duree_garantie_mois.
             'lignes.*.duree_garantie_jours' => ['nullable', 'integer', 'min:1', 'max:3650'],
-            // Frais de livraison négociés — honorés uniquement pour un Admin
-            // (voir CommandeController::store()), sinon toujours recalculés
-            // via calculerFraisLivraison().
-            'frais_livraison' => ['nullable', 'numeric', 'min:0'],
-            // Date/heure de livraison prévue (écran "Nouvelle commande") —
-            // transmise telle quelle à Livraison::create(), voir
-            // livraisons.date_livraison_prevue (colonne existante, jusqu'ici
-            // jamais renseignée).
+            // Frais de livraison saisis à la main — honorés pour un Admin et
+            // un Commercial (voir CommandeController::store()), sinon
+            // toujours recalculés via calculerFraisLivraison().
+            'frais_livraison' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+            // Date/heure de livraison choisie (écran "Nouvelle commande").
+            // Absente = livraison immédiate. Pour un commercial, la commande
+            // n'est transmise qu'une heure avant (voir CommandeTransmiseScope).
             'date_livraison_prevue' => ['nullable', 'date'],
             // Code Privilège Space (ex. WELCOME2026), optionnel — vérifié et
             // appliqué dans CommandeController::store.
