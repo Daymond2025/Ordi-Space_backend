@@ -48,9 +48,33 @@ class AdministrateurController extends Controller
     {
         $this->autoriserSuperAdmin($request);
 
-        $data = $this->validerDonnees($request, creation: true);
+        // Compte admin supprimé : son e-mail redevient disponible. E-mail de la
+        // direction déjà pris : le compte existant est mis à jour et réactivé.
+        User::libererIdentifiantsSupprimes(ROLE_ADMINISTRATEUR, $request->input('email'));
+        $existant = User::estEmailDirection($request->input('email'))
+            ? User::where('type_utilisateur', ROLE_ADMINISTRATEUR)->whereRaw('LOWER(email) = ?', [mb_strtolower(trim((string) $request->input('email')))])->first()
+            : null;
 
-        $user = DB::transaction(function () use ($data) {
+        $data = $this->validerDonnees($request, creation: true, utilisateurId: $existant?->id);
+
+        $user = DB::transaction(function () use ($data, $existant) {
+            if ($existant) {
+                $existant->update([
+                    'nom' => $data['nom'],
+                    'prenom' => $data['prenom'] ?? null,
+                    'telephone' => $data['telephone'] ?? $existant->telephone,
+                    'password' => Hash::make($data['password']),
+                    'statut_compte' => STATUT_COMPTE_ACTIF,
+                ]);
+                Administrateur::updateOrCreate(['user_id' => $existant->id], [
+                    'est_super_admin' => $data['role'] === 'super_admin',
+                    'espaces_autorises' => $data['role'] === 'super_admin' ? null : ($data['espaces'] ?? []),
+                ]);
+                $existant->syncRoles([ROLE_ADMINISTRATEUR]);
+
+                return $existant;
+            }
+
             $user = User::create([
                 'nom' => $data['nom'],
                 'prenom' => $data['prenom'] ?? null,

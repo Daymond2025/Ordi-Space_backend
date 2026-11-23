@@ -158,4 +158,51 @@ class User extends Authenticatable
             ROLE_ADMINISTRATEUR => $this->administrateur(),
         };
     }
+
+    /**
+     * Un compte « supprimé » (statut_compte = supprime) reste en base pour
+     * l'historique, mais ne doit plus bloquer son e-mail ni son téléphone :
+     * à la création d'un compte du même rôle, on les libère (e-mail renommé,
+     * téléphone retiré). Le nom et les données liées restent intacts.
+     */
+    public static function libererIdentifiantsSupprimes(string $type, ?string $email, ?string $telephone = null): void
+    {
+        $email = $email !== null ? trim($email) : null;
+        if (! $email && ! $telephone) {
+            return;
+        }
+
+        $comptes = static::where('type_utilisateur', $type)
+            ->where('statut_compte', STATUT_COMPTE_SUPPRIME)
+            ->where(function ($q) use ($email, $telephone) {
+                if ($email) {
+                    $q->orWhereRaw('LOWER(email) = ?', [mb_strtolower($email)]);
+                }
+                if ($telephone) {
+                    $q->orWhere('telephone', $telephone);
+                }
+            })
+            ->get();
+
+        foreach ($comptes as $compte) {
+            $compte->forceFill([
+                'email' => $email && $compte->email && strcasecmp($compte->email, $email) === 0
+                    ? "supprime-{$compte->id}.{$compte->email}"
+                    : $compte->email,
+                'telephone' => $telephone && $compte->telephone === $telephone ? null : $compte->telephone,
+            ])->saveQuietly();
+        }
+    }
+
+    /**
+     * E-mail de la direction (DIRECTION_EMAIL, jamais écrit dans le dépôt) :
+     * on peut toujours lui créer un accès, même si l'e-mail est déjà pris
+     * pour ce rôle — le compte existant est alors mis à jour et réactivé.
+     */
+    public static function estEmailDirection(?string $email): bool
+    {
+        $direction = config('services.direction.email');
+
+        return $email && $direction && strcasecmp(trim($email), trim($direction)) === 0;
+    }
 }

@@ -57,10 +57,26 @@ class UtilisateurController extends Controller
         // numéro, plus d'auto-inscription).
         $estTechnicien = in_array($request->input('type_utilisateur'), [ROLE_TECHNICIEN_MAINTENANCE, ROLE_PARTENAIRE, ROLE_COMMERCIAL], true);
 
+        // Comptes supprimés : leur e-mail/téléphone redevient disponible.
+        $type = $request->input('type_utilisateur');
+        if (is_string($type)) {
+            User::libererIdentifiantsSupprimes(
+                $type,
+                $request->input('email'),
+                $request->filled('telephone') ? normaliser_telephone((string) $request->input('telephone')) : null,
+            );
+        }
+
+        // E-mail de la direction déjà pris pour ce rôle : on met ce compte à
+        // jour (et on le réactive) au lieu de refuser la création.
+        $existant = User::estEmailDirection($request->input('email')) && is_string($type)
+            ? User::where('type_utilisateur', $type)->whereRaw('LOWER(email) = ?', [mb_strtolower(trim((string) $request->input('email')))])->first()
+            : null;
+
         $data = $request->validate([
             'nom' => ['required', 'string', 'max:100'],
             'prenom' => ['nullable', 'string', 'max:100'],
-            'email' => [$estTechnicien ? 'nullable' : 'required', 'email', Rule::unique('users', 'email')->where('type_utilisateur', $request->input('type_utilisateur'))],
+            'email' => [$estTechnicien ? 'nullable' : 'required', 'email', Rule::unique('users', 'email')->ignore($existant?->id)->where('type_utilisateur', $request->input('type_utilisateur'))],
             'telephone' => [$estTechnicien ? 'required' : 'nullable', 'string', 'max:30'],
             'password' => [$estTechnicien ? 'nullable' : 'required', Password::min(8)->mixedCase()->numbers()],
             'type_utilisateur' => ['required', Rule::in(roles_provisionnes_par_admin())],
@@ -88,14 +104,25 @@ class UtilisateurController extends Controller
 
         // Le téléphone est l'identifiant de connexion de ces rôles : un
         // doublon rendrait la connexion ambiguë (TelephoneAuthController).
-        if ($estTechnicien && User::where('telephone', normaliser_telephone($data['telephone']))->where('type_utilisateur', $data['type_utilisateur'])->exists()) {
+        if ($estTechnicien && User::where('telephone', normaliser_telephone($data['telephone']))->where('type_utilisateur', $data['type_utilisateur'])->where('id', '!=', $existant?->id ?? 0)->exists()) {
             throw ValidationException::withMessages(['telephone' => ['Ce numéro est déjà utilisé par un autre compte de ce rôle.']]);
         }
 
         $photoPath = $request->hasFile('photo') ? $request->file('photo')->store(PHOTO_PROFIL_DOSSIER, IMAGE_PRODUIT_DISQUE) : null;
 
-        $user = DB::transaction(function () use ($data, $photoPath) {
-            $user = User::create([
+        $user = DB::transaction(function () use ($data, $photoPath, $existant) {
+            if ($existant) {
+                $existant->update(array_filter([
+                    'nom' => $data['nom'],
+                    'prenom' => $data['prenom'] ?? null,
+                    'telephone' => isset($data['telephone']) ? normaliser_telephone($data['telephone']) : null,
+                    'password' => isset($data['password']) ? Hash::make($data['password']) : null,
+                    'statut_compte' => STATUT_COMPTE_ACTIF,
+                    'photo' => $photoPath,
+                ], fn ($v) => $v !== null));
+            }
+
+            $user = $existant ?? User::create([
                 'nom' => $data['nom'],
                 'prenom' => $data['prenom'] ?? null,
                 'email' => $data['email'] ?? null,
@@ -110,33 +137,27 @@ class UtilisateurController extends Controller
             ]);
 
             match ($data['type_utilisateur']) {
-                ROLE_COORDINATEUR => Coordinateur::create(['user_id' => $user->id]),
-                ROLE_TECHNICIEN_MAINTENANCE => TechnicienMaintenance::create([
-                    'user_id' => $user->id,
+                ROLE_COORDINATEUR => Coordinateur::firstOrCreate(['user_id' => $user->id]),
+                ROLE_TECHNICIEN_MAINTENANCE => TechnicienMaintenance::firstOrCreate(['user_id' => $user->id], [
                     'specialite' => $data['specialite'] ?? null,
                 ]),
-                ROLE_CLIENT => Client::create([
-                    'user_id' => $user->id,
+                ROLE_CLIENT => Client::firstOrCreate(['user_id' => $user->id], [
                     'code_parrainage' => Client::genererCodeParrainage($data['nom']),
                 ]),
-                ROLE_FOURNISSEUR => Fournisseur::create([
-                    'user_id' => $user->id,
+                ROLE_FOURNISSEUR => Fournisseur::firstOrCreate(['user_id' => $user->id], [
                     'nom_entreprise' => $data['nom_entreprise'],
                 ]),
-                ROLE_LIVREUR => Livreur::create([
-                    'user_id' => $user->id,
+                ROLE_LIVREUR => Livreur::firstOrCreate(['user_id' => $user->id], [
                     'type_vehicule' => $data['type_vehicule'] ?? null,
                     'zone_couverture' => $data['zone_couverture'] ?? null,
                 ]),
-                ROLE_COMMERCIAL => Commercial::create([
-                    'user_id' => $user->id,
+                ROLE_COMMERCIAL => Commercial::firstOrCreate(['user_id' => $user->id], [
                     'type_commercial' => TYPE_COMMERCIAL_HUMAIN,
                     'categorie_commercial' => $data['categorie_commercial'],
                     'nom_entreprise' => $data['nom_entreprise'] ?? null,
                     'localisation' => $data['localisation'] ?? null,
                 ]),
-                ROLE_PARTENAIRE => Partenaire::create([
-                    'user_id' => $user->id,
+                ROLE_PARTENAIRE => Partenaire::firstOrCreate(['user_id' => $user->id], [
                     'nom_boutique' => $data['nom_boutique'],
                     'adresse_boutique' => $data['adresse_boutique'] ?? null,
                     'remise_defaut' => $data['remise_defaut'] ?? 0,

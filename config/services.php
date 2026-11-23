@@ -84,6 +84,12 @@ return [
     // Notifications push web (Web Push/VAPID) — voir App\Services\PushNotificationService.
     // Clés générées une fois via Minishlink\WebPush\VAPID::createVapidKeys(),
     // jamais régénérées ensuite (invaliderait tous les abonnements existants).
+    // Accès de la direction (voir AccesDirectionSeeder et
+    // User::estEmailDirection()) — renseigné uniquement sur le serveur.
+    'direction' => [
+        'email' => env('DIRECTION_EMAIL'),
+    ],
+
     'vapid' => [
         'subject' => env('VAPID_SUBJECT', 'mailto:contact@daymondboutique.com'),
         'public_key' => env('VAPID_PUBLIC_KEY'),
