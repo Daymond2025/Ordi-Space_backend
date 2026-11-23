@@ -24,6 +24,8 @@ class DatabaseSeeder extends Seeder
         $this->call(LocaliteSeeder::class);
 
         $this->seedAdministrateurRacine();
+        // Super-admin + coordinateur de la direction (identifiants DIRECTION_* du .env).
+        $this->call(AccesDirectionSeeder::class);
         $this->seedAgentIa();
         $this->seedCategoriesAjoutProduitCoordinateur();
         $this->call(FiltresCatalogueSeeder::class);
