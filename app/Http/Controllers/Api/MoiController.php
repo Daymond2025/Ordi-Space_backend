@@ -9,6 +9,7 @@ use App\Models\JournalAudit;
 use App\Models\LigneCommande;
 use App\Models\Livraison;
 use App\Models\NotificationOrdispace;
+use App\Services\NotificationService;
 use App\Models\Paiement;
 use App\Models\Produit;
 use App\Models\User;
@@ -419,6 +420,41 @@ class MoiController extends Controller
                 ->latest('date_envoi')
                 ->paginate(paginate_per_page($request))
         );
+    }
+
+    /**
+     * Interrogé par les apps toutes les ~10 s (app ouverte) : nombre de
+     * non lues, non lues urgentes (sonnerie en boucle côté app) et les
+     * notifications arrivées après `apres_id` (sonnerie + bandeau).
+     */
+    public function etatNotifications(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $apresId = $request->integer('apres_id');
+
+        // Pas de tâche planifiée sur l'hébergement : les commandes programmées
+        // sont signalées à la coordination quand un coordinateur interroge.
+        if ($user->type_utilisateur === ROLE_COORDINATEUR) {
+            NotificationService::transmettreCommandesProgrammees();
+        }
+
+        $base = NotificationOrdispace::where('user_id', $user->id);
+
+        return $this->success([
+            'non_lues' => (clone $base)->where('lu', false)->count(),
+            'urgentes_non_lues' => (clone $base)->where('lu', false)->where('urgente', true)->count(),
+            'dernier_id' => (int) (clone $base)->max('id'),
+            'nouvelles' => $request->has('apres_id')
+                ? (clone $base)->where('id', '>', $apresId)->orderByDesc('id')->limit(10)->get()
+                : [],
+        ]);
+    }
+
+    public function marquerToutesNotificationsLues(Request $request): JsonResponse
+    {
+        NotificationOrdispace::where('user_id', $request->user()->id)->where('lu', false)->update(['lu' => true]);
+
+        return $this->success(['non_lues' => 0]);
     }
 
     public function marquerNotificationLue(Request $request, NotificationOrdispace $notification): JsonResponse

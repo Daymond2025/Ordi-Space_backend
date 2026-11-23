@@ -10,6 +10,7 @@ use App\Models\LigneCommandePartenaire;
 use App\Models\NotificationOrdispace;
 use App\Models\RendezVous;
 use App\Services\NotificationAdminService;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -154,7 +155,26 @@ class DemandeSavController extends Controller
             ])],
         ]);
 
+        $avant = $demandeSav->statut_demande;
         $demandeSav->update($data);
+
+        if ($avant !== $data['statut_demande']) {
+            $libelle = [
+                STATUT_DEMANDE_SAV_EN_ATTENTE => 'remise en attente',
+                STATUT_DEMANDE_SAV_PLANIFIEE => 'planifiée',
+                STATUT_DEMANDE_SAV_EN_COURS => 'en cours de traitement',
+                STATUT_DEMANDE_SAV_RESOLUE => 'résolue',
+                STATUT_DEMANDE_SAV_CLOTUREE => 'clôturée',
+            ][$data['statut_demande']];
+
+            NotificationService::notifier(
+                $demandeSav->client_id,
+                'sav_statut',
+                'Suivi de votre demande SAV',
+                "Votre demande SAV n°{$demandeSav->id} est {$libelle}.",
+                "/service/apres-vente",
+            );
+        }
 
         return $this->success($demandeSav->fresh());
     }
@@ -221,6 +241,16 @@ class DemandeSavController extends Controller
             'panne_declaree',
             'Nouvelle déclaration de panne',
             "{$request->user()->nom} a déclaré une panne : « ".substr($data['description_probleme'], 0, 120)." »"
+        );
+
+        // La coordination traite les demandes SAV côté Ordi'Space.
+        NotificationService::notifier(
+            NotificationService::coordinateursDe(),
+            'panne_declaree',
+            'Nouvelle demande SAV',
+            "{$request->user()->nom} a déclaré une panne : « ".mb_substr($data['description_probleme'], 0, 120).' »',
+            '/compte/sav',
+            urgente: true,
         );
 
         return $this->success($demande, status: 201);

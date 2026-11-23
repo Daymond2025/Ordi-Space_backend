@@ -16,6 +16,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Notifications persistantes avec sonnerie (voir NotificationService).
+        \App\Models\Commande::observe(\App\Observers\CommandeObserver::class);
+        \App\Models\Message::observe(\App\Observers\MessageObserver::class);
+
         // Ligne de base sécurité : throttling global de l'API, par utilisateur
         // authentifié ou par IP pour les appels anonymes (cf. étude d'architecture).
         RateLimiter::for('api', function (Request $request) {

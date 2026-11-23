@@ -51,7 +51,10 @@ class Livraison extends Model
             'date_livraison_effective' => now(),
         ]);
 
-        $this->commande()->update(['statut_commande' => STATUT_COMMANDE_LIVREE]);
+        // Mise à jour par le modèle (pas une requête directe) : déclenche
+        // CommandeObserver, qui notifie commercial, client et coordination.
+        Commande::withoutGlobalScopes()->find($this->commande_id)?->update(['statut_commande' => STATUT_COMMANDE_LIVREE]);
+        $this->unsetRelation('commande');
 
         Garantie::genererPourCommande($this->commande);
         $this->commande->crediterParrainageSiEligible();

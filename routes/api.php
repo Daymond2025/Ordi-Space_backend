@@ -158,6 +158,8 @@ Route::prefix('v1')->group(function () {
             Route::get('achats/{ligne}', [MoiController::class, 'achat']);
             Route::get('activites', [MoiController::class, 'activites']);
             Route::get('notifications', [MoiController::class, 'notifications']);
+            Route::get('notifications/etat', [MoiController::class, 'etatNotifications']);
+            Route::patch('notifications/tout-lu', [MoiController::class, 'marquerToutesNotificationsLues']);
             Route::patch('notifications/{notification}/lue', [MoiController::class, 'marquerNotificationLue']);
             Route::get('privileges-utilises', [MoiController::class, 'privilegesUtilises']);
             Route::get('paiements', [MoiController::class, 'paiements']);
