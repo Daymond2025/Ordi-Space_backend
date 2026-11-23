@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\NotificationOrdispace;
 use App\Models\User;
 
 /**
@@ -18,20 +17,13 @@ class NotificationAdminService
 {
     public static function notifierTousLesAdmins(string $type, string $titre, string $contenu): void
     {
-        $adminIds = User::where('type_utilisateur', ROLE_ADMINISTRATEUR)->pluck('id');
-
-        $maintenant = now();
-        $lignes = $adminIds->map(fn ($id) => [
-            'user_id' => $id,
-            'type_notification' => $type,
-            'titre' => $titre,
-            'contenu' => $contenu,
-            'lu' => false,
-            'date_envoi' => $maintenant,
-        ])->all();
-
-        if ($lignes !== []) {
-            NotificationOrdispace::insert($lignes);
-        }
+        // Une par une (NotificationService) : chaque admin reçoit aussi le
+        // push et la sonnerie de l'app Admin.
+        NotificationService::notifier(
+            User::where('type_utilisateur', ROLE_ADMINISTRATEUR)->pluck('id'),
+            $type,
+            $titre,
+            $contenu,
+        );
     }
 }

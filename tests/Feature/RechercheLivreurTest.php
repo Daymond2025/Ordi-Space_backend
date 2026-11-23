@@ -49,12 +49,20 @@ class RechercheLivreurTest extends TestCase
     {
         [$commande, $fournisseur] = $this->creerCommandeValidee();
 
-        $this->mock(PushNotificationService::class, function ($mock) {
-            $mock->shouldReceive('envoyerAuxLivreursDisponibles')->once()
-                ->with('Nouvelle livraison disponible', \Mockery::type('string'), \Mockery::type('array'));
-        });
+        $livreur = User::factory()->create(['type_utilisateur' => ROLE_LIVREUR]);
+        $livreur->assignRole(ROLE_LIVREUR);
+        \App\Models\Livreur::create(['user_id' => $livreur->id, 'disponible' => true, 'type_vehicule' => 'moto']);
 
         $this->actingAs($fournisseur)->postJson("/api/v1/commandes/{$commande->id}/preparee")->assertOk();
+
+        // Notification enregistrée (persistante, urgente) — le push part depuis
+        // NotificationOrdispace::booted().
+        $this->assertDatabaseHas('notifications_ordispace', [
+            'user_id' => $livreur->id,
+            'type_notification' => 'livraison_disponible',
+            'titre' => 'Nouvelle livraison disponible',
+            'urgente' => true,
+        ]);
 
         $this->assertSame(STATUT_COMMANDE_EN_PREPARATION, $commande->fresh()->statut_commande);
         $this->assertSame(STATUT_LIVRAISON_EN_ATTENTE_LIVREUR, $commande->fresh()->livraison->statut_livraison);
@@ -86,14 +94,19 @@ class RechercheLivreurTest extends TestCase
         $this->actingAs($fournisseur)->postJson("/api/v1/commandes/{$commande->id}/preparee")->assertOk();
         $fraisAvant = (float) $commande->fresh()->frais_livraison;
 
-        $this->mock(PushNotificationService::class, function ($mock) {
-            $mock->shouldReceive('envoyerAuxLivreursDisponibles')->once();
-        });
+        $livreur = User::factory()->create(['type_utilisateur' => ROLE_LIVREUR]);
+        $livreur->assignRole(ROLE_LIVREUR);
+        \App\Models\Livreur::create(['user_id' => $livreur->id, 'disponible' => true, 'type_vehicule' => 'moto']);
 
         $reponse = $this->actingAs($fournisseur)->postJson("/api/v1/commandes/{$commande->id}/frais-livraison/augmenter");
 
         $reponse->assertOk();
         $this->assertSame($fraisAvant + FRAIS_LIVRAISON_INCREMENT, (float) $commande->fresh()->frais_livraison);
+        // Les livreurs disponibles sont re-notifiés (frais revus à la hausse).
+        $this->assertDatabaseHas('notifications_ordispace', [
+            'user_id' => $livreur->id,
+            'type_notification' => 'livraison_disponible',
+        ]);
     }
 
     public function test_augmenter_frais_livraison_refuse_hors_recherche(): void

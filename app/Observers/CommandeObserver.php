@@ -48,9 +48,19 @@ class CommandeObserver
         $commercial = N::commercialDe($commande);
         $client = $commande->client_id;
 
+        // Commande traitée : l'alerte « à valider » ne sonne plus chez les
+        // autres coordinateurs ; préparée/expédiée : plus chez le fournisseur.
+        if ($statut !== STATUT_COMMANDE_EN_ATTENTE) {
+            N::desamorcer('commande_nouvelle', $lien);
+        }
+        if (! in_array($statut, [STATUT_COMMANDE_EN_ATTENTE, STATUT_COMMANDE_VALIDEE], true)) {
+            N::desamorcer('commande_a_preparer', $lien);
+        }
+
         switch ($statut) {
             case STATUT_COMMANDE_VALIDEE:
                 N::notifier($commercial, 'commande_validee', 'Commande validée', "La commande n°{$id} a été validée par la coordination.", $lien);
+                N::notifier(N::fournisseursDe($commande), 'commande_a_preparer', 'Commande à préparer', "La commande n°{$id} contient vos produits : préparez le colis.", $lien, urgente: true);
                 N::notifier($client, 'commande_validee', 'Commande confirmée', "Votre commande n°{$id} est confirmée. Nous préparons sa livraison.", "/mes-commandes/{$id}");
                 break;
 

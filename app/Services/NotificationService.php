@@ -54,6 +54,27 @@ class NotificationService
         }
     }
 
+    /**
+     * L'action demandée a été faite (par l'un des destinataires) : les alertes
+     * urgentes correspondantes cessent de sonner chez tout le monde. Elles
+     * restent dans la liste, non lues.
+     */
+    public static function desamorcer(string $type, ?string $lien = null, ?string $debutContenu = null): void
+    {
+        $requete = NotificationOrdispace::where('type_notification', $type)
+            ->where('urgente', true)
+            ->where('lu', false);
+
+        if ($lien !== null) {
+            $requete->where('lien', $lien);
+        }
+        if ($debutContenu !== null) {
+            $requete->where('contenu', 'like', addcslashes($debutContenu, '%_').'%');
+        }
+
+        $requete->update(['urgente' => false]);
+    }
+
     /** Coordinateur en charge de la commande, sinon tous les coordinateurs actifs. */
     public static function coordinateursDe(?Commande $commande = null): array
     {
@@ -77,6 +98,33 @@ class NotificationService
         $estIa = Commercial::where('user_id', $commande->commercial_id)->value('type_commercial') === TYPE_COMMERCIAL_IA;
 
         return $estIa ? null : $commande->commercial_id;
+    }
+
+    /** Fournisseurs (comptes fournisseur) dont un produit figure dans la commande. */
+    public static function fournisseursDe(Commande $commande): array
+    {
+        $ids = \App\Models\LigneCommande::where('commande_id', $commande->id)
+            ->join('produits', 'produits.id', '=', 'lignes_commande.produit_id')
+            ->pluck('produits.fournisseur_id')
+            ->filter()
+            ->unique();
+
+        return User::whereIn('id', $ids)->where('type_utilisateur', ROLE_FOURNISSEUR)->pluck('id')->all();
+    }
+
+    /** Techniciens de maintenance actifs (app Maintenancier). */
+    public static function techniciens(): array
+    {
+        return User::where('type_utilisateur', ROLE_TECHNICIEN_MAINTENANCE)
+            ->where('statut_compte', STATUT_COMPTE_ACTIF)
+            ->pluck('id')
+            ->all();
+    }
+
+    /** Livreurs « en ligne » (Livreur::disponible). */
+    public static function livreursDisponibles(): array
+    {
+        return \App\Models\Livreur::where('disponible', true)->pluck('user_id')->all();
     }
 
     /** Prévient la coordination d'une nouvelle commande (une seule fois). */

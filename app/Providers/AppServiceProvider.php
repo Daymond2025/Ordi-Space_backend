@@ -19,6 +19,8 @@ class AppServiceProvider extends ServiceProvider
         // Notifications persistantes avec sonnerie (voir NotificationService).
         \App\Models\Commande::observe(\App\Observers\CommandeObserver::class);
         \App\Models\Message::observe(\App\Observers\MessageObserver::class);
+        \App\Models\Livraison::observe(\App\Observers\LivraisonObserver::class);
+        \App\Models\Produit::observe(\App\Observers\ProduitObserver::class);
 
         // Ligne de base sécurité : throttling global de l'API, par utilisateur
         // authentifié ou par IP pour les appels anonymes (cf. étude d'architecture).

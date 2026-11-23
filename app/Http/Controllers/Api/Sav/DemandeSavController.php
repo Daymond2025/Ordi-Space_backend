@@ -222,6 +222,7 @@ class DemandeSavController extends Controller
                 'user_id' => $partenaireId,
                 'type_notification' => 'panne_declaree',
                 'titre' => 'Nouvelle déclaration de panne',
+                'urgente' => true,
                 'contenu' => "{$request->user()->nom} a déclaré une panne : « ".mb_substr($data['description_probleme'], 0, 120).' »',
                 'lu' => false,
                 'date_envoi' => now(),
@@ -245,7 +246,7 @@ class DemandeSavController extends Controller
 
         // La coordination traite les demandes SAV côté Ordi'Space.
         NotificationService::notifier(
-            NotificationService::coordinateursDe(),
+            [...NotificationService::coordinateursDe(), ...NotificationService::techniciens()],
             'panne_declaree',
             'Nouvelle demande SAV',
             "{$request->user()->nom} a déclaré une panne : « ".mb_substr($data['description_probleme'], 0, 120).' »',

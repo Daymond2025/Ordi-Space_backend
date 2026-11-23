@@ -131,6 +131,8 @@ class CommandePartenaireClientController extends Controller
             'user_id' => $partenaire->user_id,
             'type_notification' => 'commande_partenaire_nouvelle',
             'titre' => 'Nouvelle commande',
+            'lien' => "/commande/{$commande->id}",
+            'urgente' => true,
             'contenu' => "{$client->nom} a passé la commande {$commande->reference} (".number_format((float) $commande->montant_total, 0, ',', ' ').' F).',
             'lu' => false,
             'date_envoi' => now(),

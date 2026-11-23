@@ -133,6 +133,7 @@ class ApprovisionnementPartenaireController extends Controller
         NotificationOrdispace::create([
             'user_id' => $a->partenaire_id,
             'type_notification' => 'approvisionnement_'.$a->statut,
+            'lien' => '/produits',
             'titre' => $titre,
             'contenu' => $contenu,
             'lu' => false,

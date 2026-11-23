@@ -18,6 +18,7 @@ use App\Models\Privilege;
 use App\Models\Produit;
 use App\Models\User;
 use App\Models\UtilisationPrivilege;
+use App\Services\NotificationService;
 use App\Services\PushNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -635,16 +636,6 @@ class CommandeController extends Controller
             donnees: ['statut_apres' => STATUT_COMMANDE_EN_LIVRAISON, 'livreur_id' => $data['livreur_id']],
         );
 
-        $livreurUser = User::find($data['livreur_id']);
-        if ($livreurUser) {
-            $this->push->envoyer(
-                $livreurUser,
-                'Nouvelle mission assignée',
-                "Le fournisseur t'a assigné la commande n°{$commande->id}.",
-                ['commande_id' => $commande->id]
-            );
-        }
-
         return $this->success($commande->fresh('livraison'));
     }
 
@@ -664,7 +655,14 @@ class CommandeController extends Controller
 
         $corps = "Commande n°{$commande->id}".($zone ? " — {$zone}" : '')." — {$frais} FCFA de frais de livraison.";
 
-        $this->push->envoyerAuxLivreursDisponibles('Nouvelle livraison disponible', $corps, ['commande_id' => $commande->id]);
+        NotificationService::notifier(
+            NotificationService::livreursDisponibles(),
+            'livraison_disponible',
+            'Nouvelle livraison disponible',
+            $corps,
+            '/',
+            urgente: true,
+        );
     }
 
     /**
