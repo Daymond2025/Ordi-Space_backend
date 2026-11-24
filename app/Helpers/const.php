@@ -206,6 +206,11 @@ defined('ACTION_PANIER_AJOUT') || define('ACTION_PANIER_AJOUT', 'panier_ajout');
 defined('ACTION_TUTORIEL_VU') || define('ACTION_TUTORIEL_VU', 'tutoriel_vu');
 defined('ACTION_ACOMPTE_CONFIRMATION_PAYE') || define('ACTION_ACOMPTE_CONFIRMATION_PAYE', 'acompte_confirmation_paye');
 defined('ACTION_COMMANDE_STATUT_MODIFIE') || define('ACTION_COMMANDE_STATUT_MODIFIE', 'commande_statut_modifie');
+// Gestion de l'équipe commerciale par le coordinateur (écran Agent).
+defined('ACTION_COMMERCIAL_CREE') || define('ACTION_COMMERCIAL_CREE', 'commercial_cree');
+defined('ACTION_COMMERCIAL_MODIFIE') || define('ACTION_COMMERCIAL_MODIFIE', 'commercial_modifie');
+defined('ACTION_COMMERCIAL_STATUT') || define('ACTION_COMMERCIAL_STATUT', 'commercial_statut');
+defined('ACTION_COMMERCIAL_SUPPRIME') || define('ACTION_COMMERCIAL_SUPPRIME', 'commercial_supprime');
 defined('ACTION_RECLAMATION_CREEE') || define('ACTION_RECLAMATION_CREEE', 'reclamation_creee');
 defined('ACTION_RECLAMATION_MODIFIEE') || define('ACTION_RECLAMATION_MODIFIEE', 'reclamation_modifiee');
 defined('ACTION_RECLAMATION_ANNULEE') || define('ACTION_RECLAMATION_ANNULEE', 'reclamation_annulee');

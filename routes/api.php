@@ -547,6 +547,13 @@ Route::prefix('v1')->group(function () {
                     ->middleware('permission:'.PERMISSION_COMMERCIAUX_CONSULTER);
                 Route::patch('commerciaux/{commercial}/statut', [CommercialController::class, 'changerStatut'])
                     ->middleware('permission:'.PERMISSION_COMMERCIAUX_GERER);
+                // CRUD de l'équipe commerciale par le coordinateur (écran Agent).
+                Route::post('commerciaux', [CommercialController::class, 'creer'])
+                    ->middleware('permission:'.PERMISSION_COMMERCIAUX_GERER);
+                Route::patch('commerciaux/{commercial}', [CommercialController::class, 'modifier'])
+                    ->middleware('permission:'.PERMISSION_COMMERCIAUX_GERER);
+                Route::delete('commerciaux/{commercial}', [CommercialController::class, 'supprimer'])
+                    ->middleware('permission:'.PERMISSION_COMMERCIAUX_GERER);
                 // Fiche "métier" (entreprise/localisation) — réservée Admin,
                 // jamais Coordinateur (voir CommercialController::modifierProfilAdmin()) :
                 // CRUD complet côté admin, comme pour un livreur.
