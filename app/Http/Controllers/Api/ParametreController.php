@@ -50,6 +50,31 @@ class ParametreController extends Controller
     /** Administrateur uniquement (route sous le préfixe admin). */
     public function modifierContactCommercial(Request $request): JsonResponse
     {
+        $this->enregistrerContact($request, PARAMETRE_CONTACT_COMMERCIAL_APPEL, PARAMETRE_CONTACT_COMMERCIAL_WHATSAPP);
+
+        return $this->success($this->formaterContactCommercial());
+    }
+
+    /**
+     * "Contactez le service" (app Fournisseur) — même principe que le
+     * contact des commerciaux, avec ses propres numéros fixés par l'Admin.
+     */
+    public function contactFournisseur(): JsonResponse
+    {
+        return $this->success($this->formaterContact(PARAMETRE_CONTACT_FOURNISSEUR_APPEL, PARAMETRE_CONTACT_FOURNISSEUR_WHATSAPP));
+    }
+
+    /** Administrateur uniquement (route sous le préfixe admin). */
+    public function modifierContactFournisseur(Request $request): JsonResponse
+    {
+        $this->enregistrerContact($request, PARAMETRE_CONTACT_FOURNISSEUR_APPEL, PARAMETRE_CONTACT_FOURNISSEUR_WHATSAPP);
+
+        return $this->contactFournisseur();
+    }
+
+    /** Valide puis enregistre un couple appel / WhatsApp (au moins 8 chiffres chacun). */
+    private function enregistrerContact(Request $request, string $cleAppel, string $cleWhatsapp): void
+    {
         $numero = ['required', 'string', 'max:30', function (string $attribut, mixed $valeur, \Closure $echec) {
             if (strlen(preg_replace('/\D/', '', (string) $valeur)) < 8) {
                 $echec('Le numéro doit contenir au moins 8 chiffres.');
@@ -58,19 +83,22 @@ class ParametreController extends Controller
 
         $data = $request->validate(['appel' => $numero, 'whatsapp' => $numero]);
 
-        Parametre::ecrire(PARAMETRE_CONTACT_COMMERCIAL_APPEL, normaliser_numero_ci($data['appel']));
-        Parametre::ecrire(PARAMETRE_CONTACT_COMMERCIAL_WHATSAPP, normaliser_numero_ci($data['whatsapp']));
-
-        return $this->success($this->formaterContactCommercial());
+        Parametre::ecrire($cleAppel, normaliser_numero_ci($data['appel']));
+        Parametre::ecrire($cleWhatsapp, normaliser_numero_ci($data['whatsapp']));
     }
 
     private function formaterContactCommercial(): array
     {
-        $whatsapp = Parametre::lire(PARAMETRE_CONTACT_COMMERCIAL_WHATSAPP);
+        return $this->formaterContact(PARAMETRE_CONTACT_COMMERCIAL_APPEL, PARAMETRE_CONTACT_COMMERCIAL_WHATSAPP);
+    }
+
+    private function formaterContact(string $cleAppel, string $cleWhatsapp): array
+    {
+        $whatsapp = Parametre::lire($cleWhatsapp);
 
         return [
             'nom' => "Service Ordi'Space",
-            'appel' => Parametre::lire(PARAMETRE_CONTACT_COMMERCIAL_APPEL),
+            'appel' => Parametre::lire($cleAppel),
             'whatsapp' => $whatsapp,
             'whatsapp_url' => lien_whatsapp($whatsapp),
         ];

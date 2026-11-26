@@ -322,6 +322,9 @@ defined('PARAMETRE_SUPPORT_TELEPHONE') || define('PARAMETRE_SUPPORT_TELEPHONE', 
 // Contact du service pour les commerciaux (écran "Contactez le service" de l'app Commercial) — fixés par l'Admin.
 defined('PARAMETRE_CONTACT_COMMERCIAL_APPEL') || define('PARAMETRE_CONTACT_COMMERCIAL_APPEL', 'contact_commercial_appel');
 defined('PARAMETRE_CONTACT_COMMERCIAL_WHATSAPP') || define('PARAMETRE_CONTACT_COMMERCIAL_WHATSAPP', 'contact_commercial_whatsapp');
+// Contact du service pour les fournisseurs (écran "Contactez le service" de l'app Fournisseur) — fixés par l'Admin.
+defined('PARAMETRE_CONTACT_FOURNISSEUR_APPEL') || define('PARAMETRE_CONTACT_FOURNISSEUR_APPEL', 'contact_fournisseur_appel');
+defined('PARAMETRE_CONTACT_FOURNISSEUR_WHATSAPP') || define('PARAMETRE_CONTACT_FOURNISSEUR_WHATSAPP', 'contact_fournisseur_whatsapp');
 defined('MESSAGE_AUDIO_DOSSIER') || define('MESSAGE_AUDIO_DOSSIER', 'messages/audio');
 // Vidéo et document : aucun précédent dans le code, constantes nouvelles.
 defined('VIDEO_MIMES_AUTORISES') || define('VIDEO_MIMES_AUTORISES', 'mp4,mov,webm');
